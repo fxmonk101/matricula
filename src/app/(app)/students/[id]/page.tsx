@@ -5,7 +5,6 @@ import { requireTenantRole } from '@/server/tenant-context';
 import { buildTranscript } from '@/server/services/gpa.service';
 import { getStudentAccount } from '@/server/services/finance.service';
 import { auditGraduation, classifyDegree } from '@/lib/domain/grading';
-import { formatMoney } from '@/lib/domain/money';
 import { formatDate, titleCase } from '@/lib/utils';
 import {
   Alert,
@@ -31,7 +30,7 @@ export default async function StudentDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { db, school, schoolId } = await requireTenantRole('ADMIN', 'REGISTRAR', 'ADMISSIONS', 'FINANCE', 'INSTRUCTOR');
+  const { db, school, schoolId, money } = await requireTenantRole('ADMIN', 'REGISTRAR', 'ADMISSIONS', 'FINANCE', 'INSTRUCTOR');
   const { id } = await params;
 
   const student = await db.student.findUnique({
@@ -115,10 +114,10 @@ export default async function StudentDetailPage({
         />
         <StatTile
           label="Account balance"
-          value={formatMoney(account.summary.outstandingMinor)}
+          value={money.format(account.summary.outstandingMinor)}
           sublabel={
             account.summary.hasOverdue
-              ? `${formatMoney(account.summary.overdueMinor)} overdue`
+              ? `${money.format(account.summary.overdueMinor)} overdue`
               : 'No overdue balance'
           }
           tone={account.summary.hasOverdue ? 'danger' : account.summary.outstandingMinor > 0 ? 'warning' : 'success'}
@@ -292,12 +291,12 @@ export default async function StudentDetailPage({
                       <Td className="font-mono text-xs">{inv.invoiceNo}</Td>
                       <Td className="text-xs">{inv.term.code}</Td>
                       <Td className="text-xs">{formatDate(inv.dueDate)}</Td>
-                      <Td className="text-right tabular-nums">{formatMoney(inv.totalMinor)}</Td>
+                      <Td className="text-right tabular-nums">{money.format(inv.totalMinor)}</Td>
                       <Td className="text-right tabular-nums text-emerald-700">
-                        {formatMoney(inv.paidMinor)}
+                        {money.format(inv.paidMinor)}
                       </Td>
                       <Td className="text-right font-medium tabular-nums">
-                        {formatMoney(inv.totalMinor - inv.paidMinor)}
+                        {money.format(inv.totalMinor - inv.paidMinor)}
                       </Td>
                       <Td>
                         <Badge tone={toneForStatus(inv.status)}>{titleCase(inv.status)}</Badge>

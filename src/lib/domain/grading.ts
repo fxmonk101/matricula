@@ -47,34 +47,30 @@
  */
 
 import type { AcademicStanding } from './enums';
+import {
+  DEFAULT_GRADING_CONFIG,
+  assertGradingConfigWellFormed,
+  type DegreeClass,
+  type GradeBand,
+  type StandingThresholds,
+} from './config';
+
+export type { GradeBand, StandingThresholds, DegreeClass };
 
 // -----------------------------------------------------------------------------
 // Grading scale
 // -----------------------------------------------------------------------------
 
-export interface GradeBand {
-  /** Inclusive lower bound of the 0-100 total score. */
-  min: number;
-  /** Inclusive upper bound. */
-  max: number;
-  letter: string;
-  point: number;
-  description: string;
-}
-
 /**
- * Institutional grading scale. Bands are contiguous and cover [0, 100] with no
- * gaps and no overlaps — `assertScaleIsWellFormed` proves this at module load
- * in development, so a bad edit fails fast rather than silently mis-grading.
+ * The DEFAULT grading scale — a 4.0 scale on Nigerian percentage cut-offs.
+ *
+ * A school on a different scheme passes its own bands; every function below
+ * takes the scale as an optional parameter defaulting to this one, which is
+ * what lets configuration arrive without changing a single existing call site.
+ * Bands must be contiguous over [0, 100]; `assertGradingConfigWellFormed`
+ * enforces that whenever a school saves a scale.
  */
-export const GRADE_SCALE: readonly GradeBand[] = [
-  { min: 70, max: 100, letter: 'A', point: 4.0, description: 'Excellent' },
-  { min: 60, max: 69.999999, letter: 'B', point: 3.0, description: 'Very Good' },
-  { min: 50, max: 59.999999, letter: 'C', point: 2.0, description: 'Good' },
-  { min: 45, max: 49.999999, letter: 'D', point: 1.0, description: 'Pass' },
-  { min: 40, max: 44.999999, letter: 'E', point: 0.5, description: 'Marginal Pass' },
-  { min: 0, max: 39.999999, letter: 'F', point: 0.0, description: 'Fail' },
-] as const;
+export const GRADE_SCALE: readonly GradeBand[] = DEFAULT_GRADING_CONFIG.scale;
 
 /** Non-numeric grade notations that bypass the scale. */
 export const SPECIAL_GRADES = {
@@ -91,10 +87,10 @@ export const SPECIAL_GRADES = {
 export type SpecialGrade = keyof typeof SPECIAL_GRADES;
 
 /** The minimum grade point that constitutes a pass. Below this, no credit. */
-export const PASSING_GRADE_POINT = 0.5;
+export const PASSING_GRADE_POINT = DEFAULT_GRADING_CONFIG.passingGradePoint;
 
 /** Continuous assessment and examination weightings (must sum to 100). */
-export const ASSESSMENT_WEIGHTS = { ca: 40, exam: 60 } as const;
+export const ASSESSMENT_WEIGHTS = DEFAULT_GRADING_CONFIG.assessmentWeights;
 
 // -----------------------------------------------------------------------------
 // Score -> grade
@@ -123,18 +119,22 @@ export function roundTo(value: number, dp = 2): number {
  * Combine continuous assessment and examination into a 0-100 total.
  * Both components are validated against their policy caps.
  */
-export function computeTotalScore(caScore: number, examScore: number): number {
+export function computeTotalScore(
+  caScore: number,
+  examScore: number,
+  weights: { ca: number; exam: number } = DEFAULT_GRADING_CONFIG.assessmentWeights,
+): number {
   if (!Number.isFinite(caScore) || !Number.isFinite(examScore)) {
     throw new GradingError('Assessment scores must be finite numbers.');
   }
-  if (caScore < 0 || caScore > ASSESSMENT_WEIGHTS.ca) {
+  if (caScore < 0 || caScore > weights.ca) {
     throw new GradingError(
-      `Continuous assessment must be between 0 and ${ASSESSMENT_WEIGHTS.ca}; received ${caScore}.`,
+      `Continuous assessment must be between 0 and ${weights.ca}; received ${caScore}.`,
     );
   }
-  if (examScore < 0 || examScore > ASSESSMENT_WEIGHTS.exam) {
+  if (examScore < 0 || examScore > weights.exam) {
     throw new GradingError(
-      `Examination score must be between 0 and ${ASSESSMENT_WEIGHTS.exam}; received ${examScore}.`,
+      `Examination score must be between 0 and ${weights.exam}; received ${examScore}.`,
     );
   }
   return roundTo(caScore + examScore, 2);
@@ -147,35 +147,31 @@ export function computeTotalScore(caScore: number, examScore: number): number {
  * O(log n) but n is 6 and fixed; the scan is faster in practice and far easier
  * to audit against the published academic regulations.
  */
-export function scoreToGrade(totalScore: number): GradeBand {
+export function scoreToGrade(
+  totalScore: number,
+  scale: readonly GradeBand[] = DEFAULT_GRADING_CONFIG.scale,
+): GradeBand {
   if (!Number.isFinite(totalScore) || totalScore < 0 || totalScore > 100) {
     throw new GradingError(`Total score must be within [0, 100]; received ${totalScore}.`);
   }
-  for (const band of GRADE_SCALE) {
+  // Highest matching band wins, so the scale is scanned from the top down.
+  const ordered = [...scale].sort((a, b) => b.min - a.min);
+  for (const band of ordered) {
     if (totalScore >= band.min) return band;
   }
   // Unreachable while the scale covers 0; kept as a defensive invariant.
   throw new GradingError(`No grade band matched score ${totalScore}.`);
 }
 
-/** Development-time proof that the scale is contiguous and exhaustive. */
+/**
+ * Proof that the DEFAULT scale is contiguous and exhaustive.
+ *
+ * The real check now runs at config-save time via
+ * `assertGradingConfigWellFormed`: a scale a school can edit has to be
+ * validated when it is edited, not when a module happens to load.
+ */
 export function assertScaleIsWellFormed(): void {
-  const sorted = [...GRADE_SCALE].sort((a, b) => a.min - b.min);
-  if (sorted[0].min !== 0) throw new GradingError('Grade scale must start at 0.');
-  if (sorted[sorted.length - 1].max !== 100) throw new GradingError('Grade scale must end at 100.');
-  for (let i = 1; i < sorted.length; i++) {
-    const gap = sorted[i].min - sorted[i - 1].max;
-    if (gap > 0.001) {
-      throw new GradingError(
-        `Gap in grade scale between ${sorted[i - 1].letter} and ${sorted[i].letter}.`,
-      );
-    }
-    if (gap < -0.001) {
-      throw new GradingError(
-        `Overlap in grade scale between ${sorted[i - 1].letter} and ${sorted[i].letter}.`,
-      );
-    }
-  }
+  assertGradingConfigWellFormed(DEFAULT_GRADING_CONFIG);
 }
 
 // -----------------------------------------------------------------------------
@@ -276,10 +272,14 @@ function challengerWins(challenger: GradedAttempt, incumbent: GradedAttempt): bo
  * @param applyRepeatPolicy When true (the CGPA case), collapse repeats to the
  *                       best attempt. When false (the term GPA case), every
  *                       attempt in the term counts as recorded.
+ * @param passingGradePoint The school's pass mark on its own scale — 0.5 on a
+ *                       4.0 scale, but 40 on a percentage scale. Only affects
+ *                       `creditsEarned`; the GPA itself is scale-agnostic.
  */
 export function computeGpa(
   attempts: readonly GradedAttempt[],
   applyRepeatPolicy = true,
+  passingGradePoint: number = DEFAULT_GRADING_CONFIG.passingGradePoint,
 ): GpaResult {
   const { counted, superseded } = applyRepeatPolicy
     ? selectGpaAttempts(attempts)
@@ -300,7 +300,7 @@ export function computeGpa(
     gpaCredits += a.creditHours;
     qualityPoints += a.creditHours * a.gradePoint;
 
-    if (a.gradePoint >= PASSING_GRADE_POINT) {
+    if (a.gradePoint >= passingGradePoint) {
       creditsEarned += a.creditHours;
     }
   }
@@ -321,16 +321,8 @@ export function computeGpa(
 // Academic standing
 // -----------------------------------------------------------------------------
 
-export const STANDING_THRESHOLDS = {
-  deansList: 3.5,
-  good: 2.0,
-  warning: 1.5,
-  probation: 1.0,
-  /** Minimum full-time load for Dean's List eligibility. */
-  deansListMinCredits: 12,
-  /** Consecutive probation terms tolerated before dismissal. */
-  maxConsecutiveProbationTerms: 2,
-} as const;
+/** Thresholds on the DEFAULT 4.0 scale. A school passes its own. */
+export const STANDING_THRESHOLDS: StandingThresholds = DEFAULT_GRADING_CONFIG.standing;
 
 export interface StandingInput {
   cumulativeGpa: number;
@@ -371,7 +363,10 @@ export interface StandingResult {
  * a human decision. Automating a life-altering outcome on a floating-point
  * comparison is precisely the kind of thing that ends up in a lawsuit.
  */
-export function determineAcademicStanding(input: StandingInput): StandingResult {
+export function determineAcademicStanding(
+  input: StandingInput,
+  thresholds: StandingThresholds = DEFAULT_GRADING_CONFIG.standing,
+): StandingResult {
   const {
     cumulativeGpa,
     termGpa,
@@ -380,7 +375,7 @@ export function determineAcademicStanding(input: StandingInput): StandingResult 
     isFirstTerm,
   } = input;
 
-  if (isFirstTerm && cumulativeGpa >= STANDING_THRESHOLDS.probation) {
+  if (isFirstTerm && cumulativeGpa >= thresholds.probation) {
     return {
       standing: 'GOOD',
       reason: 'First term of study — adverse standing is not assessed.',
@@ -388,16 +383,16 @@ export function determineAcademicStanding(input: StandingInput): StandingResult 
     };
   }
 
-  if (cumulativeGpa < STANDING_THRESHOLDS.probation) {
+  if (cumulativeGpa < thresholds.probation) {
     return {
       standing: 'DISMISSED',
-      reason: `CGPA ${cumulativeGpa.toFixed(2)} is below the ${STANDING_THRESHOLDS.probation.toFixed(2)} minimum for continued registration.`,
+      reason: `CGPA ${cumulativeGpa.toFixed(2)} is below the ${thresholds.probation.toFixed(2)} minimum for continued registration.`,
       requiresReview: true,
     };
   }
 
-  if (cumulativeGpa < STANDING_THRESHOLDS.warning) {
-    if (consecutiveProbationTerms >= STANDING_THRESHOLDS.maxConsecutiveProbationTerms) {
+  if (cumulativeGpa < thresholds.warning) {
+    if (consecutiveProbationTerms >= thresholds.maxConsecutiveProbationTerms) {
       return {
         standing: 'DISMISSED',
         reason: `CGPA ${cumulativeGpa.toFixed(2)} after ${consecutiveProbationTerms} consecutive terms on probation.`,
@@ -406,23 +401,23 @@ export function determineAcademicStanding(input: StandingInput): StandingResult 
     }
     return {
       standing: 'PROBATION',
-      reason: `CGPA ${cumulativeGpa.toFixed(2)} is below the ${STANDING_THRESHOLDS.warning.toFixed(2)} probation threshold.`,
+      reason: `CGPA ${cumulativeGpa.toFixed(2)} is below the ${thresholds.warning.toFixed(2)} probation threshold.`,
       requiresReview: false,
     };
   }
 
-  if (cumulativeGpa < STANDING_THRESHOLDS.good) {
+  if (cumulativeGpa < thresholds.good) {
     return {
       standing: 'WARNING',
-      reason: `CGPA ${cumulativeGpa.toFixed(2)} is below the ${STANDING_THRESHOLDS.good.toFixed(2)} good-standing threshold.`,
+      reason: `CGPA ${cumulativeGpa.toFixed(2)} is below the ${thresholds.good.toFixed(2)} good-standing threshold.`,
       requiresReview: false,
     };
   }
 
   if (
-    cumulativeGpa >= STANDING_THRESHOLDS.deansList &&
-    termGpa >= STANDING_THRESHOLDS.deansList &&
-    creditsAttemptedThisTerm >= STANDING_THRESHOLDS.deansListMinCredits
+    cumulativeGpa >= thresholds.deansList &&
+    termGpa >= thresholds.deansList &&
+    creditsAttemptedThisTerm >= thresholds.deansListMinCredits
   ) {
     return {
       standing: 'DEANS_LIST',
@@ -442,17 +437,16 @@ export function determineAcademicStanding(input: StandingInput): StandingResult 
 // Degree classification
 // -----------------------------------------------------------------------------
 
-export const DEGREE_CLASSES = [
-  { min: 3.5, label: 'First Class Honours' },
-  { min: 3.0, label: 'Second Class Honours (Upper Division)' },
-  { min: 2.0, label: 'Second Class Honours (Lower Division)' },
-  { min: 1.5, label: 'Third Class Honours' },
-  { min: 1.0, label: 'Pass' },
-  { min: 0.0, label: 'Fail' },
-] as const;
+/** Honours bands on the DEFAULT 4.0 scale. A school passes its own. */
+export const DEGREE_CLASSES: DegreeClass[] = DEFAULT_GRADING_CONFIG.degreeClasses;
 
-export function classifyDegree(cgpa: number): string {
-  for (const c of DEGREE_CLASSES) {
+export function classifyDegree(
+  cgpa: number,
+  classes: readonly DegreeClass[] = DEFAULT_GRADING_CONFIG.degreeClasses,
+): string {
+  // Highest qualifying band wins, so the list is walked from the top down.
+  const ordered = [...classes].sort((a, b) => b.min - a.min);
+  for (const c of ordered) {
     if (cgpa >= c.min) return c.label;
   }
   return 'Fail';

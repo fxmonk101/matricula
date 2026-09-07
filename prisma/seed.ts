@@ -27,6 +27,18 @@
 import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcryptjs';
 
+// The seed builds config through the SAME module the app parses it with, so a
+// seeded school cannot end up with a shape the loader silently rejects.
+import {
+  DEFAULT_ADMISSIONS_CONFIG,
+  DEFAULT_ENROLLMENT_POLICY,
+  DEFAULT_FINANCE_CONFIG,
+  DEFAULT_REGISTRATION_PORTAL_CONFIG,
+  assertGradingConfigWellFormed,
+  gradingPreset,
+} from '../src/lib/domain/config';
+import { scoreToGrade } from '../src/lib/domain/grading';
+
 const db = new PrismaClient();
 
 const PASSWORD = 'Password123!';
@@ -257,56 +269,23 @@ const MIT: SchoolSpec = {
 // -----------------------------------------------------------------------------
 
 function defaultConfig(spec: SchoolSpec) {
-  const max = spec.maxGradePoint;
-  // Same percentage cut-offs, scaled to the school's maximum grade point —
-  // which is exactly the kind of thing that must be per-school data rather
-  // than a constant in the code.
-  const scale = [
-    { min: 70, max: 100, letter: 'A', point: max, description: 'Excellent' },
-    { min: 60, max: 69.999999, letter: 'B', point: max - 1, description: 'Very Good' },
-    { min: 50, max: 59.999999, letter: 'C', point: max - 2, description: 'Good' },
-    { min: 45, max: 49.999999, letter: 'D', point: max - 3, description: 'Pass' },
-    { min: 40, max: 44.999999, letter: 'E', point: Math.max(0.5, max - 3.5), description: 'Marginal Pass' },
-    { min: 0, max: 39.999999, letter: 'F', point: 0, description: 'Fail' },
-  ];
+  // Same percentage cut-offs, scaled to this school's maximum grade point —
+  // exactly the kind of thing that must be per-school data rather than a
+  // constant in the code.
+  const grading = gradingPreset(spec.maxGradePoint);
+  // Fail loudly at seed time rather than shipping a scale the app would reject.
+  assertGradingConfigWellFormed(grading);
 
   return {
-    gradingJson: JSON.stringify({
-      scale,
-      passingGradePoint: 0.5,
-      assessmentWeights: { ca: 40, exam: 60 },
-      standing: {
-        deansList: max * 0.875,
-        good: max * 0.5,
-        warning: max * 0.375,
-        probation: max * 0.25,
-        deansListMinCredits: 12,
-        maxConsecutiveProbationTerms: 2,
-      },
-    }),
+    gradingJson: JSON.stringify(grading),
     enrollmentJson: JSON.stringify({
-      minCreditsPerTerm: 9,
-      maxCreditsPerTerm: 24,
-      maxCreditsWithOverloadApproval: 30,
-      overloadMinCgpa: max * 0.75,
-      outstandingBalanceToleranceMinor: 0,
+      ...DEFAULT_ENROLLMENT_POLICY,
+      overloadMinCgpa: Math.round(spec.maxGradePoint * 0.75 * 100) / 100,
     }),
-    admissionsJson: JSON.stringify({
-      weights: { priorGpa: 0.4, entranceExam: 0.3, essay: 0.15, interview: 0.1, extracurricular: 0.05 },
-      autoRejectThreshold: 40,
-      minReviewsRequired: 2,
-      reviewerDisagreementThreshold: 20,
-      offerValidityDays: 21,
-    }),
+    admissionsJson: JSON.stringify(DEFAULT_ADMISSIONS_CONFIG),
     financeJson: JSON.stringify({
+      ...DEFAULT_FINANCE_CONFIG,
       currency: { code: spec.currencyCode, symbol: spec.currencySymbol, exponent: 2 },
-      holdPolicy: { toleranceMinor: 0, graceDays: 7 },
-      refundSchedule: [
-        { throughWeek: 1, percent: 100 },
-        { throughWeek: 2, percent: 75 },
-        { throughWeek: 4, percent: 50 },
-        { throughWeek: 6, percent: 25 },
-      ],
     }),
     brandingJson: JSON.stringify({
       name: spec.name,
@@ -321,10 +300,7 @@ function defaultConfig(spec: SchoolSpec) {
       dateFormat: 'dd MMM yyyy',
     }),
     registrationPortalJson: JSON.stringify({
-      collectPriorGpa: true,
-      collectEntranceExam: true,
-      requirePersonalStatement: true,
-      minStatementLength: 100,
+      ...DEFAULT_REGISTRATION_PORTAL_CONFIG,
       openProgramCodes: spec.programs.map((p) => p.code),
     }),
   };
@@ -535,15 +511,11 @@ async function gradeEnrollment(
   maxPoint: number,
 ) {
   const total = ca + exam;
-  const bands: [number, string, number][] = [
-    [70, 'A', maxPoint],
-    [60, 'B', maxPoint - 1],
-    [50, 'C', maxPoint - 2],
-    [45, 'D', maxPoint - 3],
-    [40, 'E', Math.max(0.5, maxPoint - 3.5)],
-    [0, 'F', 0],
-  ];
-  const [, letter, point] = bands.find(([min]) => total >= min)!;
+  // Grade through the SAME scale the app uses. The seed previously had its own
+  // band arithmetic, which meant a freshly seeded grade disagreed with what the
+  // app would compute for the identical score — and the disagreement only
+  // surfaced the first time anything recomputed.
+  const { letter, point } = scoreToGrade(total, gradingPreset(maxPoint).scale);
 
   await db.enrollment.create({
     data: {

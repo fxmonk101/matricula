@@ -11,6 +11,7 @@ import {
 import { SEAT_CONSUMING_STATUSES } from '@/lib/domain/enums';
 import { summariseAccount } from '@/lib/domain/finance';
 import { recordAudit } from './audit.service';
+import { loadSchoolConfig } from '@/server/school-config';
 
 /**
  * =============================================================================
@@ -68,6 +69,7 @@ export async function registerForOffering(params: {
 }): Promise<RegistrationResult> {
   const now = params.now ?? new Date();
   const db = dbFor(params.schoolId);
+  const { enrollment: policy } = await loadSchoolConfig(params.schoolId);
 
   try {
     return await db.$transaction(async (tx) => {
@@ -162,6 +164,7 @@ export async function registerForOffering(params: {
           offeringLabel: `${e.offering.course.code}-${e.offering.section}`,
           meetings: e.offering.meetings as MeetingSlot[],
         })),
+        policy,
         alreadyEnrolled: allEnrollments.some(
           (e) =>
             e.offeringId === offering.id &&

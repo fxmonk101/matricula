@@ -1,13 +1,13 @@
 # Platform Roadmap
 ## From single-university SIS → multi-tenant school platform
 
-**Status:** Phase 0 **complete**. Phase 1 next. Phases ship independently; each ends with a green build, green tests, and a demoable app.
+**Status:** Phases 0 and 1 **complete**. Phase 2 next. Phases ship independently; each ends with a green build, green tests, and a demoable app.
 
 | Phase | State |
 |---|---|
 | 0 — Tenancy & identity foundation | ✅ Done — 20 isolation tests, verified end-to-end in the running app |
-| 1 — Per-school configuration & setup console | Next |
-| 2 — K-12 academic model & guardians | Planned |
+| 1 — Per-school configuration & setup console | ✅ Done — config drives grading, currency and rules; 24 new tests |
+| 2 — K-12 academic model & guardians | Next |
 | 3 — Org hierarchy, tasks, notifications, shell | Planned |
 | 4 — Forums | Planned |
 | 5 — Digital resource library | Planned |
@@ -98,7 +98,40 @@ only surface with a second tenant present:
 
 ---
 
-## Phase 1 — Per-school configuration and setup console
+## Phase 1 — Per-school configuration and setup console ✅
+
+### What shipped
+
+Every policy constant is now per-school DATA. `src/lib/domain/config.ts` holds
+the types, Zod schemas, presets and validators; the pure functions take an
+optional config parameter **defaulting to the previous constant**, which is how
+148 existing tests stayed green through the refactor.
+
+`src/server/school-config.ts` loads and memoises the parsed bundle;
+`/settings/school` lets an administrator edit grading, enrolment rules, the
+admissions rubric and branding, with contiguity and weight-sum validation at
+save time rather than module load.
+
+**Verified live:** the same score of 84 grades to 4.00 points at Golden Eagles
+and 5.00 at Meridian; a CGPA of 2.20 is good standing at one and a warning at
+the other; students see ₦ or ₵ according to their school; and switching
+Meridian's scale to 4.0 and back round-trips every CGPA exactly.
+
+### Three defects found, all the same shape
+
+Each was code computing grades with its own arithmetic instead of the shared
+scale — invisible until a second scale existed:
+
+1. **Seeded config failed validation silently.** It lacked `maxGradePoint` and
+   `degreeClasses`, so the loader fell back to defaults and *both* schools ran
+   on 4.0. The seed now builds config through the same module the app parses.
+2. **A scale change moved nothing.** `recomputeStudentAcademics` aggregated the
+   *stored* grade points, so a school could change its scale and see no effect
+   on any transcript. It now re-derives letter and point from the stored raw
+   score — the score is the fact, the grade is an interpretation of it.
+3. **The seed graded on different maths than the app** (`max - 1` for a B
+   versus `max/4` steps), so a freshly seeded 5.0 grade disagreed with what the
+   app would compute for the identical score.
 
 **Config refactor.** Every hard-coded policy constant becomes per-school data. New pure module `src/lib/domain/config.ts` holds the types, Zod schemas, and named presets (`DEFAULT_`, `NIGERIAN_5POINT_`, `US_4POINT_`, `UK_HONOURS_`, `IB_`).
 

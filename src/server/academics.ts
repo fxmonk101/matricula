@@ -15,8 +15,10 @@ import { dbFor } from '@/lib/tenant';
 import {
   computeGpa,
   determineAcademicStanding,
+  scoreToGrade,
   type GradedAttempt,
 } from '@/lib/domain/grading';
+import { loadSchoolConfig } from './school-config';
 
 /**
  * Recompute every derived academic figure for one student:
@@ -35,6 +37,10 @@ export async function recomputeStudentAcademics(
   studentId: string,
 ): Promise<void> {
   const db = dbFor(schoolId);
+  // The school's own scale: a 5.0 school's pass mark and standing thresholds
+  // are not the 4.0 defaults, and using the defaults here would quietly
+  // mis-classify every student it has.
+  const { grading } = await loadSchoolConfig(schoolId);
   const student = await db.student.findUnique({
     where: { id: studentId },
     select: { id: true },
@@ -61,21 +67,51 @@ export async function recomputeStudentAcademics(
 
   const sequenceOfTerm = new Map(termOrder.map((t, i) => [t.termId, i + 1]));
 
-  const attempts: (GradedAttempt & { termId: string })[] = enrollments.map((e) => ({
-    enrollmentId: e.id,
-    courseId: e.offering.courseId,
-    courseCode: e.offering.course.code,
-    courseTitle: e.offering.course.title,
-    creditHours: e.offering.course.creditHours,
-    gradePoint: e.gradePoint,
-    letterGrade: e.letterGrade,
-    totalScore: e.totalScore,
-    termSequence: sequenceOfTerm.get(e.offering.termId) ?? 0,
-    termId: e.offering.termId,
-  }));
+  /*
+   * RE-DERIVE the letter and point from the stored raw score.
+   *
+   * `gradePoint` is a DERIVED value — score, then scale, then point — so it is
+   * regenerated here rather than trusted. Aggregating the stored points instead
+   * would mean a school could change its grading scale and see no effect on any
+   * transcript, because every enrollment still carries the point it was awarded
+   * under the old scale. The raw `totalScore` is the fact; the letter and the
+   * point are an interpretation of it, and the interpretation belongs to
+   * whichever scale the school currently publishes.
+   *
+   * Rows with no `totalScore` — withdrawals carrying a "W", anything still
+   * in progress — keep their null point and stay out of the GPA entirely.
+   */
+  const regraded = enrollments.map((e) => {
+    const band = e.totalScore === null ? null : scoreToGrade(e.totalScore, grading.scale);
+    return { row: e, letterGrade: band?.letter ?? e.letterGrade, gradePoint: band?.point ?? null };
+  });
+
+  // Persist any re-grade so the transcript and the GPA never disagree.
+  for (const { row, letterGrade, gradePoint } of regraded) {
+    if (row.letterGrade === letterGrade && row.gradePoint === gradePoint) continue;
+    await db.enrollment.update({
+      where: { id: row.id },
+      data: { letterGrade, gradePoint },
+    });
+  }
+
+  const attempts: (GradedAttempt & { termId: string })[] = regraded.map(
+    ({ row: e, letterGrade, gradePoint }) => ({
+      enrollmentId: e.id,
+      courseId: e.offering.courseId,
+      courseCode: e.offering.course.code,
+      courseTitle: e.offering.course.title,
+      creditHours: e.offering.course.creditHours,
+      gradePoint,
+      letterGrade,
+      totalScore: e.totalScore,
+      termSequence: sequenceOfTerm.get(e.offering.termId) ?? 0,
+      termId: e.offering.termId,
+    }),
+  );
 
   // --- Repeat policy: mark superseded attempts --------------------------------
-  const cumulative = computeGpa(attempts, true);
+  const cumulative = computeGpa(attempts, true, grading.passingGradePoint);
   const supersededSet = new Set(cumulative.supersededEnrollmentIds);
 
   await db.enrollment.updateMany({
@@ -97,22 +133,25 @@ export async function recomputeStudentAcademics(
   for (const [index, term] of termOrder.entries()) {
     const termAttempts = attempts.filter((a) => a.termId === term.termId);
     // Term GPA counts every attempt in the term as recorded — no repeat policy.
-    const termResult = computeGpa(termAttempts, false);
+    const termResult = computeGpa(termAttempts, false, grading.passingGradePoint);
 
     // Running CGPA: every attempt up to and including this term, with the
     // repeat policy applied across the whole window.
     const throughThisTerm = attempts.filter(
       (a) => (sequenceOfTerm.get(a.termId) ?? 0) <= index + 1,
     );
-    const cumulativeResult = computeGpa(throughThisTerm, true);
+    const cumulativeResult = computeGpa(throughThisTerm, true, grading.passingGradePoint);
 
-    const standing = determineAcademicStanding({
-      cumulativeGpa: cumulativeResult.gpa,
-      termGpa: termResult.gpa,
-      creditsAttemptedThisTerm: termResult.creditsAttempted,
-      consecutiveProbationTerms,
-      isFirstTerm: index === 0,
-    });
+    const standing = determineAcademicStanding(
+      {
+        cumulativeGpa: cumulativeResult.gpa,
+        termGpa: termResult.gpa,
+        creditsAttemptedThisTerm: termResult.creditsAttempted,
+        consecutiveProbationTerms,
+        isFirstTerm: index === 0,
+      },
+      grading.standing,
+    );
 
     consecutiveProbationTerms =
       standing.standing === 'PROBATION' ? consecutiveProbationTerms + 1 : 0;

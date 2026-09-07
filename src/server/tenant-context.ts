@@ -4,6 +4,9 @@ import { cache } from 'react';
 import { redirect } from 'next/navigation';
 
 import { dbFor, platformDb, type TenantClient } from '@/lib/tenant';
+import { loadSchoolConfig } from './school-config';
+import { makeMoney, type Money } from '@/lib/domain/money';
+import type { SchoolConfigBundle } from '@/lib/domain/config';
 import { getSession } from '@/lib/auth/session';
 import type { SessionClaims } from '@/lib/auth/jwt';
 import type { AcademicModel, Role } from '@/lib/domain/enums';
@@ -44,6 +47,10 @@ export interface TenantContext {
   membershipId: string;
   /** Tenant-scoped Prisma client. Use this, not the bare `db`. */
   db: TenantClient;
+  /** This school's grading scale, credit limits, rubric, currency, branding. */
+  config: SchoolConfigBundle;
+  /** Formatters bound to this school's currency. */
+  money: Money;
   isPlatformAdmin: boolean;
 }
 
@@ -86,6 +93,8 @@ export const getTenantContext = cache(async (): Promise<TenantContext | null> =>
   // staff should not keep working off a token minted before the suspension.
   if (!school || school.status === 'SUSPENDED') return null;
 
+  const config = await loadSchoolConfig(school.id);
+
   return {
     session,
     schoolId: school.id,
@@ -93,6 +102,8 @@ export const getTenantContext = cache(async (): Promise<TenantContext | null> =>
     role: session.role,
     membershipId: session.mbr,
     db: dbFor(school.id),
+    config,
+    money: makeMoney(config.finance.currency),
     isPlatformAdmin: session.pa === true,
   };
 });

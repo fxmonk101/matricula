@@ -14,21 +14,19 @@
 
 import { PASSING_GRADE_POINT } from './grading';
 import { DAY_NAMES } from './enums';
+import { DEFAULT_ENROLLMENT_POLICY, type EnrollmentPolicy } from './config';
+
+export type { EnrollmentPolicy };
 
 // -----------------------------------------------------------------------------
 // Policy constants
 // -----------------------------------------------------------------------------
 
-export const REGISTRATION_POLICY = {
-  minCreditsPerTerm: 9,
-  maxCreditsPerTerm: 24,
-  /** Registrar-approved overload ceiling. */
-  maxCreditsWithOverloadApproval: 30,
-  /** CGPA at or above which an overload may be requested. */
-  overloadMinCgpa: 3.0,
-  /** Outstanding balance (minor units) tolerated before registration is blocked. */
-  outstandingBalanceToleranceMinor: 0,
-} as const;
+/**
+ * The DEFAULT registration policy. A school passes its own through
+ * `EligibilityInput.policy`; this is what applies when it does not.
+ */
+export const REGISTRATION_POLICY: EnrollmentPolicy = DEFAULT_ENROLLMENT_POLICY;
 
 // -----------------------------------------------------------------------------
 // Timetable conflict detection
@@ -233,6 +231,8 @@ export interface EligibilityInput {
   alreadyEnrolled: boolean;
   /** Registrar override for the credit ceiling. */
   hasOverloadApproval: boolean;
+  /** This school's credit ceilings and tolerances. Defaults when omitted. */
+  policy?: EnrollmentPolicy;
 }
 
 export interface EligibilityResult {
@@ -275,6 +275,7 @@ export interface EligibilityResult {
  * else is O(1).
  */
 export function evaluateEligibility(input: EligibilityInput): EligibilityResult {
+  const policy = input.policy ?? DEFAULT_ENROLLMENT_POLICY;
   const reasons: string[] = [];
 
   // R1 — idempotence guard.
@@ -320,7 +321,7 @@ export function evaluateEligibility(input: EligibilityInput): EligibilityResult 
   }
 
   // R6 — finance.
-  if (input.outstandingBalanceMinor > REGISTRATION_POLICY.outstandingBalanceToleranceMinor) {
+  if (input.outstandingBalanceMinor > policy.outstandingBalanceToleranceMinor) {
     reasons.push(
       `An outstanding balance must be settled before registration (see the Finance tab).`,
     );
@@ -351,8 +352,8 @@ export function evaluateEligibility(input: EligibilityInput): EligibilityResult 
   const projectedCredits =
     input.student.registeredCreditsThisTerm + input.offering.creditHours;
   const ceiling = input.hasOverloadApproval
-    ? REGISTRATION_POLICY.maxCreditsWithOverloadApproval
-    : REGISTRATION_POLICY.maxCreditsPerTerm;
+    ? policy.maxCreditsWithOverloadApproval
+    : policy.maxCreditsPerTerm;
   if (projectedCredits > ceiling) {
     reasons.push(
       `This would bring you to ${projectedCredits} credits, above the ${ceiling}-credit maximum.`,

@@ -15,7 +15,7 @@ import {
   Select,
   Textarea,
 } from '@/components/ui';
-import { CURRENCY } from '@/lib/domain/money';
+
 import { titleCase } from '@/lib/utils';
 import {
   recordPaymentAction,
@@ -39,7 +39,13 @@ function Submit({ label, busy, variant }: { label: string; busy: string; variant
   );
 }
 
-export function PaymentPanel({ students }: { students: Option[] }) {
+export function PaymentPanel({
+  students,
+  currencyCode,
+}: {
+  students: Option[];
+  currencyCode: string;
+}) {
   const [state, action] = useActionState<FinanceState, FormData>(recordPaymentAction, {});
 
   return (
@@ -68,7 +74,7 @@ export function PaymentPanel({ students }: { students: Option[] }) {
           </Field>
 
           <div className="grid grid-cols-2 gap-3">
-            <Field label={`Amount (${CURRENCY.code})`} htmlFor="amount" required>
+            <Field label={`Amount (${currencyCode})`} htmlFor="amount" required>
               <Input
                 id="amount"
                 name="amount"

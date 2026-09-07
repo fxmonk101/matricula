@@ -16,6 +16,9 @@
 
 import { assertMinor, sumMinor, type Minor } from './money';
 import type { InvoiceStatus } from './enums';
+import { DEFAULT_FINANCE_CONFIG, type FinanceConfig } from './config';
+
+export type { FinanceConfig };
 
 export class FinanceError extends Error {
   constructor(message: string) {
@@ -413,12 +416,8 @@ export function buildAgeingReport(
 // Financial hold policy
 // -----------------------------------------------------------------------------
 
-export const FINANCIAL_HOLD_POLICY = {
-  /** Balance may not exceed this before a hold is raised. */
-  toleranceMinor: 0,
-  /** Days past due before the hold is raised, giving a short grace period. */
-  graceDays: 7,
-} as const;
+/** The DEFAULT hold policy. A school passes its own. */
+export const FINANCIAL_HOLD_POLICY = DEFAULT_FINANCE_CONFIG.holdPolicy;
 
 export interface HoldRecommendation {
   shouldHold: boolean;
@@ -478,13 +477,8 @@ export function recommendFinancialHold(
 // Refunds
 // -----------------------------------------------------------------------------
 
-export const REFUND_SCHEDULE = [
-  { throughWeek: 1, percent: 100 },
-  { throughWeek: 2, percent: 75 },
-  { throughWeek: 4, percent: 50 },
-  { throughWeek: 6, percent: 25 },
-  { throughWeek: Infinity, percent: 0 },
-] as const;
+/** The DEFAULT refund schedule. A school passes its own. */
+export const REFUND_SCHEDULE = DEFAULT_FINANCE_CONFIG.refundSchedule;
 
 /**
  * Tuition refund on withdrawal, on a declining weekly schedule measured from
@@ -494,13 +488,16 @@ export function computeRefund(
   paidMinor: Minor,
   termStart: Date,
   withdrawalDate: Date,
+  schedule: readonly { throughWeek: number; percent: number }[] = DEFAULT_FINANCE_CONFIG.refundSchedule,
 ): { percent: number; refundMinor: Minor; weeksElapsed: number } {
   const elapsedMs = Math.max(0, withdrawalDate.getTime() - termStart.getTime());
   const weeksElapsed = Math.floor(elapsedMs / (7 * MS_PER_DAY)) + 1;
 
-  const band = REFUND_SCHEDULE.find((b) => weeksElapsed <= b.throughWeek) ?? {
-    percent: 0,
-  };
+  // Bands are walked in ascending week order; past the last one the refund is
+  // nil, which is why no explicit Infinity band is needed.
+  const band = [...schedule]
+    .sort((a, b) => a.throughWeek - b.throughWeek)
+    .find((b) => weeksElapsed <= b.throughWeek) ?? { percent: 0 };
 
   return {
     percent: band.percent,

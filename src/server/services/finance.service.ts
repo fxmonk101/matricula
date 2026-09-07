@@ -11,7 +11,8 @@ import {
   summariseAccount,
   type DiscountSpec,
 } from '@/lib/domain/finance';
-import { formatMoney, type Minor } from '@/lib/domain/money';
+import { makeMoney, type Minor } from '@/lib/domain/money';
+import { loadSchoolConfig } from '@/server/school-config';
 import { nextInvoiceNumber, nextReceiptNumber } from './sequence.service';
 import { recordAudit } from './audit.service';
 
@@ -47,6 +48,11 @@ export async function issueTermInvoice(params: {
   dueDate?: Date;
 }): Promise<{ ok: boolean; message: string; invoiceId?: string }> {
   const db = dbFor(params.schoolId);
+  // Amounts quoted back to the user must be in THIS school's currency —
+  // a Ghanaian bursar should never be shown a Naira sign.
+  const { format: formatMoney } = makeMoney(
+    (await loadSchoolConfig(params.schoolId)).finance.currency,
+  );
   return db.$transaction(async (tx) => {
     const student = await tx.student.findUnique({
       where: { id: params.studentId },
@@ -217,6 +223,8 @@ export async function recordPayment(params: {
   }
 
   const db = dbFor(params.schoolId);
+  const config = await loadSchoolConfig(params.schoolId);
+  const { format: formatMoney } = makeMoney(config.finance.currency);
 
   try {
     return await db.$transaction(async (tx) => {
@@ -342,6 +350,7 @@ export async function recordPayment(params: {
 /** Everything the student-facing finance page needs, in one round trip. */
 export async function getStudentAccount(schoolId: string, studentId: string) {
   const db = dbFor(schoolId);
+  const { finance } = await loadSchoolConfig(schoolId);
   const now = new Date();
 
   const [invoices, payments] = await Promise.all([
@@ -365,7 +374,7 @@ export async function getStudentAccount(schoolId: string, studentId: string) {
     invoices,
     payments,
     summary: summariseAccount(invoices, unappliedCredit, now),
-    holdRecommendation: recommendFinancialHold(invoices, now),
+    holdRecommendation: recommendFinancialHold(invoices, now, finance.holdPolicy),
   };
 }
 

@@ -13,16 +13,18 @@
  * format at the edge.
  */
 
+import { DEFAULT_FINANCE_CONFIG, type CurrencyConfig } from './config';
+
+export type { CurrencyConfig };
 export type Minor = number;
 
-export const CURRENCY = {
-  code: 'NGN',
-  symbol: '₦',
-  /** Number of decimal places in the minor unit. */
-  exponent: 2,
-} as const;
+/**
+ * The DEFAULT currency. Every function below takes an optional currency, so a
+ * school on GHS or USD formats its own money without touching a call site.
+ */
+export const CURRENCY: CurrencyConfig = DEFAULT_FINANCE_CONFIG.currency;
 
-const MINOR_PER_MAJOR = 10 ** CURRENCY.exponent;
+const minorPerMajor = (currency: CurrencyConfig) => 10 ** currency.exponent;
 
 export class MoneyError extends Error {
   constructor(message: string) {
@@ -43,38 +45,65 @@ export function assertMinor(value: number, label = 'amount'): Minor {
 }
 
 /** Convert a major-unit amount (e.g. 1500.75) to minor units (150075). */
-export function toMinor(major: number): Minor {
+export function toMinor(major: number, currency: CurrencyConfig = CURRENCY): Minor {
   if (!Number.isFinite(major)) throw new MoneyError('Amount must be a finite number.');
-  return Math.round((major + Number.EPSILON) * MINOR_PER_MAJOR);
+  return Math.round((major + Number.EPSILON) * minorPerMajor(currency));
 }
 
 /** Convert minor units back to a major-unit number. Use only for display. */
-export function toMajor(minor: Minor): number {
-  return minor / MINOR_PER_MAJOR;
+export function toMajor(minor: Minor, currency: CurrencyConfig = CURRENCY): number {
+  return minor / minorPerMajor(currency);
 }
 
 /** Format minor units for display, e.g. 150075 -> "₦1,500.75". */
-export function formatMoney(minor: Minor, opts?: { symbol?: boolean }): string {
+export function formatMoney(
+  minor: Minor,
+  opts?: { symbol?: boolean; currency?: CurrencyConfig },
+): string {
+  const currency = opts?.currency ?? CURRENCY;
+  const per = minorPerMajor(currency);
   const showSymbol = opts?.symbol ?? true;
   const negative = minor < 0;
   const abs = Math.abs(minor);
-  const major = Math.floor(abs / MINOR_PER_MAJOR);
-  const remainder = abs % MINOR_PER_MAJOR;
+  const major = Math.floor(abs / per);
+  const remainder = abs % per;
 
-  const body = `${major.toLocaleString('en-US')}.${String(remainder).padStart(CURRENCY.exponent, '0')}`;
-  const prefix = showSymbol ? CURRENCY.symbol : '';
-  return `${negative ? '-' : ''}${prefix}${body}`;
+  const fraction =
+    currency.exponent === 0 ? '' : `.${String(remainder).padStart(currency.exponent, '0')}`;
+  const prefix = showSymbol ? currency.symbol : '';
+  return `${negative ? '-' : ''}${prefix}${major.toLocaleString('en-US')}${fraction}`;
 }
 
 /** Compact display for dashboard tiles, e.g. "₦12.4M". */
-export function formatMoneyCompact(minor: Minor): string {
-  const major = Math.abs(toMajor(minor));
+export function formatMoneyCompact(minor: Minor, currency: CurrencyConfig = CURRENCY): string {
+  const major = Math.abs(toMajor(minor, currency));
   const sign = minor < 0 ? '-' : '';
-  if (major >= 1_000_000_000) return `${sign}${CURRENCY.symbol}${(major / 1_000_000_000).toFixed(1)}B`;
-  if (major >= 1_000_000) return `${sign}${CURRENCY.symbol}${(major / 1_000_000).toFixed(1)}M`;
-  if (major >= 1_000) return `${sign}${CURRENCY.symbol}${(major / 1_000).toFixed(1)}K`;
-  return formatMoney(minor);
+  const s = currency.symbol;
+  if (major >= 1_000_000_000) return `${sign}${s}${(major / 1_000_000_000).toFixed(1)}B`;
+  if (major >= 1_000_000) return `${sign}${s}${(major / 1_000_000).toFixed(1)}M`;
+  if (major >= 1_000) return `${sign}${s}${(major / 1_000).toFixed(1)}K`;
+  return formatMoney(minor, { currency });
 }
+
+/**
+ * Bind the formatters to one school's currency for the life of a request.
+ *
+ * Server components and services have a config in scope but no way to thread a
+ * currency through every `formatMoney` call site; this hands them a bound pair
+ * instead, so a page renders Naira or Cedis without each component knowing.
+ */
+export function makeMoney(currency: CurrencyConfig) {
+  return {
+    currency,
+    format: (minor: Minor, opts?: { symbol?: boolean }) =>
+      formatMoney(minor, { ...opts, currency }),
+    formatCompact: (minor: Minor) => formatMoneyCompact(minor, currency),
+    toMinor: (major: number) => toMinor(major, currency),
+    toMajor: (minor: Minor) => toMajor(minor, currency),
+  };
+}
+
+export type Money = ReturnType<typeof makeMoney>;
 
 /**
  * Split an amount into `parts` as evenly as possible with no lost minor units.

@@ -10,6 +10,9 @@
  */
 
 import type { ApplicationStatus, ReviewRecommendation } from './enums';
+import { DEFAULT_ADMISSIONS_CONFIG, type AdmissionsConfig } from './config';
+
+export type { AdmissionsConfig };
 
 // -----------------------------------------------------------------------------
 // Rubric configuration
@@ -20,36 +23,33 @@ import type { ApplicationStatus, ReviewRecommendation } from './enums';
  * `assertWeightsSumToOne`. Each component is on an independent 0-100 scale, so
  * the composite is also 0-100 and directly comparable across cohorts.
  */
-export const ADMISSION_WEIGHTS = {
-  priorGpa: 0.40,
-  entranceExam: 0.30,
-  essay: 0.15,
-  interview: 0.10,
-  extracurricular: 0.05,
-} as const;
+/** The DEFAULT rubric. A school passes its own weights. */
+export const ADMISSION_WEIGHTS = DEFAULT_ADMISSIONS_CONFIG.weights;
 
 export type ScoreComponent = keyof typeof ADMISSION_WEIGHTS;
 
-export function assertWeightsSumToOne(): void {
-  const sum = Object.values(ADMISSION_WEIGHTS).reduce((a, b) => a + b, 0);
+export function assertWeightsSumToOne(
+  weights: AdmissionsConfig['weights'] = DEFAULT_ADMISSIONS_CONFIG.weights,
+): void {
+  const sum = Object.values(weights).reduce((a, b) => a + b, 0);
   if (Math.abs(sum - 1) > 1e-9) {
     throw new Error(`Admission weights must sum to 1.0; they sum to ${sum}.`);
   }
 }
 
 /** Applications below this composite are auto-rejected without committee time. */
-export const AUTO_REJECT_THRESHOLD = 40;
+export const AUTO_REJECT_THRESHOLD = DEFAULT_ADMISSIONS_CONFIG.autoRejectThreshold;
 /** Applications at or above this composite are auto-admitted if capacity allows. */
 export const AUTO_ADMIT_THRESHOLD = 85;
 /** Minimum number of independent reviews before a decision may be issued. */
-export const MIN_REVIEWS_REQUIRED = 2;
+export const MIN_REVIEWS_REQUIRED = DEFAULT_ADMISSIONS_CONFIG.minReviewsRequired;
 /**
  * If two reviewers' composites differ by more than this, the application is
  * flagged for a third adjudicating review rather than averaged. Averaging away
  * genuine disagreement is how bad admissions decisions get laundered into
  * defensible-looking numbers.
  */
-export const REVIEWER_DISAGREEMENT_THRESHOLD = 20;
+export const REVIEWER_DISAGREEMENT_THRESHOLD = DEFAULT_ADMISSIONS_CONFIG.reviewerDisagreementThreshold;
 
 // -----------------------------------------------------------------------------
 // Composite scoring
@@ -97,7 +97,10 @@ function round2(value: number): number {
  *
  * Complexity: O(1) — five fixed components.
  */
-export function computeCompositeScore(inputs: ScoreInputs): CompositeResult {
+export function computeCompositeScore(
+  inputs: ScoreInputs,
+  weights: AdmissionsConfig['weights'] = DEFAULT_ADMISSIONS_CONFIG.weights,
+): CompositeResult {
   const components: { component: ScoreComponent; value: number | null }[] = [
     { component: 'priorGpa', value: inputs.priorGpaScore },
     { component: 'entranceExam', value: inputs.entranceExamScore },
@@ -112,7 +115,7 @@ export function computeCompositeScore(inputs: ScoreInputs): CompositeResult {
   let coverage = 0;
 
   for (const { component, value } of components) {
-    const weight = ADMISSION_WEIGHTS[component];
+    const weight = weights[component];
     if (value === null || !Number.isFinite(value)) {
       missingComponents.push(component);
       continue;
@@ -175,7 +178,10 @@ export interface AggregatedReview {
  *
  * Complexity: O(r) in the number of reviewers.
  */
-export function aggregateReviews(reviews: readonly ReviewerScores[]): AggregatedReview {
+export function aggregateReviews(
+  reviews: readonly ReviewerScores[],
+  disagreementThreshold: number = DEFAULT_ADMISSIONS_CONFIG.reviewerDisagreementThreshold,
+): AggregatedReview {
   if (reviews.length === 0) {
     return {
       academicScore: 0,
@@ -218,7 +224,7 @@ export function aggregateReviews(reviews: readonly ReviewerScores[]): Aggregated
     extracurricularScore: meanOf((r) => r.extracurricularScore),
     reviewCount: reviews.length,
     disagreementSpread,
-    requiresAdjudication: disagreementSpread > REVIEWER_DISAGREEMENT_THRESHOLD,
+    requiresAdjudication: disagreementSpread > disagreementThreshold,
     consensusRecommendation: consensus,
   };
 }
@@ -436,7 +442,7 @@ export function buildApplicationReference(year: number, sequence: number): strin
 // Offer expiry
 // -----------------------------------------------------------------------------
 
-export const OFFER_VALIDITY_DAYS = 21;
+export const OFFER_VALIDITY_DAYS = DEFAULT_ADMISSIONS_CONFIG.offerValidityDays;
 
 export function computeOfferExpiry(decidedAt: Date, validityDays = OFFER_VALIDITY_DAYS): Date {
   const expiry = new Date(decidedAt.getTime());

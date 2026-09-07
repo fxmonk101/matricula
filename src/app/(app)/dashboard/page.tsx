@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { requireTenantRole } from '@/server/tenant-context';
 import { platformDb } from '@/lib/tenant';
 import { getReceivablesPosition } from '@/server/services/finance.service';
-import { formatMoneyCompact, formatMoney } from '@/lib/domain/money';
 import { formatDate, titleCase } from '@/lib/utils';
 import {
   Badge,
@@ -24,7 +23,7 @@ import {
 export const metadata: Metadata = { title: 'Overview' };
 
 export default async function DashboardPage() {
-  const { db, school, schoolId } = await requireTenantRole('ADMIN', 'REGISTRAR');
+  const { db, school, schoolId, money } = await requireTenantRole('ADMIN', 'REGISTRAR');
 
   const currentTerm = await db.term.findFirst({ where: { isCurrent: true } });
 
@@ -107,7 +106,7 @@ export default async function DashboardPage() {
         />
         <StatTile
           label="Outstanding fees"
-          value={formatMoneyCompact(receivables.outstandingMinor)}
+          value={money.formatCompact(receivables.outstandingMinor)}
           sublabel={`${receivables.collectionRate.toFixed(1)}% collected`}
           tone={receivables.outstandingMinor > 0 ? 'danger' : 'success'}
         />
@@ -215,13 +214,13 @@ export default async function DashboardPage() {
                 ).map(([label, value, tone]) => (
                   <div key={label} className="flex justify-between">
                     <dt className="text-slate-500">{label}</dt>
-                    <dd className={`tabular-nums font-medium ${tone}`}>{formatMoney(value)}</dd>
+                    <dd className={`tabular-nums font-medium ${tone}`}>{money.format(value)}</dd>
                   </div>
                 ))}
                 <div className="flex justify-between border-t border-slate-200 pt-1.5">
                   <dt className="font-medium text-slate-700">Total outstanding</dt>
                   <dd className="tabular-nums font-semibold text-slate-900">
-                    {formatMoney(receivables.ageing.totalMinor)}
+                    {money.format(receivables.ageing.totalMinor)}
                   </dd>
                 </div>
               </dl>

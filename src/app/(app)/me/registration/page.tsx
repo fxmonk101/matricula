@@ -5,7 +5,6 @@ import { requireTenantRole } from '@/server/tenant-context';
 import { getStudentAccount } from '@/server/services/finance.service';
 import { REGISTRATION_POLICY, checkPrerequisites, detectTimetableConflicts } from '@/lib/domain/enrollment';
 import { DAY_NAMES } from '@/lib/domain/enums';
-import { formatMoney } from '@/lib/domain/money';
 import { formatDate, formatMinutes, titleCase } from '@/lib/utils';
 import {
   Alert,
@@ -26,7 +25,7 @@ import { RegisterButton, DropButton } from './registration-buttons';
 export const metadata: Metadata = { title: 'Registration' };
 
 export default async function RegistrationPage() {
-  const { db, school, schoolId, session } = await requireTenantRole('STUDENT');
+  const { db, school, schoolId, money, session } = await requireTenantRole('STUDENT');
   if (!session.pid) redirect('/forbidden');
 
   const now = new Date();
@@ -107,7 +106,7 @@ export default async function RegistrationPage() {
   for (const h of student.holds) blockers.push(`${titleCase(h.kind)} hold: ${h.reason}`);
   if (account.summary.outstandingMinor > REGISTRATION_POLICY.outstandingBalanceToleranceMinor) {
     blockers.push(
-      `An outstanding balance of ${formatMoney(account.summary.outstandingMinor)} must be settled first.`,
+      `An outstanding balance of ${money.format(account.summary.outstandingMinor)} must be settled first.`,
     );
   }
 

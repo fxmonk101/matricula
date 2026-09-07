@@ -3,7 +3,6 @@ import { redirect } from 'next/navigation';
 
 import { requireTenantRole } from '@/server/tenant-context';
 import { getStudentAccount } from '@/server/services/finance.service';
-import { formatMoney } from '@/lib/domain/money';
 import { formatDate, formatDateTime, titleCase } from '@/lib/utils';
 import {
   Alert,
@@ -22,7 +21,7 @@ import {
 export const metadata: Metadata = { title: 'My fees' };
 
 export default async function MyFinancePage() {
-  const { db, school, schoolId, session } = await requireTenantRole('STUDENT');
+  const { db, school, schoolId, money, session } = await requireTenantRole('STUDENT');
   if (!session.pid) redirect('/forbidden');
 
   const student = await db.student.findUnique({
@@ -42,34 +41,34 @@ export default async function MyFinancePage() {
 
       {account.summary.hasOverdue ? (
         <Alert tone="danger" title="You have an overdue balance" className="mb-4">
-          {formatMoney(account.summary.overdueMinor)} is past its due date. Registration for the
+          {money.format(account.summary.overdueMinor)} is past its due date. Registration for the
           next term will be blocked until this is settled.
         </Alert>
       ) : null}
 
       {account.summary.creditMinor > 0 ? (
         <Alert tone="info" title="You have a credit balance" className="mb-4">
-          {formatMoney(account.summary.creditMinor)} from an overpayment is held to your account and
+          {money.format(account.summary.creditMinor)} from an overpayment is held to your account and
           will be applied automatically to your next invoice.
         </Alert>
       ) : null}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatTile label="Total billed" value={formatMoney(account.summary.totalBilledMinor)} />
+        <StatTile label="Total billed" value={money.format(account.summary.totalBilledMinor)} />
         <StatTile
           label="Total paid"
-          value={formatMoney(account.summary.totalPaidMinor)}
+          value={money.format(account.summary.totalPaidMinor)}
           tone="success"
         />
         <StatTile
           label="Outstanding"
-          value={formatMoney(account.summary.outstandingMinor)}
+          value={money.format(account.summary.outstandingMinor)}
           tone={account.summary.outstandingMinor > 0 ? 'danger' : 'success'}
           sublabel={account.summary.outstandingMinor === 0 ? 'Account settled' : undefined}
         />
         <StatTile
           label="Credit held"
-          value={formatMoney(account.summary.creditMinor)}
+          value={money.format(account.summary.creditMinor)}
           tone={account.summary.creditMinor > 0 ? 'info' : 'neutral'}
         />
       </div>
@@ -108,10 +107,10 @@ export default async function MyFinancePage() {
                       </Td>
                       <Td className="text-center tabular-nums text-xs">{line.quantity}</Td>
                       <Td className="text-right tabular-nums text-xs">
-                        {formatMoney(line.unitAmountMinor)}
+                        {money.format(line.unitAmountMinor)}
                       </Td>
                       <Td className="text-right tabular-nums font-medium">
-                        {formatMoney(line.amountMinor)}
+                        {money.format(line.amountMinor)}
                       </Td>
                     </tr>
                   ))}
@@ -121,7 +120,7 @@ export default async function MyFinancePage() {
                     <Td colSpan={3} className="text-right text-xs text-slate-500">
                       Subtotal
                     </Td>
-                    <Td className="text-right tabular-nums">{formatMoney(invoice.subtotalMinor)}</Td>
+                    <Td className="text-right tabular-nums">{money.format(invoice.subtotalMinor)}</Td>
                   </tr>
                   {invoice.discountMinor > 0 ? (
                     <tr>
@@ -129,7 +128,7 @@ export default async function MyFinancePage() {
                         Discounts and awards
                       </Td>
                       <Td className="text-right tabular-nums text-emerald-700">
-                        −{formatMoney(invoice.discountMinor)}
+                        −{money.format(invoice.discountMinor)}
                       </Td>
                     </tr>
                   ) : null}
@@ -138,7 +137,7 @@ export default async function MyFinancePage() {
                       Total payable
                     </Td>
                     <Td className="text-right font-semibold tabular-nums">
-                      {formatMoney(invoice.totalMinor)}
+                      {money.format(invoice.totalMinor)}
                     </Td>
                   </tr>
                   <tr>
@@ -146,7 +145,7 @@ export default async function MyFinancePage() {
                       Paid to date
                     </Td>
                     <Td className="text-right tabular-nums text-emerald-700">
-                      {formatMoney(invoice.paidMinor)}
+                      {money.format(invoice.paidMinor)}
                     </Td>
                   </tr>
                   <tr>
@@ -154,7 +153,7 @@ export default async function MyFinancePage() {
                       Balance
                     </Td>
                     <Td className="text-right font-semibold tabular-nums text-slate-900">
-                      {formatMoney(invoice.totalMinor - invoice.paidMinor)}
+                      {money.format(invoice.totalMinor - invoice.paidMinor)}
                     </Td>
                   </tr>
                 </tfoot>
@@ -194,18 +193,18 @@ export default async function MyFinancePage() {
                       ) : (
                         p.allocations.map((a) => (
                           <div key={a.id} className="font-mono text-[11px]">
-                            {a.invoice.invoiceNo} · {formatMoney(a.amountMinor)}
+                            {a.invoice.invoiceNo} · {money.format(a.amountMinor)}
                           </div>
                         ))
                       )}
                       {p.unappliedMinor > 0 ? (
                         <div className="text-[11px] text-sky-700">
-                          {formatMoney(p.unappliedMinor)} unapplied
+                          {money.format(p.unappliedMinor)} unapplied
                         </div>
                       ) : null}
                     </Td>
                     <Td className="text-right font-medium tabular-nums">
-                      {formatMoney(p.amountMinor)}
+                      {money.format(p.amountMinor)}
                     </Td>
                     <Td>
                       <Badge tone={toneForStatus(p.status)}>{titleCase(p.status)}</Badge>

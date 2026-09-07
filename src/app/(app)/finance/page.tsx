@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { requireTenantRole } from '@/server/tenant-context';
 import { getReceivablesPosition } from '@/server/services/finance.service';
 import { AGEING_BUCKETS } from '@/lib/domain/finance';
-import { formatMoney, formatMoneyCompact } from '@/lib/domain/money';
 import { formatDate, formatDateTime, titleCase } from '@/lib/utils';
 import {
   Badge,
@@ -25,7 +24,7 @@ import { PaymentPanel, InvoicePanel, HoldPanel } from './finance-panels';
 export const metadata: Metadata = { title: 'Finance' };
 
 export default async function FinancePage() {
-  const { db, school, schoolId } = await requireTenantRole('ADMIN', 'FINANCE', 'REGISTRAR');
+  const { db, school, schoolId, money, config } = await requireTenantRole('ADMIN', 'FINANCE', 'REGISTRAR');
 
   const [position, overdue, recentPayments, students, terms, activeHolds] = await Promise.all([
     getReceivablesPosition(schoolId),
@@ -71,11 +70,11 @@ export default async function FinancePage() {
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatTile label="Total billed" value={formatMoneyCompact(position.billedMinor)} sublabel={`${position.invoiceCount} invoices`} />
-        <StatTile label="Collected" value={formatMoneyCompact(position.collectedMinor)} tone="success" />
+        <StatTile label="Total billed" value={money.formatCompact(position.billedMinor)} sublabel={`${position.invoiceCount} invoices`} />
+        <StatTile label="Collected" value={money.formatCompact(position.collectedMinor)} tone="success" />
         <StatTile
           label="Outstanding"
-          value={formatMoneyCompact(position.outstandingMinor)}
+          value={money.formatCompact(position.outstandingMinor)}
           tone={position.outstandingMinor > 0 ? 'danger' : 'success'}
         />
         <StatTile
@@ -108,7 +107,7 @@ export default async function FinancePage() {
                 <div key={bucket.key}>
                   <p className="text-[11px] uppercase tracking-wide text-slate-500">{bucket.label}</p>
                   <p className="mt-1 text-lg font-semibold tabular-nums text-slate-900">
-                    {formatMoneyCompact(value)}
+                    {money.formatCompact(value)}
                   </p>
                   <p className="mb-1.5 text-[11px] tabular-nums text-slate-400">
                     {pct.toFixed(1)}% of outstanding
@@ -123,7 +122,7 @@ export default async function FinancePage() {
 
       <div className="mt-4 grid gap-4 lg:grid-cols-3">
         <div className="space-y-4">
-          <PaymentPanel students={studentOptions} />
+          <PaymentPanel students={studentOptions} currencyCode={config.finance.currency.code} />
           <InvoicePanel students={studentOptions} terms={terms} />
           <HoldPanel students={studentOptions} holds={activeHolds.map((h) => ({
             id: h.id,
@@ -185,10 +184,10 @@ export default async function FinancePage() {
                           ) : null}
                         </Td>
                         <Td className="text-right tabular-nums text-xs">
-                          {formatMoney(inv.totalMinor)}
+                          {money.format(inv.totalMinor)}
                         </Td>
                         <Td className="text-right font-medium tabular-nums">
-                          {formatMoney(inv.totalMinor - inv.paidMinor)}
+                          {money.format(inv.totalMinor - inv.paidMinor)}
                         </Td>
                         <Td>
                           <Badge tone={toneForStatus(inv.status)}>{titleCase(inv.status)}</Badge>
@@ -230,10 +229,10 @@ export default async function FinancePage() {
                       <Td className="text-xs">{formatDateTime(p.receivedAt)}</Td>
                       <Td className="text-xs">{titleCase(p.method)}</Td>
                       <Td className="text-right font-medium tabular-nums">
-                        {formatMoney(p.amountMinor)}
+                        {money.format(p.amountMinor)}
                         {p.unappliedMinor > 0 ? (
                           <div className="text-[11px] font-normal text-sky-700">
-                            {formatMoney(p.unappliedMinor)} credit
+                            {money.format(p.unappliedMinor)} credit
                           </div>
                         ) : null}
                       </Td>

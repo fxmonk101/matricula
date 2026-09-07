@@ -25,6 +25,7 @@ const NAV: { href: string; label: string; roles: Role[] }[] = [
   { href: '/me/registration', label: 'Registration', roles: ['STUDENT'] },
   { href: '/me/finance', label: 'My Fees', roles: ['STUDENT'] },
   { href: '/portal', label: 'My Application', roles: ['APPLICANT'] },
+  { href: '/settings/school', label: 'School Setup', roles: ['ADMIN'] },
   { href: '/admin/audit', label: 'Audit Log', roles: ['ADMIN'] },
 ];
 

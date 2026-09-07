@@ -2,6 +2,7 @@ import 'server-only';
 
 import { dbFor } from '@/lib/tenant';
 import { computeTotalScore, scoreToGrade } from '@/lib/domain/grading';
+import { loadSchoolConfig } from '@/server/school-config';
 import { recomputeStudentAcademics, buildTranscript } from '@/server/academics';
 import { recordAudit } from './audit.service';
 
@@ -37,8 +38,10 @@ export async function submitGrade(params: {
   actorId: string;
 }): Promise<{ ok: boolean; message: string }> {
   const db = dbFor(params.schoolId);
-  const total = computeTotalScore(params.caScore, params.examScore);
-  const band = scoreToGrade(total);
+  // Both the assessment caps and the band boundaries are this school's.
+  const { grading } = await loadSchoolConfig(params.schoolId);
+  const total = computeTotalScore(params.caScore, params.examScore, grading.assessmentWeights);
+  const band = scoreToGrade(total, grading.scale);
 
   const enrollment = await db.enrollment.update({
     where: { id: params.enrollmentId },

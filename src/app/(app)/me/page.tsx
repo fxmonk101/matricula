@@ -5,7 +5,6 @@ import { requireTenantRole } from '@/server/tenant-context';
 import { buildTranscript } from '@/server/services/gpa.service';
 import { getStudentAccount } from '@/server/services/finance.service';
 import { auditGraduation, classifyDegree, STANDING_THRESHOLDS } from '@/lib/domain/grading';
-import { formatMoney } from '@/lib/domain/money';
 import { titleCase } from '@/lib/utils';
 import {
   Alert,
@@ -27,7 +26,7 @@ import {
 export const metadata: Metadata = { title: 'My record' };
 
 export default async function MyRecordPage() {
-  const { db, school, schoolId, session } = await requireTenantRole('STUDENT');
+  const { db, school, schoolId, money, session } = await requireTenantRole('STUDENT');
   if (!session.pid) redirect('/forbidden');
 
   const student = await db.student.findUnique({
@@ -126,7 +125,7 @@ export default async function MyRecordPage() {
         />
         <StatTile
           label="Fees outstanding"
-          value={formatMoney(account.summary.outstandingMinor)}
+          value={money.format(account.summary.outstandingMinor)}
           sublabel={account.summary.hasOverdue ? 'Overdue — settle now' : 'Up to date'}
           tone={account.summary.hasOverdue ? 'danger' : account.summary.outstandingMinor > 0 ? 'warning' : 'success'}
         />

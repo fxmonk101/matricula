@@ -15,6 +15,7 @@ import { assertApplicationTransition, type ApplicationStatus } from '@/lib/domai
 import { hashPassword } from '@/lib/auth/session';
 import { nextMatricSequence } from './sequence.service';
 import { recordAudit } from './audit.service';
+import { loadSchoolConfig } from '@/server/school-config';
 
 /**
  * =============================================================================
@@ -32,6 +33,7 @@ import { recordAudit } from './audit.service';
  */
 export async function rescoreApplication(schoolId: string, applicationId: string): Promise<number> {
   const db = dbFor(schoolId);
+  const { admissions } = await loadSchoolConfig(schoolId);
   const application = await db.application.findUnique({
     where: { id: applicationId },
     include: { reviews: true },
@@ -47,6 +49,7 @@ export async function rescoreApplication(schoolId: string, applicationId: string
       extracurricularScore: r.extracurricularScore,
       recommendation: r.recommendation as 'ADMIT' | 'WAITLIST' | 'REJECT',
     })),
+    admissions.reviewerDisagreementThreshold,
   );
 
   const hasReviews = aggregate.reviewCount > 0;
@@ -59,7 +62,7 @@ export async function rescoreApplication(schoolId: string, applicationId: string
     extracurricularScore: hasReviews
       ? aggregate.extracurricularScore
       : application.extracurricularScore,
-  });
+  }, admissions.weights);
 
   await db.application.update({
     where: { id: applicationId },
@@ -95,6 +98,7 @@ export async function runCohortAllocation(params: {
   dryRun: boolean;
 }): Promise<CohortRunSummary> {
   const db = dbFor(params.schoolId);
+  const { admissions } = await loadSchoolConfig(params.schoolId);
   const applications = await db.application.findMany({
     where: {
       programId: params.programId,
@@ -127,7 +131,7 @@ export async function runCohortAllocation(params: {
       extracurricularScore: hasReviews
         ? aggregate.extracurricularScore
         : app.extracurricularScore,
-    });
+    }, admissions.weights);
 
     pool.push({
       applicationId: app.id,
@@ -142,9 +146,11 @@ export async function runCohortAllocation(params: {
   const policy: AllocationPolicy = {
     capacity: params.policy.capacity,
     waitlistCapacity: params.policy.waitlistCapacity,
-    minimumComposite: params.policy.minimumComposite ?? 40,
-    minimumCoverage: params.policy.minimumCoverage ?? 0.7,
-    requiredReviews: params.policy.requiredReviews ?? 2,
+    // The school's own thresholds are the defaults; the committee may tighten
+    // them for a particular run but never sees a hard-coded 40 again.
+    minimumComposite: params.policy.minimumComposite ?? admissions.autoRejectThreshold,
+    minimumCoverage: params.policy.minimumCoverage ?? admissions.minimumCoverage,
+    requiredReviews: params.policy.requiredReviews ?? admissions.minReviewsRequired,
   };
 
   const decisions = allocateCohort(pool, policy);
@@ -191,7 +197,10 @@ export async function runCohortAllocation(params: {
           rankInCohort: decision.rank || null,
           decisionNote: decision.rationale,
           decidedAt: decision.status === 'UNDER_REVIEW' ? null : now,
-          offerExpiresAt: decision.status === 'OFFERED' ? computeOfferExpiry(now) : null,
+          offerExpiresAt:
+            decision.status === 'OFFERED'
+              ? computeOfferExpiry(now, admissions.offerValidityDays)
+              : null,
         },
       });
     }
