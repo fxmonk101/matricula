@@ -11,7 +11,7 @@
  * logic. Duplicated GPA logic is a far worse outcome than a missing guard.
  */
 
-import { db } from '@/lib/db';
+import { dbFor } from '@/lib/tenant';
 import {
   computeGpa,
   determineAcademicStanding,
@@ -30,7 +30,11 @@ import {
  * Complexity: O(n log n) for ordering, O(n · t) for the running CGPA where t is
  * the number of terms. With n ≈ 40 and t ≈ 8 this is negligible.
  */
-export async function recomputeStudentAcademics(studentId: string): Promise<void> {
+export async function recomputeStudentAcademics(
+  schoolId: string,
+  studentId: string,
+): Promise<void> {
+  const db = dbFor(schoolId);
   const student = await db.student.findUnique({
     where: { id: studentId },
     select: { id: true },
@@ -118,6 +122,7 @@ export async function recomputeStudentAcademics(studentId: string): Promise<void
     await db.termGpa.upsert({
       where: { studentId_termId: { studentId, termId: term.termId } },
       create: {
+        schoolId,
         studentId,
         termId: term.termId,
         creditsAttempted: termResult.creditsAttempted,
@@ -158,7 +163,8 @@ export async function recomputeStudentAcademics(studentId: string): Promise<void
 }
 
 /** Full transcript view: every attempt, grouped by term, in academic order. */
-export async function buildTranscript(studentId: string) {
+export async function buildTranscript(schoolId: string, studentId: string) {
+  const db = dbFor(schoolId);
   const student = await db.student.findUnique({
     where: { id: studentId },
     include: {

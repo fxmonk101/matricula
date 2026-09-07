@@ -1,8 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
-import { db } from '@/lib/db';
-import { requireRole } from '@/lib/auth/session';
+import { requireTenantRole } from '@/server/tenant-context';
 import { getReceivablesPosition } from '@/server/services/finance.service';
 import { AGEING_BUCKETS } from '@/lib/domain/finance';
 import { formatMoney, formatMoneyCompact } from '@/lib/domain/money';
@@ -26,10 +25,10 @@ import { PaymentPanel, InvoicePanel, HoldPanel } from './finance-panels';
 export const metadata: Metadata = { title: 'Finance' };
 
 export default async function FinancePage() {
-  await requireRole('ADMIN', 'FINANCE', 'REGISTRAR');
+  const { db, school, schoolId } = await requireTenantRole('ADMIN', 'FINANCE', 'REGISTRAR');
 
   const [position, overdue, recentPayments, students, terms, activeHolds] = await Promise.all([
-    getReceivablesPosition(),
+    getReceivablesPosition(schoolId),
     db.invoice.findMany({
       where: { voidedAt: null, status: { in: ['OVERDUE', 'PARTIALLY_PAID', 'ISSUED'] } },
       include: {

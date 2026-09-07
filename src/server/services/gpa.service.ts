@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { db } from '@/lib/db';
+import { dbFor } from '@/lib/tenant';
 import { computeTotalScore, scoreToGrade } from '@/lib/domain/grading';
 import { recomputeStudentAcademics, buildTranscript } from '@/server/academics';
 import { recordAudit } from './audit.service';
@@ -30,11 +30,13 @@ export { recomputeStudentAcademics, buildTranscript };
  * milliseconds and is always correct by construction.
  */
 export async function submitGrade(params: {
+  schoolId: string;
   enrollmentId: string;
   caScore: number;
   examScore: number;
   actorId: string;
 }): Promise<{ ok: boolean; message: string }> {
+  const db = dbFor(params.schoolId);
   const total = computeTotalScore(params.caScore, params.examScore);
   const band = scoreToGrade(total);
 
@@ -52,9 +54,10 @@ export async function submitGrade(params: {
     include: { offering: { include: { course: true } } },
   });
 
-  await recomputeStudentAcademics(enrollment.studentId);
+  await recomputeStudentAcademics(params.schoolId, enrollment.studentId);
 
   void recordAudit({
+    schoolId: params.schoolId,
     actorId: params.actorId,
     action: 'grade.submit',
     entityType: 'Enrollment',

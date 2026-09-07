@@ -1,4 +1,98 @@
 -- CreateTable
+CREATE TABLE "schools" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "slug" TEXT NOT NULL,
+    "code" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "shortName" TEXT NOT NULL,
+    "academicModel" TEXT NOT NULL DEFAULT 'HIGHER_ED',
+    "status" TEXT NOT NULL DEFAULT 'PROVISIONING',
+    "plan" TEXT,
+    "country" TEXT,
+    "locale" TEXT NOT NULL DEFAULT 'en-NG',
+    "timezone" TEXT NOT NULL DEFAULT 'Africa/Lagos',
+    "currencyCode" TEXT NOT NULL DEFAULT 'NGN',
+    "brandColor" TEXT NOT NULL DEFAULT '#1b5df5',
+    "logoUrl" TEXT,
+    "primaryDomain" TEXT,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL
+);
+
+-- CreateTable
+CREATE TABLE "school_configs" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "schoolId" TEXT NOT NULL,
+    "gradingJson" TEXT NOT NULL,
+    "enrollmentJson" TEXT NOT NULL,
+    "admissionsJson" TEXT NOT NULL,
+    "financeJson" TEXT NOT NULL,
+    "brandingJson" TEXT NOT NULL,
+    "localeJson" TEXT NOT NULL,
+    "registrationPortalJson" TEXT NOT NULL,
+    "updatedAt" DATETIME NOT NULL,
+    CONSTRAINT "school_configs_schoolId_fkey" FOREIGN KEY ("schoolId") REFERENCES "schools" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- CreateTable
+CREATE TABLE "memberships" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "userId" TEXT NOT NULL,
+    "schoolId" TEXT NOT NULL,
+    "role" TEXT NOT NULL,
+    "title" TEXT,
+    "orgUnitId" TEXT,
+    "managerId" TEXT,
+    "isPrimary" BOOLEAN NOT NULL DEFAULT true,
+    "status" TEXT NOT NULL DEFAULT 'ACTIVE',
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL,
+    CONSTRAINT "memberships_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "memberships_schoolId_fkey" FOREIGN KEY ("schoolId") REFERENCES "schools" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "memberships_orgUnitId_fkey" FOREIGN KEY ("orgUnitId") REFERENCES "org_units" ("id") ON DELETE SET NULL ON UPDATE CASCADE,
+    CONSTRAINT "memberships_managerId_fkey" FOREIGN KEY ("managerId") REFERENCES "memberships" ("id") ON DELETE SET NULL ON UPDATE CASCADE
+);
+
+-- CreateTable
+CREATE TABLE "platform_admins" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "userId" TEXT NOT NULL,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "platform_admins_userId_fkey" FOREIGN KEY ("userId") REFERENCES "users" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- CreateTable
+CREATE TABLE "org_units" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "schoolId" TEXT NOT NULL,
+    "code" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "kind" TEXT NOT NULL,
+    "parentId" TEXT,
+    "headMembershipId" TEXT,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT "org_units_schoolId_fkey" FOREIGN KEY ("schoolId") REFERENCES "schools" ("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "org_units_parentId_fkey" FOREIGN KEY ("parentId") REFERENCES "org_units" ("id") ON DELETE SET NULL ON UPDATE CASCADE
+);
+
+-- CreateTable
+CREATE TABLE "identity_providers" (
+    "id" TEXT NOT NULL PRIMARY KEY,
+    "schoolId" TEXT NOT NULL,
+    "kind" TEXT NOT NULL,
+    "displayName" TEXT NOT NULL,
+    "issuer" TEXT,
+    "clientId" TEXT,
+    "clientSecret" TEXT,
+    "metadataUrl" TEXT,
+    "emailDomains" TEXT,
+    "isEnabled" BOOLEAN NOT NULL DEFAULT false,
+    "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" DATETIME NOT NULL,
+    CONSTRAINT "identity_providers_schoolId_fkey" FOREIGN KEY ("schoolId") REFERENCES "schools" ("id") ON DELETE CASCADE ON UPDATE CASCADE
+);
+
+-- CreateTable
 CREATE TABLE "users" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "email" TEXT NOT NULL,
@@ -6,7 +100,6 @@ CREATE TABLE "users" (
     "firstName" TEXT NOT NULL,
     "lastName" TEXT NOT NULL,
     "phone" TEXT,
-    "role" TEXT NOT NULL,
     "isActive" BOOLEAN NOT NULL DEFAULT true,
     "lastLoginAt" DATETIME,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -16,6 +109,7 @@ CREATE TABLE "users" (
 -- CreateTable
 CREATE TABLE "audit_logs" (
     "id" TEXT NOT NULL PRIMARY KEY,
+    "schoolId" TEXT,
     "actorId" TEXT,
     "action" TEXT NOT NULL,
     "entityType" TEXT NOT NULL,
@@ -30,6 +124,7 @@ CREATE TABLE "audit_logs" (
 -- CreateTable
 CREATE TABLE "faculties" (
     "id" TEXT NOT NULL PRIMARY KEY,
+    "schoolId" TEXT NOT NULL,
     "code" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "createdAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
@@ -38,6 +133,7 @@ CREATE TABLE "faculties" (
 -- CreateTable
 CREATE TABLE "departments" (
     "id" TEXT NOT NULL PRIMARY KEY,
+    "schoolId" TEXT NOT NULL,
     "code" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "facultyId" TEXT NOT NULL,
@@ -48,6 +144,7 @@ CREATE TABLE "departments" (
 -- CreateTable
 CREATE TABLE "programs" (
     "id" TEXT NOT NULL PRIMARY KEY,
+    "schoolId" TEXT NOT NULL,
     "code" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "degreeType" TEXT NOT NULL,
@@ -63,6 +160,7 @@ CREATE TABLE "programs" (
 -- CreateTable
 CREATE TABLE "program_requirements" (
     "id" TEXT NOT NULL PRIMARY KEY,
+    "schoolId" TEXT NOT NULL,
     "programId" TEXT NOT NULL,
     "courseId" TEXT NOT NULL,
     "kind" TEXT NOT NULL DEFAULT 'CORE',
@@ -74,6 +172,7 @@ CREATE TABLE "program_requirements" (
 -- CreateTable
 CREATE TABLE "terms" (
     "id" TEXT NOT NULL PRIMARY KEY,
+    "schoolId" TEXT NOT NULL,
     "code" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "academicYear" TEXT NOT NULL,
@@ -91,6 +190,7 @@ CREATE TABLE "terms" (
 -- CreateTable
 CREATE TABLE "courses" (
     "id" TEXT NOT NULL PRIMARY KEY,
+    "schoolId" TEXT NOT NULL,
     "code" TEXT NOT NULL,
     "title" TEXT NOT NULL,
     "description" TEXT,
@@ -105,6 +205,7 @@ CREATE TABLE "courses" (
 -- CreateTable
 CREATE TABLE "prerequisites" (
     "id" TEXT NOT NULL PRIMARY KEY,
+    "schoolId" TEXT NOT NULL,
     "courseId" TEXT NOT NULL,
     "prerequisiteId" TEXT NOT NULL,
     "minGradePoint" REAL NOT NULL DEFAULT 1.0,
@@ -116,6 +217,7 @@ CREATE TABLE "prerequisites" (
 -- CreateTable
 CREATE TABLE "course_offerings" (
     "id" TEXT NOT NULL PRIMARY KEY,
+    "schoolId" TEXT NOT NULL,
     "courseId" TEXT NOT NULL,
     "termId" TEXT NOT NULL,
     "section" TEXT NOT NULL DEFAULT 'A',
@@ -135,6 +237,7 @@ CREATE TABLE "course_offerings" (
 -- CreateTable
 CREATE TABLE "meetings" (
     "id" TEXT NOT NULL PRIMARY KEY,
+    "schoolId" TEXT NOT NULL,
     "offeringId" TEXT NOT NULL,
     "dayOfWeek" INTEGER NOT NULL,
     "startMinute" INTEGER NOT NULL,
@@ -146,6 +249,7 @@ CREATE TABLE "meetings" (
 -- CreateTable
 CREATE TABLE "students" (
     "id" TEXT NOT NULL PRIMARY KEY,
+    "schoolId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "matricNumber" TEXT NOT NULL,
     "programId" TEXT NOT NULL,
@@ -169,6 +273,7 @@ CREATE TABLE "students" (
 -- CreateTable
 CREATE TABLE "instructors" (
     "id" TEXT NOT NULL PRIMARY KEY,
+    "schoolId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "staffNumber" TEXT NOT NULL,
     "departmentId" TEXT NOT NULL,
@@ -182,6 +287,7 @@ CREATE TABLE "instructors" (
 -- CreateTable
 CREATE TABLE "applicants" (
     "id" TEXT NOT NULL PRIMARY KEY,
+    "schoolId" TEXT NOT NULL,
     "userId" TEXT NOT NULL,
     "dateOfBirth" DATETIME,
     "gender" TEXT,
@@ -194,6 +300,7 @@ CREATE TABLE "applicants" (
 -- CreateTable
 CREATE TABLE "applications" (
     "id" TEXT NOT NULL PRIMARY KEY,
+    "schoolId" TEXT NOT NULL,
     "referenceNo" TEXT NOT NULL,
     "applicantId" TEXT NOT NULL,
     "programId" TEXT NOT NULL,
@@ -222,6 +329,7 @@ CREATE TABLE "applications" (
 -- CreateTable
 CREATE TABLE "application_reviews" (
     "id" TEXT NOT NULL PRIMARY KEY,
+    "schoolId" TEXT NOT NULL,
     "applicationId" TEXT NOT NULL,
     "reviewerId" TEXT NOT NULL,
     "academicScore" REAL NOT NULL,
@@ -237,6 +345,7 @@ CREATE TABLE "application_reviews" (
 -- CreateTable
 CREATE TABLE "application_documents" (
     "id" TEXT NOT NULL PRIMARY KEY,
+    "schoolId" TEXT NOT NULL,
     "applicationId" TEXT NOT NULL,
     "kind" TEXT NOT NULL,
     "fileName" TEXT NOT NULL,
@@ -249,6 +358,7 @@ CREATE TABLE "application_documents" (
 -- CreateTable
 CREATE TABLE "enrollments" (
     "id" TEXT NOT NULL PRIMARY KEY,
+    "schoolId" TEXT NOT NULL,
     "studentId" TEXT NOT NULL,
     "offeringId" TEXT NOT NULL,
     "status" TEXT NOT NULL DEFAULT 'REGISTERED',
@@ -270,6 +380,7 @@ CREATE TABLE "enrollments" (
 -- CreateTable
 CREATE TABLE "term_gpas" (
     "id" TEXT NOT NULL PRIMARY KEY,
+    "schoolId" TEXT NOT NULL,
     "studentId" TEXT NOT NULL,
     "termId" TEXT NOT NULL,
     "creditsAttempted" INTEGER NOT NULL,
@@ -286,6 +397,7 @@ CREATE TABLE "term_gpas" (
 -- CreateTable
 CREATE TABLE "holds" (
     "id" TEXT NOT NULL PRIMARY KEY,
+    "schoolId" TEXT NOT NULL,
     "studentId" TEXT NOT NULL,
     "kind" TEXT NOT NULL,
     "reason" TEXT NOT NULL,
@@ -301,6 +413,7 @@ CREATE TABLE "holds" (
 -- CreateTable
 CREATE TABLE "fee_structures" (
     "id" TEXT NOT NULL PRIMARY KEY,
+    "schoolId" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "termId" TEXT NOT NULL,
     "programId" TEXT,
@@ -314,6 +427,7 @@ CREATE TABLE "fee_structures" (
 -- CreateTable
 CREATE TABLE "fee_items" (
     "id" TEXT NOT NULL PRIMARY KEY,
+    "schoolId" TEXT NOT NULL,
     "feeStructureId" TEXT NOT NULL,
     "code" TEXT NOT NULL,
     "description" TEXT NOT NULL,
@@ -326,6 +440,7 @@ CREATE TABLE "fee_items" (
 -- CreateTable
 CREATE TABLE "invoices" (
     "id" TEXT NOT NULL PRIMARY KEY,
+    "schoolId" TEXT NOT NULL,
     "invoiceNo" TEXT NOT NULL,
     "studentId" TEXT NOT NULL,
     "termId" TEXT NOT NULL,
@@ -346,6 +461,7 @@ CREATE TABLE "invoices" (
 -- CreateTable
 CREATE TABLE "invoice_lines" (
     "id" TEXT NOT NULL PRIMARY KEY,
+    "schoolId" TEXT NOT NULL,
     "invoiceId" TEXT NOT NULL,
     "code" TEXT NOT NULL,
     "description" TEXT NOT NULL,
@@ -358,6 +474,7 @@ CREATE TABLE "invoice_lines" (
 -- CreateTable
 CREATE TABLE "payments" (
     "id" TEXT NOT NULL PRIMARY KEY,
+    "schoolId" TEXT NOT NULL,
     "receiptNo" TEXT NOT NULL,
     "studentId" TEXT NOT NULL,
     "amountMinor" INTEGER NOT NULL,
@@ -375,6 +492,7 @@ CREATE TABLE "payments" (
 -- CreateTable
 CREATE TABLE "payment_allocations" (
     "id" TEXT NOT NULL PRIMARY KEY,
+    "schoolId" TEXT NOT NULL,
     "paymentId" TEXT NOT NULL,
     "invoiceId" TEXT NOT NULL,
     "amountMinor" INTEGER NOT NULL,
@@ -386,6 +504,7 @@ CREATE TABLE "payment_allocations" (
 -- CreateTable
 CREATE TABLE "announcements" (
     "id" TEXT NOT NULL PRIMARY KEY,
+    "schoolId" TEXT NOT NULL,
     "title" TEXT NOT NULL,
     "body" TEXT NOT NULL,
     "audience" TEXT NOT NULL DEFAULT '',
@@ -396,10 +515,43 @@ CREATE TABLE "announcements" (
 );
 
 -- CreateIndex
+CREATE UNIQUE INDEX "schools_slug_key" ON "schools"("slug");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "schools_code_key" ON "schools"("code");
+
+-- CreateIndex
+CREATE INDEX "schools_status_idx" ON "schools"("status");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "school_configs_schoolId_key" ON "school_configs"("schoolId");
+
+-- CreateIndex
+CREATE INDEX "memberships_schoolId_role_idx" ON "memberships"("schoolId", "role");
+
+-- CreateIndex
+CREATE INDEX "memberships_managerId_idx" ON "memberships"("managerId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "memberships_userId_schoolId_key" ON "memberships"("userId", "schoolId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "platform_admins_userId_key" ON "platform_admins"("userId");
+
+-- CreateIndex
+CREATE INDEX "org_units_schoolId_parentId_idx" ON "org_units"("schoolId", "parentId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "org_units_schoolId_code_key" ON "org_units"("schoolId", "code");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "identity_providers_schoolId_kind_key" ON "identity_providers"("schoolId", "kind");
+
+-- CreateIndex
 CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
 
 -- CreateIndex
-CREATE INDEX "users_role_idx" ON "users"("role");
+CREATE INDEX "audit_logs_schoolId_createdAt_idx" ON "audit_logs"("schoolId", "createdAt");
 
 -- CreateIndex
 CREATE INDEX "audit_logs_entityType_entityId_idx" ON "audit_logs"("entityType", "entityId");
@@ -408,19 +560,31 @@ CREATE INDEX "audit_logs_entityType_entityId_idx" ON "audit_logs"("entityType", 
 CREATE INDEX "audit_logs_actorId_createdAt_idx" ON "audit_logs"("actorId", "createdAt");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "faculties_code_key" ON "faculties"("code");
+CREATE INDEX "faculties_schoolId_idx" ON "faculties"("schoolId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "departments_code_key" ON "departments"("code");
+CREATE UNIQUE INDEX "faculties_schoolId_code_key" ON "faculties"("schoolId", "code");
+
+-- CreateIndex
+CREATE INDEX "departments_schoolId_idx" ON "departments"("schoolId");
 
 -- CreateIndex
 CREATE INDEX "departments_facultyId_idx" ON "departments"("facultyId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "programs_code_key" ON "programs"("code");
+CREATE UNIQUE INDEX "departments_schoolId_code_key" ON "departments"("schoolId", "code");
+
+-- CreateIndex
+CREATE INDEX "programs_schoolId_idx" ON "programs"("schoolId");
 
 -- CreateIndex
 CREATE INDEX "programs_departmentId_idx" ON "programs"("departmentId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "programs_schoolId_code_key" ON "programs"("schoolId", "code");
+
+-- CreateIndex
+CREATE INDEX "program_requirements_schoolId_idx" ON "program_requirements"("schoolId");
 
 -- CreateIndex
 CREATE INDEX "program_requirements_courseId_idx" ON "program_requirements"("courseId");
@@ -429,13 +593,13 @@ CREATE INDEX "program_requirements_courseId_idx" ON "program_requirements"("cour
 CREATE UNIQUE INDEX "program_requirements_programId_courseId_key" ON "program_requirements"("programId", "courseId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "terms_code_key" ON "terms"("code");
+CREATE INDEX "terms_schoolId_isCurrent_idx" ON "terms"("schoolId", "isCurrent");
 
 -- CreateIndex
-CREATE INDEX "terms_isCurrent_idx" ON "terms"("isCurrent");
+CREATE UNIQUE INDEX "terms_schoolId_code_key" ON "terms"("schoolId", "code");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "courses_code_key" ON "courses"("code");
+CREATE INDEX "courses_schoolId_idx" ON "courses"("schoolId");
 
 -- CreateIndex
 CREATE INDEX "courses_departmentId_idx" ON "courses"("departmentId");
@@ -444,10 +608,19 @@ CREATE INDEX "courses_departmentId_idx" ON "courses"("departmentId");
 CREATE INDEX "courses_level_idx" ON "courses"("level");
 
 -- CreateIndex
+CREATE UNIQUE INDEX "courses_schoolId_code_key" ON "courses"("schoolId", "code");
+
+-- CreateIndex
+CREATE INDEX "prerequisites_schoolId_idx" ON "prerequisites"("schoolId");
+
+-- CreateIndex
 CREATE INDEX "prerequisites_prerequisiteId_idx" ON "prerequisites"("prerequisiteId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "prerequisites_courseId_prerequisiteId_key" ON "prerequisites"("courseId", "prerequisiteId");
+
+-- CreateIndex
+CREATE INDEX "course_offerings_schoolId_idx" ON "course_offerings"("schoolId");
 
 -- CreateIndex
 CREATE INDEX "course_offerings_termId_idx" ON "course_offerings"("termId");
@@ -459,46 +632,58 @@ CREATE INDEX "course_offerings_instructorId_idx" ON "course_offerings"("instruct
 CREATE UNIQUE INDEX "course_offerings_courseId_termId_section_key" ON "course_offerings"("courseId", "termId", "section");
 
 -- CreateIndex
+CREATE INDEX "meetings_schoolId_idx" ON "meetings"("schoolId");
+
+-- CreateIndex
 CREATE INDEX "meetings_offeringId_idx" ON "meetings"("offeringId");
 
 -- CreateIndex
 CREATE INDEX "meetings_dayOfWeek_idx" ON "meetings"("dayOfWeek");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "students_userId_key" ON "students"("userId");
-
--- CreateIndex
-CREATE UNIQUE INDEX "students_matricNumber_key" ON "students"("matricNumber");
+CREATE INDEX "students_schoolId_status_idx" ON "students"("schoolId", "status");
 
 -- CreateIndex
 CREATE INDEX "students_programId_idx" ON "students"("programId");
 
 -- CreateIndex
-CREATE INDEX "students_status_idx" ON "students"("status");
+CREATE UNIQUE INDEX "students_schoolId_userId_key" ON "students"("schoolId", "userId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "instructors_userId_key" ON "instructors"("userId");
+CREATE UNIQUE INDEX "students_schoolId_matricNumber_key" ON "students"("schoolId", "matricNumber");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "instructors_staffNumber_key" ON "instructors"("staffNumber");
+CREATE INDEX "instructors_schoolId_idx" ON "instructors"("schoolId");
 
 -- CreateIndex
 CREATE INDEX "instructors_departmentId_idx" ON "instructors"("departmentId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "applicants_userId_key" ON "applicants"("userId");
+CREATE UNIQUE INDEX "instructors_schoolId_userId_key" ON "instructors"("schoolId", "userId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "applications_referenceNo_key" ON "applications"("referenceNo");
+CREATE UNIQUE INDEX "instructors_schoolId_staffNumber_key" ON "instructors"("schoolId", "staffNumber");
+
+-- CreateIndex
+CREATE INDEX "applicants_schoolId_idx" ON "applicants"("schoolId");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "applicants_schoolId_userId_key" ON "applicants"("schoolId", "userId");
+
+-- CreateIndex
+CREATE INDEX "applications_schoolId_status_idx" ON "applications"("schoolId", "status");
 
 -- CreateIndex
 CREATE INDEX "applications_programId_termId_status_idx" ON "applications"("programId", "termId", "status");
 
 -- CreateIndex
-CREATE INDEX "applications_status_idx" ON "applications"("status");
+CREATE UNIQUE INDEX "applications_schoolId_referenceNo_key" ON "applications"("schoolId", "referenceNo");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "applications_applicantId_programId_termId_key" ON "applications"("applicantId", "programId", "termId");
+
+-- CreateIndex
+CREATE INDEX "application_reviews_schoolId_idx" ON "application_reviews"("schoolId");
 
 -- CreateIndex
 CREATE INDEX "application_reviews_applicationId_idx" ON "application_reviews"("applicationId");
@@ -507,7 +692,13 @@ CREATE INDEX "application_reviews_applicationId_idx" ON "application_reviews"("a
 CREATE UNIQUE INDEX "application_reviews_applicationId_reviewerId_key" ON "application_reviews"("applicationId", "reviewerId");
 
 -- CreateIndex
+CREATE INDEX "application_documents_schoolId_idx" ON "application_documents"("schoolId");
+
+-- CreateIndex
 CREATE INDEX "application_documents_applicationId_idx" ON "application_documents"("applicationId");
+
+-- CreateIndex
+CREATE INDEX "enrollments_schoolId_idx" ON "enrollments"("schoolId");
 
 -- CreateIndex
 CREATE INDEX "enrollments_offeringId_status_idx" ON "enrollments"("offeringId", "status");
@@ -519,40 +710,58 @@ CREATE INDEX "enrollments_studentId_status_idx" ON "enrollments"("studentId", "s
 CREATE UNIQUE INDEX "enrollments_studentId_offeringId_key" ON "enrollments"("studentId", "offeringId");
 
 -- CreateIndex
+CREATE INDEX "term_gpas_schoolId_idx" ON "term_gpas"("schoolId");
+
+-- CreateIndex
 CREATE INDEX "term_gpas_studentId_idx" ON "term_gpas"("studentId");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "term_gpas_studentId_termId_key" ON "term_gpas"("studentId", "termId");
 
 -- CreateIndex
+CREATE INDEX "holds_schoolId_idx" ON "holds"("schoolId");
+
+-- CreateIndex
 CREATE INDEX "holds_studentId_releasedAt_idx" ON "holds"("studentId", "releasedAt");
+
+-- CreateIndex
+CREATE INDEX "fee_structures_schoolId_idx" ON "fee_structures"("schoolId");
 
 -- CreateIndex
 CREATE INDEX "fee_structures_termId_programId_level_idx" ON "fee_structures"("termId", "programId", "level");
 
 -- CreateIndex
+CREATE INDEX "fee_items_schoolId_idx" ON "fee_items"("schoolId");
+
+-- CreateIndex
 CREATE INDEX "fee_items_feeStructureId_idx" ON "fee_items"("feeStructureId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "invoices_invoiceNo_key" ON "invoices"("invoiceNo");
+CREATE INDEX "invoices_schoolId_status_dueDate_idx" ON "invoices"("schoolId", "status", "dueDate");
 
 -- CreateIndex
-CREATE INDEX "invoices_status_dueDate_idx" ON "invoices"("status", "dueDate");
+CREATE UNIQUE INDEX "invoices_schoolId_invoiceNo_key" ON "invoices"("schoolId", "invoiceNo");
 
 -- CreateIndex
 CREATE UNIQUE INDEX "invoices_studentId_termId_key" ON "invoices"("studentId", "termId");
 
 -- CreateIndex
+CREATE INDEX "invoice_lines_schoolId_idx" ON "invoice_lines"("schoolId");
+
+-- CreateIndex
 CREATE INDEX "invoice_lines_invoiceId_idx" ON "invoice_lines"("invoiceId");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "payments_receiptNo_key" ON "payments"("receiptNo");
+CREATE INDEX "payments_schoolId_studentId_receivedAt_idx" ON "payments"("schoolId", "studentId", "receivedAt");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "payments_externalRef_key" ON "payments"("externalRef");
+CREATE UNIQUE INDEX "payments_schoolId_receiptNo_key" ON "payments"("schoolId", "receiptNo");
 
 -- CreateIndex
-CREATE INDEX "payments_studentId_receivedAt_idx" ON "payments"("studentId", "receivedAt");
+CREATE UNIQUE INDEX "payments_schoolId_externalRef_key" ON "payments"("schoolId", "externalRef");
+
+-- CreateIndex
+CREATE INDEX "payment_allocations_schoolId_idx" ON "payment_allocations"("schoolId");
 
 -- CreateIndex
 CREATE INDEX "payment_allocations_invoiceId_idx" ON "payment_allocations"("invoiceId");
@@ -561,4 +770,4 @@ CREATE INDEX "payment_allocations_invoiceId_idx" ON "payment_allocations"("invoi
 CREATE UNIQUE INDEX "payment_allocations_paymentId_invoiceId_key" ON "payment_allocations"("paymentId", "invoiceId");
 
 -- CreateIndex
-CREATE INDEX "announcements_publishedAt_idx" ON "announcements"("publishedAt");
+CREATE INDEX "announcements_schoolId_publishedAt_idx" ON "announcements"("schoolId", "publishedAt");

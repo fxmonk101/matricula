@@ -1,8 +1,7 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
-import { db } from '@/lib/db';
-import { requireRole } from '@/lib/auth/session';
+import { requireTenantRole } from '@/server/tenant-context';
 import { buildTranscript } from '@/server/services/gpa.service';
 import { getStudentAccount } from '@/server/services/finance.service';
 import { auditGraduation, classifyDegree, STANDING_THRESHOLDS } from '@/lib/domain/grading';
@@ -28,7 +27,7 @@ import {
 export const metadata: Metadata = { title: 'My record' };
 
 export default async function MyRecordPage() {
-  const session = await requireRole('STUDENT');
+  const { db, school, schoolId, session } = await requireTenantRole('STUDENT');
   if (!session.pid) redirect('/forbidden');
 
   const student = await db.student.findUnique({
@@ -43,8 +42,8 @@ export default async function MyRecordPage() {
   if (!student) redirect('/forbidden');
 
   const [transcript, account, passed, currentRegistrations] = await Promise.all([
-    buildTranscript(student.id),
-    getStudentAccount(student.id),
+    buildTranscript(schoolId, student.id),
+    getStudentAccount(schoolId, student.id),
     db.enrollment.findMany({
       where: { studentId: student.id, gradePoint: { gte: 0.5 } },
       select: { offering: { select: { courseId: true } } },

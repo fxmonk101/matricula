@@ -1,13 +1,12 @@
 import type { Metadata } from 'next';
 
-import { db } from '@/lib/db';
-import { requireRole } from '@/lib/auth/session';
+import { requireTenantRole } from '@/server/tenant-context';
 import { Badge, Card, EmptyState, PageHeader, Table, Td, Th } from '@/components/ui';
 
 export const metadata: Metadata = { title: 'Course catalogue' };
 
 export default async function CoursesPage() {
-  await requireRole('ADMIN', 'REGISTRAR', 'INSTRUCTOR', 'STUDENT', 'ADMISSIONS');
+  const { db, school, schoolId } = await requireTenantRole('ADMIN', 'REGISTRAR', 'INSTRUCTOR', 'STUDENT', 'ADMISSIONS');
 
   const departments = await db.department.findMany({
     include: {

@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { db } from '@/lib/db';
+import { dbFor } from '@/lib/tenant';
 import {
   allocatePayment,
   assessTermFees,
@@ -38,12 +38,15 @@ import { recordAudit } from './audit.service';
  * and most damaging — bug in university finance systems.
  */
 export async function issueTermInvoice(params: {
+  schoolId: string;
+  schoolCode: string;
   studentId: string;
   termId: string;
   actorId: string;
   discounts?: DiscountSpec[];
   dueDate?: Date;
 }): Promise<{ ok: boolean; message: string; invoiceId?: string }> {
+  const db = dbFor(params.schoolId);
   return db.$transaction(async (tx) => {
     const student = await tx.student.findUnique({
       where: { id: params.studentId },
@@ -109,7 +112,7 @@ export async function issueTermInvoice(params: {
 
       await tx.invoiceLine.deleteMany({ where: { invoiceId: existing.id } });
       await tx.invoiceLine.createMany({
-        data: assessment.lines.map((l) => ({ invoiceId: existing.id, ...l })),
+        data: assessment.lines.map((l) => ({ schoolId: params.schoolId, invoiceId: existing.id, ...l })),
       });
 
       const status = deriveInvoiceStatus(
@@ -134,6 +137,7 @@ export async function issueTermInvoice(params: {
       });
 
       void recordAudit({
+        schoolId: params.schoolId,
         actorId: params.actorId,
         action: 'invoice.reassess',
         entityType: 'Invoice',
@@ -148,9 +152,10 @@ export async function issueTermInvoice(params: {
       };
     }
 
-    const invoiceNo = await nextInvoiceNumber(tx);
+    const invoiceNo = await nextInvoiceNumber(tx, params.schoolCode);
     const invoice = await tx.invoice.create({
       data: {
+        schoolId: params.schoolId,
         invoiceNo,
         studentId: params.studentId,
         termId: params.termId,
@@ -160,11 +165,13 @@ export async function issueTermInvoice(params: {
         paidMinor: 0,
         dueDate,
         status: 'ISSUED',
-        lines: { create: assessment.lines },
+        // Nested writes are not scoped by the tenant extension — stamp explicitly.
+        lines: { create: assessment.lines.map((l) => ({ ...l, schoolId: params.schoolId })) },
       },
     });
 
     void recordAudit({
+      schoolId: params.schoolId,
       actorId: params.actorId,
       action: 'invoice.issue',
       entityType: 'Invoice',
@@ -195,6 +202,8 @@ function defaultDueDate(termStart: Date): Date {
  * and is reported as already-processed rather than crediting the student twice.
  */
 export async function recordPayment(params: {
+  schoolId: string;
+  schoolCode: string;
   studentId: string;
   amountMinor: Minor;
   method: string;
@@ -207,10 +216,14 @@ export async function recordPayment(params: {
     return { ok: false, message: 'Payment amount must be a positive whole number of kobo.' };
   }
 
+  const db = dbFor(params.schoolId);
+
   try {
     return await db.$transaction(async (tx) => {
       if (params.externalRef) {
-        const seen = await tx.payment.findUnique({ where: { externalRef: params.externalRef } });
+        // externalRef is unique PER SCHOOL now, so this is a scoped findFirst
+        // rather than a findUnique on a globally unique column.
+        const seen = await tx.payment.findFirst({ where: { externalRef: params.externalRef } });
         if (seen) {
           return {
             ok: true,
@@ -249,9 +262,10 @@ export async function recordPayment(params: {
         })),
       );
 
-      const receiptNo = await nextReceiptNumber(tx);
+      const receiptNo = await nextReceiptNumber(tx, params.schoolCode);
       const payment = await tx.payment.create({
         data: {
+          schoolId: params.schoolId,
           receiptNo,
           studentId: params.studentId,
           amountMinor: params.amountMinor,
@@ -262,7 +276,7 @@ export async function recordPayment(params: {
           unappliedMinor,
           receivedAt: params.receivedAt ?? new Date(),
           recordedBy: params.actorId,
-          allocations: { create: allocations },
+          allocations: { create: allocations.map((a) => ({ ...a, schoolId: params.schoolId })) },
         },
       });
 
@@ -299,6 +313,7 @@ export async function recordPayment(params: {
       }
 
       void recordAudit({
+        schoolId: params.schoolId,
         actorId: params.actorId,
         action: 'payment.record',
         entityType: 'Payment',
@@ -325,7 +340,8 @@ export async function recordPayment(params: {
 }
 
 /** Everything the student-facing finance page needs, in one round trip. */
-export async function getStudentAccount(studentId: string) {
+export async function getStudentAccount(schoolId: string, studentId: string) {
+  const db = dbFor(schoolId);
   const now = new Date();
 
   const [invoices, payments] = await Promise.all([
@@ -354,7 +370,8 @@ export async function getStudentAccount(studentId: string) {
 }
 
 /** Institution-wide receivables position for the bursary dashboard. */
-export async function getReceivablesPosition() {
+export async function getReceivablesPosition(schoolId: string) {
+  const db = dbFor(schoolId);
   const now = new Date();
   const invoices = await db.invoice.findMany({
     select: { totalMinor: true, paidMinor: true, dueDate: true, voidedAt: true },
@@ -378,7 +395,8 @@ export async function getReceivablesPosition() {
  * that had drifted. Run this on a schedule; a non-empty result is a bug, not a
  * routine correction, and should page someone.
  */
-export async function reconcileInvoices(): Promise<{ repaired: string[] }> {
+export async function reconcileInvoices(schoolId: string): Promise<{ repaired: string[] }> {
+  const db = dbFor(schoolId);
   const invoices = await db.invoice.findMany({
     include: { allocations: { select: { amountMinor: true } } },
   });
@@ -416,7 +434,8 @@ export async function reconcileInvoices(): Promise<{ repaired: string[] }> {
  * Status is derived, so this only materialises the passage of time; nothing
  * here can change an amount.
  */
-export async function markOverdueInvoices(): Promise<{ updated: number }> {
+export async function markOverdueInvoices(schoolId: string): Promise<{ updated: number }> {
+  const db = dbFor(schoolId);
   const now = new Date();
   const result = await db.invoice.updateMany({
     where: {

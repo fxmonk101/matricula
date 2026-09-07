@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 
-import { requireRole } from '@/lib/auth/session';
+import { requireTenantRole } from '@/server/tenant-context';
 import { listAudit } from '@/server/services/audit.service';
 import { formatDateTime, titleCase } from '@/lib/utils';
 import {
@@ -18,9 +18,9 @@ import {
 export const metadata: Metadata = { title: 'Audit log' };
 
 export default async function AuditPage() {
-  await requireRole('ADMIN');
+  const { db, school, schoolId } = await requireTenantRole('ADMIN');
 
-  const entries = await listAudit(200);
+  const entries = await listAudit(schoolId, 200);
 
   return (
     <>
@@ -72,9 +72,7 @@ export default async function AuditPage() {
                     {entry.actor ? (
                       <>
                         {entry.actor.firstName} {entry.actor.lastName}
-                        <div className="mt-0.5">
-                          <Badge tone="neutral">{titleCase(entry.actor.role)}</Badge>
-                        </div>
+                        <div className="mt-0.5 text-[11px] text-slate-400">{entry.actor.email}</div>
                       </>
                     ) : (
                       <span className="text-slate-400">system</span>

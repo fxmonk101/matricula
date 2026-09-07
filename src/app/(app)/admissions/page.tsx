@@ -1,8 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
-import { db } from '@/lib/db';
-import { requireRole } from '@/lib/auth/session';
+import { requireTenantRole } from '@/server/tenant-context';
 import { ADMISSION_WEIGHTS } from '@/lib/domain/admissions';
 import { formatDate, titleCase } from '@/lib/utils';
 import {
@@ -27,7 +26,7 @@ export default async function AdmissionsPage({
 }: {
   searchParams: Promise<{ status?: string; program?: string }>;
 }) {
-  await requireRole('ADMIN', 'ADMISSIONS', 'REGISTRAR');
+  const { db, school, schoolId } = await requireTenantRole('ADMIN', 'ADMISSIONS', 'REGISTRAR');
   const params = await searchParams;
 
   const where = {

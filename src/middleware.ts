@@ -1,37 +1,74 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
 import { SESSION_COOKIE, verifySession } from '@/lib/auth/jwt';
-import { rolesForPath } from '@/lib/auth/rbac';
+import { guardForPath } from '@/lib/auth/rbac';
 import { ROLE_HOME } from '@/lib/domain/enums';
 
 /**
  * Edge middleware: the outermost authentication and route-authorisation gate.
  *
  * This is defence in depth, NOT the security boundary. Every server action and
- * route handler re-checks authorisation against the database. Middleware exists
- * to keep users out of pages they cannot use, cheaply and before any rendering
- * work happens; it must never be the only thing standing between a user and
- * someone else's record.
+ * route handler re-checks authorisation against the database, and every query
+ * runs through a tenant-scoped client. Middleware exists to keep users out of
+ * pages they cannot use, cheaply and before any rendering work happens; it
+ * must never be the only thing standing between a user and someone else's
+ * record — still less someone else's school.
+ *
+ * TENANT RESOLUTION
+ * -----------------
+ * Public pages carry the school in the path: /s/<slug>/login, /s/<slug>/apply.
+ * Path-prefix rather than subdomain because `*.localhost` is unreliable across
+ * browsers on Windows, which is where this is developed. `TENANCY_MODE` can be
+ * flipped to `subdomain` for a deployment that wants it.
+ *
+ * Once signed in, the `sch` claim on the session is authoritative and the app
+ * routes carry no slug — so a tampered URL cannot move a session between
+ * schools.
  */
 
-const PUBLIC_PATHS = ['/', '/login', '/apply', '/forbidden'];
+/** Exact public paths. */
+const PUBLIC_EXACT = new Set(['/', '/login', '/apply', '/forbidden']);
+
+/** Public path prefixes, including the tenant-qualified ones. */
+const PUBLIC_PREFIXES = ['/s/'];
+
+function isPublic(pathname: string): boolean {
+  if (PUBLIC_EXACT.has(pathname)) return true;
+  return PUBLIC_PREFIXES.some((p) => pathname.startsWith(p));
+}
+
+/** `/s/<slug>/login` -> `<slug>` */
+function slugFromPath(pathname: string): string | null {
+  const m = /^\/s\/([^/]+)(?:\/|$)/.exec(pathname);
+  return m ? m[1] : null;
+}
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  if (PUBLIC_PATHS.includes(pathname)) {
-    // A signed-in user hitting /login goes to their own home instead.
-    if (pathname === '/login') {
+  if (isPublic(pathname)) {
+    // A signed-in user hitting a login page goes to their own home instead.
+    const isLoginPath = pathname === '/login' || /^\/s\/[^/]+\/login$/.test(pathname);
+    if (isLoginPath) {
       const session = await verifySession(request.cookies.get(SESSION_COOKIE)?.value);
       if (session) {
         return NextResponse.redirect(new URL(ROLE_HOME[session.role], request.url));
       }
     }
+
+    // Hand the resolved slug to server components so a public page can load
+    // its school without re-parsing the URL.
+    const slug = slugFromPath(pathname);
+    if (slug) {
+      const headers = new Headers(request.headers);
+      headers.set('x-school-slug', slug);
+      return NextResponse.next({ request: { headers } });
+    }
     return NextResponse.next();
   }
 
-  const requiredRoles = rolesForPath(pathname);
-  if (!requiredRoles) return NextResponse.next();
+  const guard = guardForPath(pathname);
+  if (!guard) return NextResponse.next();
 
   const session = await verifySession(request.cookies.get(SESSION_COOKIE)?.value);
 
@@ -42,7 +79,14 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(loginUrl);
   }
 
-  if (!requiredRoles.includes(session.role)) {
+  // Platform routes are gated on the platform claim, never on a school role:
+  // no school administrator can reach them by virtue of their role.
+  if (guard.platformOnly) {
+    if (!session.pa) return NextResponse.redirect(new URL('/forbidden', request.url));
+    return NextResponse.next();
+  }
+
+  if (!guard.roles.includes(session.role)) {
     return NextResponse.redirect(new URL('/forbidden', request.url));
   }
 

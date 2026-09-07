@@ -1,0 +1,293 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; font-family: ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background: #ffffff; color: #0f172a; -webkit-font-smoothing: antialiased; }
+    a { color: #1449e1; text-decoration: none; }
+    a:hover { color: #173db6; text-decoration: underline; }
+    .num { font-variant-numeric: tabular-nums; }
+    .th { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; color: #475569; text-align: left; padding: 6px 7px; background: #f1f5f9; border: 1px solid #cbd5e1; }
+    .td { font-size: 12px; color: #0f172a; padding: 5px 7px; border: 1px solid #e2e8f0; }
+    .lab { font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em; color: #64748b; }
+    .val { font-size: 13px; font-weight: 600; color: #0f172a; }
+  </style>
+</helmet>
+
+<div style="width: 794px; height: 1123px; padding: 32px 40px; box-sizing: border-box; display: flex; flex-direction: column; background: #fff;">
+
+  <!-- masthead -->
+  <div style="display: flex; align-items: center; gap: 13px; padding-bottom: 11px; border-bottom: 3px solid {{accent}};">
+    <div style="width: 46px; height: 46px; border-radius: 9px; background: {{accent}}; color: #fff; display: grid; place-items: center; font-size: 14px; font-weight: 700; flex-shrink: 0;">GIS</div>
+    <div style="flex-grow: 1; min-width: 0;">
+      <div style="font-size: 19px; font-weight: 700; letter-spacing: -.01em; line-height: 1.2;">Golden Eagles International School</div>
+      <div style="font-size: 11.5px; color: #475569; margin-top: 2px;">14 Ahmadu Bello Way, Victoria Island, Lagos · +234 1 271 4000 · registrar@gis.edu.ng</div>
+    </div>
+    <div style="text-align: right; flex-shrink: 0;">
+      <div class="lab">Report</div>
+      <div class="num" style="font-size: 12.5px; font-weight: 600;">RPT-2025-00418</div>
+    </div>
+  </div>
+
+  <div style="text-align: center; padding: 10px 0 9px;">
+    <div style="font-size: 15px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase;">Termly Report Card</div>
+    <div style="font-size: 12px; color: #475569; margin-top: 2px;">First Term · 2025/2026 Academic Session</div>
+  </div>
+
+  <!-- student block -->
+  <div style="border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; margin-bottom: 9px;">
+    <div style="display: grid; grid-template-columns: repeat(4, minmax(0, 1fr));">
+      <sc-for list="{{studentFields}}" as="f" hint-placeholder-count="8">
+        <div style="padding: 6px 10px; border-right: 1px solid #e2e8f0; border-bottom: 1px solid #e2e8f0;">
+          <div class="lab">{{f.label}}</div>
+          <div class="val" style="margin-top: 1px;">{{f.value}}</div>
+        </div>
+      </sc-for>
+    </div>
+  </div>
+
+  <!-- subjects -->
+  <table style="width: 100%; border-collapse: collapse; margin-bottom: 9px;">
+    <thead>
+      <tr>
+        <th class="th" style="width: 22px; text-align: center;">#</th>
+        <th class="th">Subject</th>
+        <th class="th" style="width: 42px; text-align: center;">CA<br><span style="font-weight: 400; text-transform: none; letter-spacing: 0;">/40</span></th>
+        <th class="th" style="width: 48px; text-align: center;">Exam<br><span style="font-weight: 400; text-transform: none; letter-spacing: 0;">/60</span></th>
+        <th class="th" style="width: 46px; text-align: center;">Total<br><span style="font-weight: 400; text-transform: none; letter-spacing: 0;">/100</span></th>
+        <th class="th" style="width: 42px; text-align: center;">Grade</th>
+        <th class="th" style="width: 52px; text-align: center;">Class<br>avg</th>
+        <th class="th" style="width: 42px; text-align: center;">Pos.</th>
+        <th class="th" style="width: 104px;">Remark</th>
+      </tr>
+    </thead>
+    <tbody>
+      <sc-for list="{{subjects}}" as="s" hint-placeholder-count="10">
+        <tr style="background: {{s.zebra}};">
+          <td class="td num" style="text-align: center; color: #94a3b8;">{{s.no}}</td>
+          <td class="td" style="font-weight: 500;">{{s.name}}</td>
+          <td class="td num" style="text-align: center;">{{s.ca}}</td>
+          <td class="td num" style="text-align: center;">{{s.exam}}</td>
+          <td class="td num" style="text-align: center; font-weight: 600;">{{s.total}}</td>
+          <td class="td" style="text-align: center;">
+            <span style="display: inline-block; min-width: 18px; padding: 1px 4px; border-radius: 4px; font-size: 11px; font-weight: 700; background: {{s.gBg}}; color: {{s.gFg}};">{{s.grade}}</span>
+          </td>
+          <td class="td num" style="text-align: center; color: #64748b;">{{s.avg}}</td>
+          <td class="td num" style="text-align: center;">{{s.pos}}</td>
+          <td class="td" style="font-size: 11px; color: #475569;">{{s.remark}}</td>
+        </tr>
+      </sc-for>
+      <tr>
+        <td class="td" colspan="4" style="text-align: right; font-weight: 600; background: #f8fafc;">Total marks obtained</td>
+        <td class="td num" style="text-align: center; font-weight: 700; background: #f8fafc;">742</td>
+        <td class="td" style="text-align: center; background: #f8fafc;">
+          <span style="display: inline-block; padding: 1px 4px; border-radius: 4px; font-size: 11px; font-weight: 700; background: #ecfdf5; color: #047857;">A</span>
+        </td>
+        <td class="td num" style="text-align: center; color: #64748b; background: #f8fafc;">62.1</td>
+        <td class="td num" style="text-align: center; font-weight: 700; background: #f8fafc;">4th</td>
+        <td class="td" style="font-size: 11px; background: #f8fafc;"></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- summary strip -->
+  <div style="display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 7px; margin-bottom: 9px;">
+    <sc-for list="{{summary}}" as="m" hint-placeholder-count="5">
+      <div style="border: 1px solid #e2e8f0; border-radius: 8px; padding: 7px 10px; background: {{m.bg}};">
+        <div class="lab">{{m.label}}</div>
+        <div class="num" style="font-size: 16px; font-weight: 700; margin-top: 1px; color: {{m.color}}; letter-spacing: -.01em;">{{m.value}}</div>
+        <div style="font-size: 10px; color: #94a3b8; margin-top: 1px;">{{m.sub}}</div>
+      </div>
+    </sc-for>
+  </div>
+
+  <!-- traits + attendance -->
+  <div style="display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 9px; margin-bottom: 9px;">
+
+    <div style="border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden;">
+      <div style="padding: 5px 10px; background: #f1f5f9; border-bottom: 1px solid #cbd5e1; font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; color: #475569;">Behaviour &amp; skills</div>
+      <div style="padding: 6px 10px;">
+        <sc-for list="{{traits}}" as="t" hint-placeholder-count="5">
+          <div style="display: flex; align-items: center; gap: 8px; padding: 2px 0;">
+            <span style="font-size: 11.5px; color: #334155; flex-grow: 1;">{{t.name}}</span>
+            <div style="display: flex; gap: 3px;">
+              <sc-for list="{{t.dots}}" as="d" hint-placeholder-count="5">
+                <span style="width: 8px; height: 8px; border-radius: 999px; background: {{d.fill}}; box-shadow: inset 0 0 0 1px {{d.ring}};"></span>
+              </sc-for>
+            </div>
+            <span class="num" style="font-size: 11px; font-weight: 600; color: #475569; width: 12px; text-align: right;">{{t.score}}</span>
+          </div>
+        </sc-for>
+        <div style="font-size: 9.5px; color: #94a3b8; margin-top: 4px; padding-top: 4px; border-top: 1px solid #f1f5f9;">5 = Excellent · 4 = Very good · 3 = Good · 2 = Fair · 1 = Needs attention</div>
+      </div>
+    </div>
+
+    <div style="border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden;">
+      <div style="padding: 5px 10px; background: #f1f5f9; border-bottom: 1px solid #cbd5e1; font-size: 11.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .03em; color: #475569;">Attendance</div>
+      <div style="padding: 8px 10px;">
+        <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 8px;">
+          <div><div class="lab">Present</div><div class="num" style="font-size: 16px; font-weight: 700; color: #047857;">58</div></div>
+          <div><div class="lab">Absent</div><div class="num" style="font-size: 16px; font-weight: 700; color: #be123c;">4</div></div>
+          <div><div class="lab">Late</div><div class="num" style="font-size: 16px; font-weight: 700; color: #b45309;">2</div></div>
+        </div>
+        <div style="height: 7px; border-radius: 999px; background: #e2e8f0; overflow: hidden; display: flex; gap: 2px;">
+          <div style="flex-grow: 58; background: #059669;"></div>
+          <div style="flex-grow: 4; background: #e11d48;"></div>
+        </div>
+        <div style="display: flex; justify-content: space-between; margin-top: 4px;">
+          <span class="num" style="font-size: 10.5px; color: #64748b;">93.5% attendance</span>
+          <span class="num" style="font-size: 10.5px; color: #94a3b8;">58 of 62 school days</span>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- remarks: reading copy stays at the 12pt print floor (16px at 96dpi) -->
+  <div style="border: 1px solid #cbd5e1; border-radius: 8px; overflow: hidden; margin-bottom: 9px;">
+    <div style="padding: 8px 11px; border-bottom: 1px solid #e2e8f0;">
+      <div class="lab" style="margin-bottom: 3px;">Class teacher's remark</div>
+      <p style="font-size: 16px; line-height: 1.4; margin: 0; color: #0f172a;">A strong term. Amara's mathematics has improved markedly since half-term, and her computer studies work is the best in the class. She should now speak up more in group discussion.</p>
+    </div>
+    <div style="padding: 8px 11px;">
+      <div class="lab" style="margin-bottom: 3px;">Head teacher's remark</div>
+      <p style="font-size: 16px; line-height: 1.4; margin: 0; color: #0f172a;">An excellent set of results, earned by consistent effort. French is the one subject to keep working at over the holiday.</p>
+    </div>
+  </div>
+
+  <!-- decision -->
+  <div style="display: flex; align-items: center; gap: 9px; padding: 8px 11px; border-radius: 8px; background: #ecfdf5; box-shadow: inset 0 0 0 1px #a7f3d0; margin-bottom: 10px;">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#047857" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="m5 12 5 5 9-9"/></svg>
+    <div style="flex-grow: 1;">
+      <span style="font-size: 13px; font-weight: 700; color: #065f46;">Promoted to Year 8</span>
+      <span style="font-size: 12px; color: #047857; margin-left: 6px;">Average 74.2 meets the 50.0 promotion threshold.</span>
+    </div>
+    <div style="text-align: right;">
+      <div class="lab" style="color: #047857;">Next term begins</div>
+      <div class="num" style="font-size: 12px; font-weight: 700; color: #065f46;">12 January 2026</div>
+    </div>
+  </div>
+
+  <div style="flex-grow: 1;"></div>
+
+  <div style="display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px;">
+    <sc-for list="{{signatures}}" as="g" hint-placeholder-count="3">
+      <div>
+        <div style="border-bottom: 1px solid #94a3b8; height: 22px;"></div>
+        <div style="font-size: 10.5px; color: #64748b; margin-top: 3px;">{{g.role}}</div>
+        <div style="font-size: 11px; font-weight: 600; color: #334155;">{{g.name}}</div>
+      </div>
+    </sc-for>
+  </div>
+
+  <div style="display: flex; align-items: center; justify-content: space-between; margin-top: 10px; padding-top: 7px; border-top: 1px solid #e2e8f0;">
+    <span style="font-size: 9.5px; color: #94a3b8;">Generated 12 December 2025 · This report is not valid without the school stamp.</span>
+    <span class="num" style="font-size: 9.5px; color: #94a3b8;">Verify at gis.edu.ng/verify · RPT-2025-00418</span>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"accent":{"editor":"color","default":"#1b5df5","options":["#1b5df5","#0f766e","#7c3aed","#b45309"],"section":"Brand"},"accentSoft":{"editor":"color","default":"#eef6ff","section":"Brand"}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const accent = this.props.accent ?? '#1b5df5';
+    const accentSoft = this.props.accentSoft ?? '#eef6ff';
+
+    // Grade chips reuse the same bands configured on the Grading tab:
+    // A >= 70, B 60-69, C 50-59, D 45-49, E 40-44, F < 40.
+    const GRADE = {
+      A: ['#ecfdf5', '#047857'],
+      B: ['#eff6ff', '#1d4ed8'],
+      C: ['#f1f5f9', '#475569'],
+      D: ['#fffbeb', '#b45309'],
+      E: ['#fff7ed', '#c2410c'],
+      F: ['#fff1f2', '#be123c'],
+    };
+    // The grade is DERIVED from the total, not typed in beside it — the same
+    // mistake on paper is how a report card ends up contradicting its own scale.
+    const gradeFor = (total) =>
+      total >= 70 ? 'A' : total >= 60 ? 'B' : total >= 50 ? 'C' : total >= 45 ? 'D' : total >= 40 ? 'E' : 'F';
+
+    const raw = [
+      ['English Language', 34, 50, 64.1, '3rd', 'Excellent comprehension'],
+      ['Mathematics', 32, 47, 58.7, '2nd', 'Much improved'],
+      ['Basic Science', 29, 42, 61.2, '6th', 'Good practical work'],
+      ['Basic Technology', 27, 41, 59.8, '7th', 'Steady progress'],
+      ['Social Studies', 31, 45, 63.4, '4th', 'Thoughtful essays'],
+      ['Civic Education', 33, 48, 65.0, '3rd', 'Confident answers'],
+      ['Business Studies', 25, 37, 57.3, '11th', 'Needs more practice'],
+      ['Computer Studies', 35, 51, 66.8, '1st', 'Outstanding'],
+      ['French', 23, 34, 54.9, '14th', 'Revise vocabulary'],
+      ['Creative Arts', 31, 47, 70.2, '5th', 'Imaginative work'],
+    ];
+
+    const subjects = raw.map(([name, ca, exam, avg, pos, remark], i) => {
+      const total = ca + exam;
+      const grade = gradeFor(total);
+      const [gBg, gFg] = GRADE[grade];
+      return {
+        no: i + 1, name, ca, exam, total, grade, gBg, gFg,
+        avg: avg.toFixed(1), pos, remark,
+        zebra: i % 2 === 1 ? '#f8fafc' : '#ffffff',
+      };
+    });
+
+    // Everything the summary states is computed from the rows above, so the
+    // sheet cannot drift out of agreement with itself.
+    const totalMarks = subjects.reduce((s, x) => s + x.total, 0);        // 742
+    const average = totalMarks / subjects.length;                         // 74.2
+    const classAvg = raw.reduce((s, x) => s + x[3], 0) / raw.length;      // 62.14
+    const overallGrade = gradeFor(average);                               // A
+
+    const trait = (name, score) => ({
+      name, score,
+      dots: [1, 2, 3, 4, 5].map((i) => ({
+        fill: i <= score ? accent : 'transparent',
+        ring: i <= score ? accent : '#cbd5e1',
+      })),
+    });
+    const f = (label, value) => ({ label, value });
+    const m = (label, value, sub, color, bg) => ({ label, value, sub, color, bg });
+
+    return {
+      accent, accentSoft,
+      subjects,
+      studentFields: [
+        f('Student name', 'Amara Nwosu'),
+        f('Admission no.', 'GIS/2023/0184'),
+        f('Class', 'Year 7 — Blue'),
+        f('Class teacher', 'Mrs F. Adeleke'),
+        f('Position in class', '4th of 28'),
+        f('Date of birth', '14 March 2013'),
+        f('Gender', 'Female'),
+        f('Days in term', '62'),
+      ],
+      summary: [
+        m('Total', String(totalMarks), 'of 1000', '#0f172a', '#ffffff'),
+        m('Average', average.toFixed(1), 'class ' + classAvg.toFixed(1), '#0f172a', '#ffffff'),
+        m('Grade', overallGrade, 'Excellent', accent, accentSoft),
+        m('Position', '4th', 'of 28 pupils', '#0f172a', '#ffffff'),
+        m('Attendance', '93.5%', '58 of 62 days', '#047857', '#ffffff'),
+      ],
+      traits: [
+        trait('Punctuality', 5),
+        trait('Neatness', 4),
+        trait('Cooperation', 5),
+        trait('Participation', 3),
+        trait('Handwriting', 4),
+      ],
+      signatures: [
+        { role: 'Class teacher', name: 'Mrs F. Adeleke' },
+        { role: 'Head teacher', name: 'Dr T. Bakare' },
+        { role: 'Parent / guardian', name: '' },
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

@@ -1,8 +1,7 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
-import { db } from '@/lib/db';
-import { requireRole } from '@/lib/auth/session';
+import { requireTenantRole } from '@/server/tenant-context';
 import { isOfferLive } from '@/lib/domain/admissions';
 import type { ApplicationStatus } from '@/lib/domain/enums';
 import { formatDate, formatDateTime, titleCase } from '@/lib/utils';
@@ -44,7 +43,7 @@ const STATUS_COPY: Record<string, { tone: 'info' | 'success' | 'warning' | 'dang
 };
 
 export default async function PortalPage() {
-  const session = await requireRole('APPLICANT');
+  const { db, school, schoolId, session } = await requireTenantRole('APPLICANT');
   if (!session.pid) redirect('/forbidden');
 
   const applications = await db.application.findMany({

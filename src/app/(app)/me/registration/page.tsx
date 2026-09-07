@@ -1,8 +1,7 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
-import { db } from '@/lib/db';
-import { requireRole } from '@/lib/auth/session';
+import { requireTenantRole } from '@/server/tenant-context';
 import { getStudentAccount } from '@/server/services/finance.service';
 import { REGISTRATION_POLICY, checkPrerequisites, detectTimetableConflicts } from '@/lib/domain/enrollment';
 import { DAY_NAMES } from '@/lib/domain/enums';
@@ -27,7 +26,7 @@ import { RegisterButton, DropButton } from './registration-buttons';
 export const metadata: Metadata = { title: 'Registration' };
 
 export default async function RegistrationPage() {
-  const session = await requireRole('STUDENT');
+  const { db, school, schoolId, session } = await requireTenantRole('STUDENT');
   if (!session.pid) redirect('/forbidden');
 
   const now = new Date();
@@ -76,7 +75,7 @@ export default async function RegistrationPage() {
       },
       orderBy: [{ course: { code: 'asc' } }, { section: 'asc' }],
     }),
-    getStudentAccount(student.id),
+    getStudentAccount(schoolId, student.id),
   ]);
 
   const current = allEnrollments.filter(

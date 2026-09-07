@@ -1,0 +1,303 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; font-family: ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background: #f8fafc; color: #0f172a; -webkit-font-smoothing: antialiased; }
+    a { color: #1449e1; text-decoration: none; }
+    a:hover { color: #173db6; text-decoration: underline; }
+    .num { font-variant-numeric: tabular-nums; }
+    .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 1px 2px 0 rgba(16,24,40,.06), 0 1px 3px 0 rgba(16,24,40,.10); }
+    .ch { padding: 14px 18px 12px; border-bottom: 1px solid #e2e8f0; }
+    .ct { font-size: 14px; font-weight: 600; margin: 0; }
+    .cd { font-size: 12px; color: #64748b; margin: 2px 0 0; }
+    .th { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: #64748b; text-align: left; padding: 9px 18px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; }
+    .badge { display: inline-flex; align-items: center; gap: 4px; border-radius: 6px; padding: 2px 8px; font-size: 12px; font-weight: 500; box-shadow: inset 0 0 0 1px currentColor; }
+    .rail { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 8px; color: #64748b; }
+    .inp { height: 30px; border-radius: 7px; box-shadow: inset 0 0 0 1px #cbd5e1; background: #fff; display: flex; align-items: center; padding: 0 9px; font-size: 13px; color: #0f172a; }
+    .lbl { font-size: 11.5px; font-weight: 500; color: #475569; display: block; margin-bottom: 4px; }
+  </style>
+</helmet>
+
+<div style="display: flex; width: 1440px; height: 900px; overflow: hidden;">
+
+  <aside style="width: 56px; flex-shrink: 0; background: #fff; border-right: 1px solid #e2e8f0; display: flex; flex-direction: column; align-items: center; padding: 10px 0; gap: 4px;">
+    <div style="width: 30px; height: 30px; border-radius: 8px; background: {{accent}}; color: #fff; display: grid; place-items: center; font-size: 10px; font-weight: 700; margin-bottom: 8px;">GEU</div>
+    <div class="rail"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5 12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1V9.5Z"/></svg></div>
+    <div class="rail"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="m8 12 2.5 2.5L16 9"/></svg></div>
+    <div class="rail"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div>
+    <div style="width: 24px; height: 1px; background: #e2e8f0; margin: 6px 0;"></div>
+    <div class="rail"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5Z"/></svg></div>
+    <div class="rail"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"/></svg></div>
+    <div class="rail"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5V6a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 1.5Z"/></svg></div>
+    <div style="flex-grow: 1;"></div>
+    <div class="rail" style="background: {{accentSoft}}; color: {{accent}}; position: relative;">
+      <div style="position: absolute; left: -11px; top: 6px; bottom: 6px; width: 3px; border-radius: 0 3px 3px 0; background: {{accent}};"></div>
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-2.9 1.2v.1a2 2 0 1 1-4 0v-.2a1.7 1.7 0 0 0-2.9-1.1l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1A1.7 1.7 0 0 0 4.3 15a1.7 1.7 0 0 0-1.6-1H2.6a2 2 0 1 1 0-4h.2A1.7 1.7 0 0 0 4.3 9a1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1A1.7 1.7 0 0 0 9 4.6a1.7 1.7 0 0 0 1-1.6V2.9a2 2 0 1 1 4 0v.2a1.7 1.7 0 0 0 2.9 1.1l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9 1.7 1.7 0 0 0 1.6 1h.1a2 2 0 1 1 0 4h-.2a1.7 1.7 0 0 0-1.5 1Z"/></svg>
+    </div>
+    <div style="width: 28px; height: 28px; border-radius: 999px; background: #1e293b; color: #fff; display: grid; place-items: center; font-size: 10px; font-weight: 600; margin-top: 4px;">AO</div>
+  </aside>
+
+  <!-- settings sub-nav -->
+  <div style="width: 218px; flex-shrink: 0; background: #fff; border-right: 1px solid #e2e8f0; padding: 16px 12px; display: flex; flex-direction: column;">
+    <div style="padding: 0 6px 12px;">
+      <div style="font-size: 15px; font-weight: 600;">School setup</div>
+      <div style="font-size: 11.5px; color: #94a3b8; margin-top: 2px;">Golden Eagles University</div>
+    </div>
+
+    <div style="display: flex; flex-direction: column; gap: 1px;">
+      <sc-for list="{{tabs}}" as="s" hint-placeholder-count="9">
+        <div style="display: flex; align-items: center; gap: 9px; padding: 7px 10px; border-radius: 8px; background: {{s.bg}}; color: {{s.fg}}; font-size: 13px; font-weight: {{s.weight}};">
+          <span style="flex-grow: 1;">{{s.name}}</span>
+          <sc-if value="{{s.done}}" hint-placeholder-val="{{true}}">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#059669" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5 9-9"/></svg>
+          </sc-if>
+          <sc-if value="{{s.todo}}" hint-placeholder-val="{{false}}">
+            <span style="width: 7px; height: 7px; border-radius: 999px; background: #f59e0b;"></span>
+          </sc-if>
+        </div>
+      </sc-for>
+    </div>
+
+    <div style="flex-grow: 1;"></div>
+
+    <div style="padding: 11px; border-radius: 10px; background: #f8fafc; box-shadow: inset 0 0 0 1px #e2e8f0;">
+      <div style="display: flex; align-items: baseline; justify-content: space-between;">
+        <span style="font-size: 11.5px; font-weight: 600; color: #334155;">Setup progress</span>
+        <span class="num" style="font-size: 11.5px; font-weight: 600; color: {{accent}};">6 / 9</span>
+      </div>
+      <div style="height: 5px; border-radius: 999px; background: #e2e8f0; margin-top: 7px; overflow: hidden;">
+        <div style="width: 67%; height: 100%; border-radius: 999px; background: {{accent}};"></div>
+      </div>
+      <p style="font-size: 11px; color: #64748b; margin: 7px 0 0; line-height: 1.45;">Terms and the registration portal still need configuring before students can enrol.</p>
+    </div>
+  </div>
+
+  <!-- main -->
+  <div style="flex-grow: 1; display: flex; flex-direction: column; min-width: 0;">
+
+    <header style="height: 48px; flex-shrink: 0; background: #fff; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; gap: 8px; padding: 0 20px;">
+      <span style="font-size: 13px; color: #94a3b8;">School setup</span>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="2" stroke-linecap="round"><path d="m9 6 6 6-6 6"/></svg>
+      <span style="font-size: 13px; font-weight: 500;">Grading</span>
+      <div style="flex-grow: 1;"></div>
+      <span style="font-size: 12px; color: #94a3b8;">Last saved 12 minutes ago by A. Okafor</span>
+    </header>
+
+    <div style="flex-grow: 1; padding: 18px 22px; overflow: hidden;">
+
+      <div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; padding-bottom: 15px;">
+        <div>
+          <h1 style="font-size: 20px; font-weight: 600; letter-spacing: -.01em; margin: 0;">Grading scheme</h1>
+          <p style="font-size: 13px; color: #64748b; margin: 3px 0 0; max-width: 620px; line-height: 1.5;">Defines how scores become grades for this school. Every GPA, transcript and report card is computed from these bands.</p>
+        </div>
+        <div style="display: flex; gap: 8px; flex-shrink: 0;">
+          <div style="display: inline-flex; align-items: center; height: 32px; padding: 0 13px; border-radius: 8px; background: #fff; box-shadow: inset 0 0 0 1px #cbd5e1; font-size: 13px; font-weight: 500; color: #334155;">Discard</div>
+          <div style="display: inline-flex; align-items: center; height: 32px; padding: 0 15px; border-radius: 8px; background: {{accent}}; color: #fff; font-size: 13px; font-weight: 500;">Save changes</div>
+        </div>
+      </div>
+
+      <!-- preset row -->
+      <div style="margin-bottom: 14px;">
+        <span class="lbl" style="margin-bottom: 7px;">Start from a published scheme</span>
+        <div style="display: flex; gap: 7px; flex-wrap: wrap;">
+          <sc-for list="{{presets}}" as="p" hint-placeholder-count="6">
+            <div style="display: inline-flex; flex-direction: column; padding: 8px 12px; border-radius: 9px; background: {{p.bg}}; box-shadow: inset 0 0 0 {{p.ringW}} {{p.ring}}; min-width: 128px;">
+              <span style="font-size: 12.5px; font-weight: 600; color: {{p.fg}};">{{p.name}}</span>
+              <span style="font-size: 11px; color: {{p.sub}}; margin-top: 1px;">{{p.detail}}</span>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <div style="display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 14px;">
+
+        <!-- bands -->
+        <div class="card" style="overflow: hidden;">
+          <div class="ch" style="display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;">
+            <div>
+              <h2 class="ct">Grade bands</h2>
+              <p class="cd">Must cover 0–100 with no gaps or overlaps</p>
+            </div>
+            <span class="badge" style="background: #ecfdf5; color: #047857;">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><path d="m5 12 5 5 9-9"/></svg>
+              Contiguous
+            </span>
+          </div>
+          <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+              <tr>
+                <th class="th" style="width: 92px;">From</th>
+                <th class="th" style="width: 92px;">To</th>
+                <th class="th" style="width: 84px;">Letter</th>
+                <th class="th" style="width: 92px;">Points</th>
+                <th class="th">Description</th>
+                <th class="th" style="width: 44px;"></th>
+              </tr>
+            </thead>
+            <tbody>
+              <sc-for list="{{bands}}" as="b" hint-placeholder-count="6">
+                <tr>
+                  <td style="padding: 7px 18px; border-bottom: 1px solid #f1f5f9;"><div class="inp num">{{b.min}}</div></td>
+                  <td style="padding: 7px 18px; border-bottom: 1px solid #f1f5f9;"><div class="inp num">{{b.max}}</div></td>
+                  <td style="padding: 7px 18px; border-bottom: 1px solid #f1f5f9;">
+                    <div class="inp" style="font-weight: 600; justify-content: center;">{{b.letter}}</div>
+                  </td>
+                  <td style="padding: 7px 18px; border-bottom: 1px solid #f1f5f9;"><div class="inp num">{{b.point}}</div></td>
+                  <td style="padding: 7px 18px; border-bottom: 1px solid #f1f5f9;"><div class="inp" style="color: #475569;">{{b.desc}}</div></td>
+                  <td style="padding: 7px 18px; border-bottom: 1px solid #f1f5f9; text-align: right;">
+                    <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V5h6v2M6 7l1 13h10l1-13"/></svg>
+                  </td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+          <div style="padding: 10px 18px; border-top: 1px solid #f1f5f9;">
+            <div style="display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 500; color: {{accent}};">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+              Add band
+            </div>
+          </div>
+        </div>
+
+        <!-- right column -->
+        <div style="display: flex; flex-direction: column; gap: 14px; min-width: 0;">
+
+          <div class="card">
+            <div class="ch"><h2 class="ct">Assessment split</h2><p class="cd">Must total 100</p></div>
+            <div style="padding: 14px 18px;">
+              <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px;">
+                <div>
+                  <span class="lbl">Continuous assessment</span>
+                  <div class="inp num" style="justify-content: space-between;">40 <span style="color: #94a3b8; font-size: 11.5px;">max</span></div>
+                </div>
+                <div>
+                  <span class="lbl">Examination</span>
+                  <div class="inp num" style="justify-content: space-between;">60 <span style="color: #94a3b8; font-size: 11.5px;">max</span></div>
+                </div>
+              </div>
+              <div style="display: flex; height: 8px; border-radius: 999px; overflow: hidden; margin-top: 12px; gap: 2px;">
+                <div style="width: 40%; background: {{accent}};"></div>
+                <div style="flex-grow: 1; background: #93c5fd;"></div>
+              </div>
+              <div style="display: flex; justify-content: space-between; margin-top: 5px;">
+                <span class="num" style="font-size: 11px; color: #64748b;">CA 40%</span>
+                <span class="num" style="font-size: 11px; color: #64748b;">Exam 60%</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="ch"><h2 class="ct">Academic standing</h2><p class="cd">CGPA thresholds on this scale</p></div>
+            <div style="padding: 12px 18px 14px;">
+              <sc-for list="{{standing}}" as="s" hint-placeholder-count="4">
+                <div style="display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid #f1f5f9;">
+                  <span class="badge" style="background: {{s.bg}}; color: {{s.fg}}; min-width: 82px; justify-content: center;">{{s.label}}</span>
+                  <span style="font-size: 12px; color: #64748b; flex-grow: 1;">{{s.rule}}</span>
+                  <div class="inp num" style="width: 54px; justify-content: center; height: 26px;">{{s.value}}</div>
+                </div>
+              </sc-for>
+              <div style="display: flex; align-items: flex-start; gap: 7px; margin-top: 11px; padding: 9px 10px; border-radius: 8px; background: #fffbeb; box-shadow: inset 0 0 0 1px #fde68a;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#b45309" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0; margin-top: 1px;"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>
+                <span style="font-size: 11.5px; color: #92400e; line-height: 1.45;">Dismissal is never applied automatically — it is written to the term record for registrar review.</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="ch"><h2 class="ct">Check a score</h2><p class="cd">Against the bands above</p></div>
+            <div style="padding: 14px 18px; display: flex; align-items: center; gap: 12px;">
+              <div class="inp num" style="width: 74px; justify-content: center; height: 36px; font-size: 15px; font-weight: 600;">68.5</div>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="2" stroke-linecap="round"><path d="M5 12h14M13 6l6 6-6 6"/></svg>
+              <div style="display: flex; align-items: center; gap: 9px;">
+                <span style="display: grid; place-items: center; width: 36px; height: 36px; border-radius: 9px; background: {{accentSoft}}; color: {{accent}}; font-size: 16px; font-weight: 700;">B</span>
+                <div>
+                  <div class="num" style="font-size: 13px; font-weight: 600;">3.00 points</div>
+                  <div style="font-size: 11.5px; color: #64748b;">Very Good</div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"accent":{"editor":"color","default":"#1b5df5","options":["#1b5df5","#0f766e","#7c3aed","#b45309"],"section":"Brand"},"accentSoft":{"editor":"color","default":"#eef6ff","section":"Brand"}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const accent = this.props.accent ?? '#1b5df5';
+    const accentSoft = this.props.accentSoft ?? '#eef6ff';
+
+    const tab = (name, state) => ({
+      name,
+      done: state === 'done',
+      todo: state === 'todo',
+      bg: state === 'active' ? accentSoft : 'transparent',
+      fg: state === 'active' ? accent : '#334155',
+      weight: state === 'active' ? '600' : '500',
+    });
+    const preset = (name, detail, active) => ({
+      name, detail,
+      bg: active ? accentSoft : '#fff',
+      ring: active ? accent : '#e2e8f0',
+      ringW: active ? '1.5px' : '1px',
+      fg: active ? accent : '#0f172a',
+      sub: active ? accent : '#94a3b8',
+    });
+    const band = (min, max, letter, point, desc) => ({ min, max, letter, point, desc });
+    const st = (label, rule, value, bg, fg) => ({ label, rule, value, bg, fg });
+
+    return {
+      accent, accentSoft,
+      tabs: [
+        tab('General', 'done'),
+        tab('Branding', 'done'),
+        tab('Academic structure', 'done'),
+        tab('Grading', 'active'),
+        tab('Enrolment rules', 'done'),
+        tab('Admissions rubric', 'done'),
+        tab('Fees & currency', 'done'),
+        tab('Terms & calendar', 'todo'),
+        tab('Registration portal', 'todo'),
+      ],
+      // The active preset must describe the bands actually shown below — a
+      // 4-point scale on Nigerian percentage cut-offs, which is what the
+      // seeded university runs.
+      presets: [
+        preset('Nigerian 4-point', 'A–F · 4.00 max', true),
+        preset('Nigerian 5-point', 'A–F · 5.00 max', false),
+        preset('US 4.0', 'A+–F · 4.00 max', false),
+        preset('UK Honours', 'First–Third', false),
+        preset('IB Diploma', '1–7 per subject', false),
+        preset('Custom', 'Define your own', false),
+      ],
+      bands: [
+        band('70.0', '100.0', 'A', '4.00', 'Excellent'),
+        band('60.0', '69.9', 'B', '3.00', 'Very Good'),
+        band('50.0', '59.9', 'C', '2.00', 'Good'),
+        band('45.0', '49.9', 'D', '1.00', 'Pass'),
+        band('40.0', '44.9', 'E', '0.50', 'Marginal Pass'),
+        band('0.0', '39.9', 'F', '0.00', 'Fail'),
+      ],
+      // Stated as half-open ranges so no CGPA can satisfy two rows at once —
+      // the same contiguity discipline the grade bands are held to.
+      standing: [
+        st("Dean's list", 'CGPA 3.50 and above', '3.50', '#fef3c7', '#92400e'),
+        st('Good standing', 'CGPA 2.00 – 3.49', '2.00', '#ecfdf5', '#047857'),
+        st('Warning', 'CGPA 1.50 – 1.99', '1.50', '#fffbeb', '#b45309'),
+        st('Probation', 'CGPA 1.00 – 1.49', '1.00', '#fff1f2', '#be123c'),
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

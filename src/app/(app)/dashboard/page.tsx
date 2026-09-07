@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
-import { db } from '@/lib/db';
-import { requireRole } from '@/lib/auth/session';
+import { requireTenantRole } from '@/server/tenant-context';
+import { platformDb } from '@/lib/tenant';
 import { getReceivablesPosition } from '@/server/services/finance.service';
 import { formatMoneyCompact, formatMoney } from '@/lib/domain/money';
 import { formatDate, titleCase } from '@/lib/utils';
@@ -24,7 +24,7 @@ import {
 export const metadata: Metadata = { title: 'Overview' };
 
 export default async function DashboardPage() {
-  await requireRole('ADMIN', 'REGISTRAR');
+  const { db, school, schoolId } = await requireTenantRole('ADMIN', 'REGISTRAR');
 
   const currentTerm = await db.term.findFirst({ where: { isCurrent: true } });
 
@@ -55,7 +55,7 @@ export default async function DashboardPage() {
       : 0,
     db.application.groupBy({ by: ['status'], _count: { _all: true } }),
     db.student.groupBy({ by: ['academicStanding'], _count: { _all: true } }),
-    getReceivablesPosition(),
+    getReceivablesPosition(schoolId),
     currentTerm
       ? db.courseOffering.findMany({
           where: { termId: currentTerm.id },
@@ -64,10 +64,11 @@ export default async function DashboardPage() {
           take: 6,
         })
       : [],
-    db.auditLog.findMany({
+    platformDb.auditLog.findMany({
+      where: { schoolId },
       orderBy: { createdAt: 'desc' },
       take: 8,
-      include: { actor: { select: { firstName: true, lastName: true, role: true } } },
+      include: { actor: { select: { firstName: true, lastName: true } } },
     }),
   ]);
 

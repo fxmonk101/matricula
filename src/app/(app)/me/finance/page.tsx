@@ -1,8 +1,7 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
-import { db } from '@/lib/db';
-import { requireRole } from '@/lib/auth/session';
+import { requireTenantRole } from '@/server/tenant-context';
 import { getStudentAccount } from '@/server/services/finance.service';
 import { formatMoney } from '@/lib/domain/money';
 import { formatDate, formatDateTime, titleCase } from '@/lib/utils';
@@ -23,7 +22,7 @@ import {
 export const metadata: Metadata = { title: 'My fees' };
 
 export default async function MyFinancePage() {
-  const session = await requireRole('STUDENT');
+  const { db, school, schoolId, session } = await requireTenantRole('STUDENT');
   if (!session.pid) redirect('/forbidden');
 
   const student = await db.student.findUnique({
@@ -32,7 +31,7 @@ export default async function MyFinancePage() {
   });
   if (!student) redirect('/forbidden');
 
-  const account = await getStudentAccount(session.pid);
+  const account = await getStudentAccount(schoolId, session.pid);
 
   return (
     <>

@@ -3,14 +3,13 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
-import { requireRole } from '@/lib/auth/session';
+import { requireTenantRole } from '@/server/tenant-context';
 import {
   convertApplicantToStudent,
   rescoreApplication,
   runCohortAllocation,
   type CohortRunSummary,
 } from '@/server/services/admissions.service';
-import { db } from '@/lib/db';
 import { recordAudit } from '@/server/services/audit.service';
 
 export interface AdmissionsState {
@@ -41,7 +40,7 @@ export async function runAllocationAction(
   _prev: AdmissionsState,
   formData: FormData,
 ): Promise<AdmissionsState> {
-  const session = await requireRole('ADMIN', 'ADMISSIONS');
+  const { db, school, schoolId, session } = await requireTenantRole('ADMIN', 'ADMISSIONS');
 
   const parsed = allocationSchema.safeParse({
     programId: formData.get('programId'),
@@ -60,6 +59,7 @@ export async function runAllocationAction(
   const dryRun = parsed.data.dryRun ?? true;
 
   const summary = await runCohortAllocation({
+    schoolId,
     programId: parsed.data.programId,
     termId: parsed.data.termId,
     actorId: session.sub,
@@ -103,7 +103,7 @@ export async function submitReviewAction(
   _prev: AdmissionsState,
   formData: FormData,
 ): Promise<AdmissionsState> {
-  const session = await requireRole('ADMIN', 'ADMISSIONS');
+  const { db, school, schoolId, session } = await requireTenantRole('ADMIN', 'ADMISSIONS');
 
   const parsed = reviewSchema.safeParse({
     applicationId: formData.get('applicationId'),
@@ -130,6 +130,7 @@ export async function submitReviewAction(
       },
     },
     create: {
+      schoolId,
       applicationId: d.applicationId,
       reviewerId: session.sub,
       academicScore: d.academicScore,
@@ -155,9 +156,10 @@ export async function submitReviewAction(
     data: { status: 'UNDER_REVIEW' },
   });
 
-  const composite = await rescoreApplication(d.applicationId);
+  const composite = await rescoreApplication(schoolId, d.applicationId);
 
   void recordAudit({
+    schoolId,
     actorId: session.sub,
     action: 'application.review',
     entityType: 'Application',
@@ -175,11 +177,16 @@ export async function convertAction(
   _prev: AdmissionsState,
   formData: FormData,
 ): Promise<AdmissionsState> {
-  const session = await requireRole('ADMIN', 'ADMISSIONS', 'REGISTRAR');
+  const { school, schoolId, session } = await requireTenantRole('ADMIN', 'ADMISSIONS', 'REGISTRAR');
   const applicationId = String(formData.get('applicationId') ?? '');
   if (!applicationId) return { ok: false, message: 'No application specified.' };
 
-  const result = await convertApplicantToStudent({ applicationId, actorId: session.sub });
+  const result = await convertApplicantToStudent({
+    schoolId,
+    schoolCode: school.code,
+    applicationId,
+    actorId: session.sub,
+  });
 
   revalidatePath('/admissions');
   revalidatePath(`/admissions/${applicationId}`);

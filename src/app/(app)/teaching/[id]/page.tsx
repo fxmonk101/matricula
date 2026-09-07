@@ -2,8 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 
-import { db } from '@/lib/db';
-import { requireRole } from '@/lib/auth/session';
+import { requireTenantRole } from '@/server/tenant-context';
 import { ASSESSMENT_WEIGHTS, GRADE_SCALE, computeGpa } from '@/lib/domain/grading';
 import { Alert, Card, CardHeader, EmptyState, PageHeader, StatTile } from '@/components/ui';
 import { Gradesheet } from './gradesheet';
@@ -15,7 +14,7 @@ export default async function GradesheetPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const session = await requireRole('INSTRUCTOR', 'ADMIN', 'REGISTRAR');
+  const { db, school, schoolId, session } = await requireTenantRole('INSTRUCTOR', 'ADMIN', 'REGISTRAR');
   const { id } = await params;
 
   const offering = await db.courseOffering.findUnique({

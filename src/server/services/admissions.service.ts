@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { db } from '@/lib/db';
+import { dbFor, platformDb } from '@/lib/tenant';
 import {
   aggregateReviews,
   allocateCohort,
@@ -12,7 +12,6 @@ import {
   type RankableApplication,
 } from '@/lib/domain/admissions';
 import { assertApplicationTransition, type ApplicationStatus } from '@/lib/domain/enums';
-import { INSTITUTION } from '@/lib/utils';
 import { hashPassword } from '@/lib/auth/session';
 import { nextMatricSequence } from './sequence.service';
 import { recordAudit } from './audit.service';
@@ -31,7 +30,8 @@ import { recordAudit } from './audit.service';
  * and interview figures where reviews exist — a scored rubric from staff is
  * evidence; a self-report is a claim.
  */
-export async function rescoreApplication(applicationId: string): Promise<number> {
+export async function rescoreApplication(schoolId: string, applicationId: string): Promise<number> {
+  const db = dbFor(schoolId);
   const application = await db.application.findUnique({
     where: { id: applicationId },
     include: { reviews: true },
@@ -86,6 +86,7 @@ export interface CohortRunSummary {
  * committed run, so what the committee approved is what gets written.
  */
 export async function runCohortAllocation(params: {
+  schoolId: string;
   programId: string;
   termId: string;
   policy: Omit<AllocationPolicy, 'minimumComposite' | 'minimumCoverage' | 'requiredReviews'> &
@@ -93,6 +94,7 @@ export async function runCohortAllocation(params: {
   actorId: string;
   dryRun: boolean;
 }): Promise<CohortRunSummary> {
+  const db = dbFor(params.schoolId);
   const applications = await db.application.findMany({
     where: {
       programId: params.programId,
@@ -197,6 +199,7 @@ export async function runCohortAllocation(params: {
 
   void recordAudit({
     actorId: params.actorId,
+    schoolId: params.schoolId,
     action: 'admissions.allocate',
     entityType: 'Program',
     entityId: params.programId,
@@ -216,11 +219,14 @@ export async function runCohortAllocation(params: {
  * and there is no good way to recover that state by hand.
  */
 export async function convertApplicantToStudent(params: {
+  schoolId: string;
+  schoolCode: string;
   applicationId: string;
   actorId: string;
   now?: Date;
 }): Promise<{ ok: boolean; message: string; matricNumber?: string }> {
   const now = params.now ?? new Date();
+  const db = dbFor(params.schoolId);
 
   try {
     return await db.$transaction(async (tx) => {
@@ -242,7 +248,7 @@ export async function convertApplicantToStudent(params: {
         };
       }
 
-      const existing = await tx.student.findUnique({
+      const existing = await tx.student.findFirst({
         where: { userId: application.applicant.userId },
       });
       if (existing) {
@@ -255,7 +261,7 @@ export async function convertApplicantToStudent(params: {
       const year = application.term.startDate.getFullYear();
       const sequence = await nextMatricSequence(tx, application.program.department.code, year);
       const matricNumber = buildMatricNumber(
-        INSTITUTION.short,
+        params.schoolCode,
         application.program.department.code,
         year,
         sequence,
@@ -263,6 +269,7 @@ export async function convertApplicantToStudent(params: {
 
       const student = await tx.student.create({
         data: {
+          schoolId: params.schoolId,
           userId: application.applicant.userId,
           matricNumber,
           programId: application.programId,
@@ -276,8 +283,10 @@ export async function convertApplicantToStudent(params: {
         },
       });
 
-      await tx.user.update({
-        where: { id: application.applicant.userId },
+      // Role lives on the membership, not the user: this person may hold a
+      // different role at another school and must keep it.
+      await platformDb.membership.updateMany({
+        where: { userId: application.applicant.userId, schoolId: params.schoolId },
         data: { role: 'STUDENT' },
       });
 
@@ -288,6 +297,7 @@ export async function convertApplicantToStudent(params: {
 
       void recordAudit({
         actorId: params.actorId,
+        schoolId: params.schoolId,
         action: 'admissions.convert',
         entityType: 'Student',
         entityId: student.id,
@@ -308,12 +318,14 @@ export async function convertApplicantToStudent(params: {
 
 /** Applicant accepts or declines a live offer. */
 export async function respondToOffer(params: {
+  schoolId: string;
   applicationId: string;
   accept: boolean;
   actorId: string;
   now?: Date;
 }): Promise<{ ok: boolean; message: string }> {
   const now = params.now ?? new Date();
+  const db = dbFor(params.schoolId);
 
   const application = await db.application.findUnique({ where: { id: params.applicationId } });
   if (!application) return { ok: false, message: 'Application not found.' };
@@ -338,6 +350,7 @@ export async function respondToOffer(params: {
 
   void recordAudit({
     actorId: params.actorId,
+    schoolId: params.schoolId,
     action: `admissions.${next.toLowerCase()}`,
     entityType: 'Application',
     entityId: params.applicationId,
@@ -352,39 +365,83 @@ export async function respondToOffer(params: {
   };
 }
 
-/** Self-service applicant registration from the public /apply form. */
+/**
+ * Self-service applicant registration from the public /apply form.
+ *
+ * Identity is global but authorisation is per-school, so this does three
+ * things rather than one: find-or-create the person, give them an APPLICANT
+ * membership OF THIS SCHOOL, and create the applicant profile there.
+ *
+ * A person who already has an account — because they applied to another school
+ * on the platform, or are a guardian somewhere — keeps their existing identity
+ * and password and simply gains a membership. Creating a second User for the
+ * same human is what makes a platform's identity model unrecoverable.
+ */
 export async function createApplicantAccount(params: {
+  schoolId: string;
   email: string;
   password: string;
   firstName: string;
   lastName: string;
   phone?: string;
-}): Promise<{ ok: boolean; message: string; userId?: string }> {
+}): Promise<{ ok: boolean; message: string; userId?: string; applicantId?: string }> {
   const email = params.email.trim().toLowerCase();
-  const existing = await db.user.findUnique({ where: { email } });
-  if (existing) {
-    // Generic message: confirming an address is registered is an enumeration
-    // oracle just as much on sign-up as it is on sign-in.
+
+  try {
+    return await platformDb.$transaction(async (tx) => {
+      const existingUser = await tx.user.findUnique({
+        where: { email },
+        include: { memberships: { where: { schoolId: params.schoolId } } },
+      });
+
+      // Already a member of THIS school — nothing to create, and we must not
+      // leak whether the address exists.
+      if (existingUser && existingUser.memberships.length > 0) {
+        return { ok: false, message: 'That email address cannot be used to register.' };
+      }
+
+      const user =
+        existingUser ??
+        (await tx.user.create({
+          data: {
+            email,
+            passwordHash: await hashPassword(params.password),
+            firstName: params.firstName.trim(),
+            lastName: params.lastName.trim(),
+            phone: params.phone?.trim() || null,
+          },
+        }));
+
+      await tx.membership.create({
+        data: {
+          userId: user.id,
+          schoolId: params.schoolId,
+          role: 'APPLICANT',
+          isPrimary: !existingUser,
+          status: 'ACTIVE',
+        },
+      });
+
+      const applicant = await tx.applicant.create({
+        data: { schoolId: params.schoolId, userId: user.id },
+      });
+
+      return {
+        ok: true,
+        message: 'Account created.',
+        userId: user.id,
+        applicantId: applicant.id,
+      };
+    });
+  } catch (error) {
+    console.error('[admissions] applicant registration failed', error);
     return { ok: false, message: 'That email address cannot be used to register.' };
   }
-
-  const user = await db.user.create({
-    data: {
-      email,
-      passwordHash: await hashPassword(params.password),
-      firstName: params.firstName.trim(),
-      lastName: params.lastName.trim(),
-      phone: params.phone?.trim() || null,
-      role: 'APPLICANT',
-      applicant: { create: {} },
-    },
-  });
-
-  return { ok: true, message: 'Account created.', userId: user.id };
 }
 
 /** Expire offers whose deadline has passed. Safe to run repeatedly. */
-export async function expireStaleOffers(now = new Date()): Promise<{ expired: number }> {
+export async function expireStaleOffers(schoolId: string, now = new Date()): Promise<{ expired: number }> {
+  const db = dbFor(schoolId);
   const result = await db.application.updateMany({
     where: { status: 'OFFERED', offerExpiresAt: { lt: now } },
     data: { status: 'EXPIRED' },

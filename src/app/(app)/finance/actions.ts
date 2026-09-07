@@ -3,8 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
-import { db } from '@/lib/db';
-import { requireRole } from '@/lib/auth/session';
+import { requireTenantRole } from '@/server/tenant-context';
 import { issueTermInvoice, recordPayment } from '@/server/services/finance.service';
 import { toMinor } from '@/lib/domain/money';
 import { recordAudit } from '@/server/services/audit.service';
@@ -28,7 +27,7 @@ export async function recordPaymentAction(
   _prev: FinanceState,
   formData: FormData,
 ): Promise<FinanceState> {
-  const session = await requireRole('ADMIN', 'FINANCE');
+  const { db, school, schoolId, session } = await requireTenantRole('ADMIN', 'FINANCE');
 
   const parsed = paymentSchema.safeParse({
     studentId: formData.get('studentId'),
@@ -43,6 +42,8 @@ export async function recordPaymentAction(
   }
 
   const result = await recordPayment({
+    schoolId,
+    schoolCode: school.code,
     studentId: parsed.data.studentId,
     amountMinor: toMinor(parsed.data.amount),
     method: parsed.data.method,
@@ -67,7 +68,7 @@ export async function issueInvoiceAction(
   _prev: FinanceState,
   formData: FormData,
 ): Promise<FinanceState> {
-  const session = await requireRole('ADMIN', 'FINANCE');
+  const { db, school, schoolId, session } = await requireTenantRole('ADMIN', 'FINANCE');
 
   const parsed = invoiceSchema.safeParse({
     studentId: formData.get('studentId'),
@@ -82,6 +83,8 @@ export async function issueInvoiceAction(
   const discountPercent = parsed.data.discountPercent ?? 0;
 
   const result = await issueTermInvoice({
+    schoolId,
+    schoolCode: school.code,
     studentId: parsed.data.studentId,
     termId: parsed.data.termId,
     actorId: session.sub,
@@ -111,7 +114,7 @@ export async function placeHoldAction(
   _prev: FinanceState,
   formData: FormData,
 ): Promise<FinanceState> {
-  const session = await requireRole('ADMIN', 'FINANCE', 'REGISTRAR');
+  const { db, schoolId, session } = await requireTenantRole('ADMIN', 'FINANCE', 'REGISTRAR');
 
   const parsed = holdSchema.safeParse({
     studentId: formData.get('studentId'),
@@ -132,6 +135,7 @@ export async function placeHoldAction(
 
   const hold = await db.hold.create({
     data: {
+      schoolId,
       studentId: parsed.data.studentId,
       kind: parsed.data.kind,
       reason: parsed.data.reason,
@@ -141,6 +145,7 @@ export async function placeHoldAction(
   });
 
   void recordAudit({
+    schoolId,
     actorId: session.sub,
     action: 'hold.place',
     entityType: 'Hold',
@@ -158,7 +163,7 @@ export async function releaseHoldAction(
   _prev: FinanceState,
   formData: FormData,
 ): Promise<FinanceState> {
-  const session = await requireRole('ADMIN', 'FINANCE', 'REGISTRAR');
+  const { db, schoolId, session } = await requireTenantRole('ADMIN', 'FINANCE', 'REGISTRAR');
   const holdId = String(formData.get('holdId') ?? '');
   if (!holdId) return { ok: false, message: 'No hold specified.' };
 
@@ -172,6 +177,7 @@ export async function releaseHoldAction(
   });
 
   void recordAudit({
+    schoolId,
     actorId: session.sub,
     action: 'hold.release',
     entityType: 'Hold',

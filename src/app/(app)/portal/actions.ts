@@ -3,8 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
-import { db } from '@/lib/db';
-import { requireRole } from '@/lib/auth/session';
+import { requireTenantRole } from '@/server/tenant-context';
 import { respondToOffer } from '@/server/services/admissions.service';
 
 export interface OfferState {
@@ -21,7 +20,7 @@ export async function respondToOfferAction(
   _prev: OfferState,
   formData: FormData,
 ): Promise<OfferState> {
-  const session = await requireRole('APPLICANT');
+  const { db, schoolId, session } = await requireTenantRole('APPLICANT');
   if (!session.pid) return { ok: false, message: 'No applicant record is linked to your account.' };
 
   const parsed = schema.safeParse({
@@ -43,6 +42,7 @@ export async function respondToOfferAction(
   }
 
   const result = await respondToOffer({
+    schoolId,
     applicationId: parsed.data.applicationId,
     accept: parsed.data.decision === 'accept',
     actorId: session.sub,

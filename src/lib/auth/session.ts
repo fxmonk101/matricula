@@ -68,10 +68,34 @@ export async function requireSession(): Promise<SessionClaims> {
  * Current session with a role assertion. Redirects to /forbidden rather than
  * /login when the user IS signed in but lacks the role — sending them back to
  * a login form they have already completed is a confusing dead end.
+ *
+ * The role asserted is the one held at the session's school. There is no such
+ * thing as a global role in this system.
  */
 export async function requireRole(...allowed: Role[]): Promise<SessionClaims> {
   const session = await requireSession();
   if (!allowed.includes(session.role)) redirect('/forbidden');
+  return session;
+}
+
+/**
+ * The school this request is acting in, taken from the signed session rather
+ * than from anything the client can set. Every tenant-scoped query derives
+ * from this value.
+ */
+export async function requireTenant(): Promise<{ session: SessionClaims; schoolId: string }> {
+  const session = await requireSession();
+  return { session, schoolId: session.sch };
+}
+
+/**
+ * Platform operators act across tenants, so they are gated separately from the
+ * per-school permission matrix — a platform admin is not a Role and can never
+ * be granted by a school.
+ */
+export async function requirePlatformAdmin(): Promise<SessionClaims> {
+  const session = await requireSession();
+  if (!session.pa) redirect('/forbidden');
   return session;
 }
 

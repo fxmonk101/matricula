@@ -1,5 +1,5 @@
 // =============================================================================
-// Golden Eagles University — Data Model
+// Multi-tenant School Platform — Data Model
 // =============================================================================
 // Portability note: this schema deliberately avoids SQLite-only and
 // Postgres-only features. Enumerations are modelled as String columns whose
@@ -10,6 +10,26 @@
 //   provider = "postgresql"  -> production
 //
 // Monetary amounts are stored as INTEGER minor units (kobo/cents). Never float.
+//
+// -----------------------------------------------------------------------------
+// TENANCY
+// -----------------------------------------------------------------------------
+// Every model below is either PLATFORM-OWNED or TENANT-OWNED.
+//
+//   Platform-owned: School, SchoolConfig, User, PlatformAdmin, Membership,
+//                   IdentityProvider, AuditLog (schoolId nullable).
+//   Tenant-owned:   everything else. Each carries a NON-NULL `schoolId`.
+//
+// `schoolId` is deliberately NOT NULL on tenant models. That is a security
+// property, not a data-modelling preference: if the tenant-scoping layer in
+// src/lib/tenant.ts ever fails to inject it, the write fails on a NOT NULL
+// violation rather than silently landing an unscoped row that every tenant
+// can then read.
+//
+// Identity is GLOBAL (User.email is globally unique); authorisation is
+// PER-TENANT (Membership carries the role). One person, many schools — which
+// is what makes a consultant teacher, an examiner, or a guardian with children
+// at two schools expressible without a re-migration later.
 // =============================================================================
 
 generator client {
@@ -22,35 +42,222 @@ datasource db {
 }
 
 // -----------------------------------------------------------------------------
-// Identity & access
+// Tenancy
 // -----------------------------------------------------------------------------
 
+/// A school. The tenant boundary for every tenant-owned row in the system.
+model School {
+  id        String @id @default(cuid())
+  /// URL path segment: /s/<slug>/login. Also the subdomain when that mode is on.
+  slug      String @unique
+  /// Short prefix stamped into human-quotable document numbers so that
+  /// INV-GEU-2025-000001 and INV-MIT-2025-000001 can never be confused.
+  code      String @unique
+  name      String
+  shortName String
+
+  /// AcademicModel: HIGHER_ED | K12
+  /// Selects which academic engines and vocabulary apply. K12 support lands in
+  /// its own phase; the column exists now so the switch is never a migration.
+  academicModel String @default("HIGHER_ED")
+
+  /// SchoolStatus: ACTIVE | TRIAL | SUSPENDED | PROVISIONING
+  status String @default("PROVISIONING")
+  /// Entitlement tier; drives feature flags later.
+  plan   String?
+
+  country      String?
+  locale       String @default("en-NG")
+  timezone     String @default("Africa/Lagos")
+  currencyCode String @default("NGN")
+
+  brandColor String  @default("#1b5df5")
+  logoUrl    String?
+  primaryDomain String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  config            SchoolConfig?
+  memberships       Membership[]
+  orgUnits          OrgUnit[]
+  identityProviders IdentityProvider[]
+
+  @@index([status])
+  @@map("schools")
+}
+
+/// Per-school policy. Each column is a JSON document validated by Zod on write
+/// (see src/lib/domain/config.ts, added in the configuration phase).
+///
+/// Modelled as String rather than Prisma `Json` because `Json` is not portable
+/// to SQLite — the same reason AuditLog.metadata is a String today.
+model SchoolConfig {
+  id       String @id @default(cuid())
+  schoolId String @unique
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  /// Grade bands, assessment weights, standing thresholds, degree classes.
+  gradingJson String
+  /// Credit ceilings, registration tolerances.
+  enrollmentJson String
+  /// Rubric weights, decision thresholds, offer validity.
+  admissionsJson String
+  /// Currency, refund schedule, financial-hold policy.
+  financeJson String
+  /// Institution name, logo, colour, per-role landing overrides.
+  brandingJson String
+  /// Locale, timezone, week start, date format.
+  localeJson String
+  /// Which fields the public application form collects, which programs are open.
+  registrationPortalJson String
+
+  updatedAt DateTime @updatedAt
+
+  @@map("school_configs")
+}
+
+/// A person's membership of one school, carrying their role there.
+///
+/// Role lives HERE, not on User: the same human can be an instructor at one
+/// school and a guardian at another, and neither fact should be able to
+/// authorise them at the other.
+model Membership {
+  id       String @id @default(cuid())
+  userId   String
+  user     User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  /// Role: ADMIN | REGISTRAR | FINANCE | ADMISSIONS | INSTRUCTOR | STUDENT | APPLICANT | LIBRARIAN | STAFF | GUARDIAN
+  role  String
+  title String?
+
+  orgUnitId String?
+  orgUnit   OrgUnit? @relation(fields: [orgUnitId], references: [id], onDelete: SetNull)
+
+  /// Reporting line, within the same school. Dean <- HOD <- Lecturer.
+  managerId String?
+  manager   Membership?  @relation("Reports", fields: [managerId], references: [id], onDelete: SetNull)
+  reports   Membership[] @relation("Reports")
+
+  /// The school this person lands in by default when they sign in.
+  isPrimary Boolean @default(true)
+  /// MembershipStatus: ACTIVE | INVITED | SUSPENDED
+  status    String  @default("ACTIVE")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, schoolId])
+  @@index([schoolId, role])
+  @@index([managerId])
+  @@map("memberships")
+}
+
+/// Platform operators. Deliberately NOT a Role — a platform admin acts across
+/// tenants and must never be expressible in the per-school permission matrix.
+model PlatformAdmin {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@map("platform_admins")
+}
+
+/// The school's internal hierarchy: faculties, departments, offices, teams.
+/// Generic on purpose so a K-12 school can model sections and year groups in
+/// the same tree a university uses for faculties and departments.
+model OrgUnit {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  code String
+  name String
+  /// OrgUnitKind: FACULTY | DEPARTMENT | ADMIN_UNIT | SCHOOL_SECTION | TEAM
+  kind String
+
+  parentId String?
+  parent   OrgUnit?  @relation("OrgTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children OrgUnit[] @relation("OrgTree")
+
+  /// Membership.id of the unit head, if one is appointed.
+  headMembershipId String?
+
+  createdAt DateTime @default(now())
+
+  memberships Membership[]
+
+  @@unique([schoolId, code])
+  @@index([schoolId, parentId])
+  @@map("org_units")
+}
+
+/// Per-school SSO configuration. Ships unused: no code reads it yet. It exists
+/// now so that adding Entra / Google federation later is additive rather than
+/// a migration of the identity model.
+model IdentityProvider {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  /// IdpKind: OIDC | SAML | GOOGLE | ENTRA
+  kind        String
+  displayName String
+  issuer      String?
+  clientId    String?
+  clientSecret String?
+  metadataUrl String?
+  /// Email domains auto-routed to this provider, comma separated.
+  emailDomains String?
+  isEnabled   Boolean @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([schoolId, kind])
+  @@map("identity_providers")
+}
+
+// -----------------------------------------------------------------------------
+// Identity
+// -----------------------------------------------------------------------------
+
+/// A person. Global — one row per human, whatever schools they belong to.
+/// Their role(s) live on Membership.
 model User {
-  id           String   @id @default(cuid())
-  email        String   @unique
+  id           String    @id @default(cuid())
+  email        String    @unique
   passwordHash String
   firstName    String
   lastName     String
   phone        String?
-  role         String // Role: ADMIN | REGISTRAR | FINANCE | ADMISSIONS | INSTRUCTOR | STUDENT | APPLICANT
-  isActive     Boolean  @default(true)
+  isActive     Boolean   @default(true)
   lastLoginAt  DateTime?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
 
-  student    Student?
-  instructor Instructor?
-  applicant  Applicant?
-  auditLogs  AuditLog[]
+  memberships   Membership[]
+  platformAdmin PlatformAdmin?
+  students      Student[]
+  instructors   Instructor[]
+  applicants    Applicant[]
+  auditLogs     AuditLog[]
 
-  @@index([role])
   @@map("users")
 }
 
 /// Append-only trail of every state-changing operation. Never updated, never
 /// deleted — required for registrarial and financial defensibility.
+///
+/// `schoolId` is NULLABLE here alone: provisioning a school, or a platform
+/// admin acting across tenants, produces a legitimate entry belonging to no
+/// single school.
 model AuditLog {
   id         String   @id @default(cuid())
+  schoolId   String?
   actorId    String?
   actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
   action     String // e.g. "enrollment.create", "grade.submit", "payment.record"
@@ -61,6 +268,7 @@ model AuditLog {
   ipAddress  String?
   createdAt  DateTime @default(now())
 
+  @@index([schoolId, createdAt])
   @@index([entityType, entityId])
   @@index([actorId, createdAt])
   @@map("audit_logs")
@@ -72,18 +280,22 @@ model AuditLog {
 
 model Faculty {
   id        String   @id @default(cuid())
-  code      String   @unique
+  schoolId  String
+  code      String
   name      String
   createdAt DateTime @default(now())
 
   departments Department[]
 
+  @@unique([schoolId, code])
+  @@index([schoolId])
   @@map("faculties")
 }
 
 model Department {
   id        String   @id @default(cuid())
-  code      String   @unique
+  schoolId  String
+  code      String
   name      String
   facultyId String
   faculty   Faculty  @relation(fields: [facultyId], references: [id], onDelete: Cascade)
@@ -93,30 +305,35 @@ model Department {
   courses     Course[]
   instructors Instructor[]
 
+  @@unique([schoolId, code])
+  @@index([schoolId])
   @@index([facultyId])
   @@map("departments")
 }
 
 model Program {
-  id             String  @id @default(cuid())
-  code           String  @unique
-  name           String
-  degreeType     String // DegreeType: BSC | BA | BENG | MSC | MA | PHD | DIPLOMA
-  departmentId   String
-  department     Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  id           String @id @default(cuid())
+  schoolId     String
+  code         String
+  name         String
+  degreeType   String // DegreeType: BSC | BA | BENG | MSC | MA | PHD | DIPLOMA
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
   /// Credits required to graduate.
-  creditsRequired Int    @default(120)
+  creditsRequired Int @default(120)
   /// Nominal duration in academic terms.
-  durationTerms  Int     @default(8)
-  minCgpaToGraduate Float @default(1.5)
-  isActive       Boolean @default(true)
-  createdAt      DateTime @default(now())
+  durationTerms     Int     @default(8)
+  minCgpaToGraduate Float   @default(1.5)
+  isActive          Boolean @default(true)
+  createdAt         DateTime @default(now())
 
-  students          Student[]
-  applications      Application[]
-  requirements      ProgramRequirement[]
-  feeStructures     FeeStructure[]
+  students      Student[]
+  applications  Application[]
+  requirements  ProgramRequirement[]
+  feeStructures FeeStructure[]
 
+  @@unique([schoolId, code])
+  @@index([schoolId])
   @@index([departmentId])
   @@map("programs")
 }
@@ -124,6 +341,7 @@ model Program {
 /// A course that counts toward a program, and in what capacity.
 model ProgramRequirement {
   id        String  @id @default(cuid())
+  schoolId  String
   programId String
   program   Program @relation(fields: [programId], references: [id], onDelete: Cascade)
   courseId  String
@@ -134,6 +352,7 @@ model ProgramRequirement {
   level     Int     @default(100)
 
   @@unique([programId, courseId])
+  @@index([schoolId])
   @@index([courseId])
   @@map("program_requirements")
 }
@@ -143,32 +362,34 @@ model ProgramRequirement {
 // -----------------------------------------------------------------------------
 
 model Term {
-  id        String   @id @default(cuid())
-  code      String   @unique // e.g. "2025-FALL"
-  name      String
+  id           String @id @default(cuid())
+  schoolId     String
+  code         String // e.g. "2025-FALL"
+  name         String
   academicYear String // e.g. "2025/2026"
   /// TermSeason: FALL | SPRING | SUMMER
-  season    String
-  startDate DateTime
-  endDate   DateTime
+  season       String
+  startDate    DateTime
+  endDate      DateTime
   /// Registration window — enrollment requests outside it are rejected.
   registrationOpensAt  DateTime
   registrationClosesAt DateTime
   /// Last day a student may drop without a "W" transcript notation.
-  addDropDeadline      DateTime
+  addDropDeadline DateTime
   /// Last day a student may withdraw at all.
-  withdrawalDeadline   DateTime
-  /// Only one term may be current; enforced in application logic.
+  withdrawalDeadline DateTime
+  /// Only one term per school may be current; enforced in application logic.
   isCurrent Boolean  @default(false)
   createdAt DateTime @default(now())
 
-  offerings  CourseOffering[]
-  invoices   Invoice[]
-  termGpas   TermGpa[]
-  applications Application[]
+  offerings     CourseOffering[]
+  invoices      Invoice[]
+  termGpas      TermGpa[]
+  applications  Application[]
   feeStructures FeeStructure[]
 
-  @@index([isCurrent])
+  @@unique([schoolId, code])
+  @@index([schoolId, isCurrent])
   @@map("terms")
 }
 
@@ -178,21 +399,24 @@ model Term {
 
 model Course {
   id           String  @id @default(cuid())
-  code         String  @unique // e.g. "CSC301"
+  schoolId     String
+  code         String // e.g. "CSC301"
   title        String
   description  String?
   creditHours  Int
   level        Int     @default(100)
   departmentId String
   department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
-  isActive     Boolean @default(true)
+  isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
 
   offerings     CourseOffering[]
   requirements  ProgramRequirement[]
-  prerequisites Prerequisite[] @relation("CourseToPrereq")
-  requiredBy    Prerequisite[] @relation("PrereqToCourse")
+  prerequisites Prerequisite[]       @relation("CourseToPrereq")
+  requiredBy    Prerequisite[]       @relation("PrereqToCourse")
 
+  @@unique([schoolId, code])
+  @@index([schoolId])
   @@index([departmentId])
   @@index([level])
   @@map("courses")
@@ -201,63 +425,69 @@ model Course {
 /// Directed edge in the prerequisite DAG: `course` requires `prerequisite`.
 model Prerequisite {
   id             String @id @default(cuid())
+  schoolId       String
   courseId       String
   course         Course @relation("CourseToPrereq", fields: [courseId], references: [id], onDelete: Cascade)
   prerequisiteId String
   prerequisite   Course @relation("PrereqToCourse", fields: [prerequisiteId], references: [id], onDelete: Cascade)
   /// Minimum grade point that must have been earned in the prerequisite.
-  minGradePoint  Float  @default(1.0)
+  minGradePoint  Float   @default(1.0)
   /// CONCURRENT prerequisites may be taken in the same term.
   isConcurrent   Boolean @default(false)
 
   @@unique([courseId, prerequisiteId])
+  @@index([schoolId])
   @@index([prerequisiteId])
   @@map("prerequisites")
 }
 
 /// A concrete section of a course taught in a term ("CSC301-A, Fall 2025").
 model CourseOffering {
-  id           String @id @default(cuid())
+  id           String      @id @default(cuid())
+  schoolId     String
   courseId     String
-  course       Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  course       Course      @relation(fields: [courseId], references: [id], onDelete: Cascade)
   termId       String
-  term         Term   @relation(fields: [termId], references: [id], onDelete: Cascade)
-  section      String @default("A")
+  term         Term        @relation(fields: [termId], references: [id], onDelete: Cascade)
+  section      String      @default("A")
   instructorId String?
   instructor   Instructor? @relation(fields: [instructorId], references: [id], onDelete: SetNull)
-  capacity     Int    @default(50)
+  capacity     Int         @default(50)
   /// Denormalised counter kept consistent inside the enrollment transaction.
   /// Source of truth remains COUNT(enrollments WHERE status IN (REGISTERED)).
-  seatsTaken   Int    @default(0)
+  seatsTaken       Int @default(0)
   waitlistCapacity Int @default(10)
-  room         String?
+  room             String?
   /// OfferingStatus: PLANNED | OPEN | CLOSED | CANCELLED
-  status       String @default("OPEN")
+  status       String   @default("OPEN")
   /// True once the instructor has submitted final grades.
-  gradesPosted Boolean @default(false)
+  gradesPosted Boolean  @default(false)
   createdAt    DateTime @default(now())
 
   meetings    Meeting[]
   enrollments Enrollment[]
 
   @@unique([courseId, termId, section])
+  @@index([schoolId])
   @@index([termId])
   @@index([instructorId])
   @@map("course_offerings")
 }
 
 /// One weekly timeslot for an offering. Times are minutes-from-midnight in the
-/// institution's local timezone, which makes conflict detection pure integer math.
+/// school's local timezone, which makes conflict detection pure integer math.
 model Meeting {
-  id         String @id @default(cuid())
+  id         String         @id @default(cuid())
+  schoolId   String
   offeringId String
   offering   CourseOffering @relation(fields: [offeringId], references: [id], onDelete: Cascade)
   /// 1 = Monday ... 7 = Sunday (ISO-8601).
-  dayOfWeek  Int
+  dayOfWeek   Int
   startMinute Int
   endMinute   Int
   room        String?
 
+  @@index([schoolId])
   @@index([offeringId])
   @@index([dayOfWeek])
   @@map("meetings")
@@ -268,30 +498,31 @@ model Meeting {
 // -----------------------------------------------------------------------------
 
 model Student {
-  id            String  @id @default(cuid())
-  userId        String  @unique
-  user          User    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  matricNumber  String  @unique
-  programId     String
-  program       Program @relation(fields: [programId], references: [id])
+  id           String  @id @default(cuid())
+  schoolId     String
+  userId       String
+  user         User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  matricNumber String
+  programId    String
+  program      Program @relation(fields: [programId], references: [id])
   /// Level of study: 100, 200, 300, 400...
-  level         Int     @default(100)
+  level             Int     @default(100)
   admissionTermCode String?
-  dateOfBirth   DateTime?
-  gender        String?
-  nationality   String?
-  address       String?
+  dateOfBirth       DateTime?
+  gender            String?
+  nationality       String?
+  address           String?
   /// StudentStatus: ACTIVE | PROBATION | SUSPENDED | WITHDRAWN | GRADUATED | DEFERRED
-  status        String  @default("ACTIVE")
+  status String @default("ACTIVE")
   /// AcademicStanding: GOOD | DEANS_LIST | WARNING | PROBATION | DISMISSED
   academicStanding String @default("GOOD")
   /// Cached aggregates, recomputed by the GPA engine. Never authoritative.
-  cgpa          Float   @default(0)
-  creditsEarned Int     @default(0)
-  creditsAttempted Int  @default(0)
-  /// A non-zero hold count blocks registration.
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  cgpa             Float @default(0)
+  creditsEarned    Int   @default(0)
+  creditsAttempted Int   @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   enrollments Enrollment[]
   invoices    Invoice[]
@@ -299,25 +530,31 @@ model Student {
   termGpas    TermGpa[]
   holds       Hold[]
 
+  @@unique([schoolId, userId])
+  @@unique([schoolId, matricNumber])
+  @@index([schoolId, status])
   @@index([programId])
-  @@index([status])
   @@map("students")
 }
 
 model Instructor {
-  id           String @id @default(cuid())
-  userId       String @unique
-  user         User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  staffNumber  String @unique
+  id           String     @id @default(cuid())
+  schoolId     String
+  userId       String
+  user         User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  staffNumber  String
   departmentId String
   department   Department @relation(fields: [departmentId], references: [id])
   /// AcademicRank: PROFESSOR | ASSOCIATE_PROFESSOR | SENIOR_LECTURER | LECTURER | ASSISTANT_LECTURER
-  rank         String @default("LECTURER")
-  officeRoom   String?
-  createdAt    DateTime @default(now())
+  rank       String   @default("LECTURER")
+  officeRoom String?
+  createdAt  DateTime @default(now())
 
   offerings CourseOffering[]
 
+  @@unique([schoolId, userId])
+  @@unique([schoolId, staffNumber])
+  @@index([schoolId])
   @@index([departmentId])
   @@map("instructors")
 }
@@ -327,53 +564,57 @@ model Instructor {
 // -----------------------------------------------------------------------------
 
 model Applicant {
-  id          String @id @default(cuid())
-  userId      String @unique
-  user        User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id          String    @id @default(cuid())
+  schoolId    String
+  userId      String
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   dateOfBirth DateTime?
   gender      String?
   nationality String?
   address     String?
-  createdAt   DateTime @default(now())
+  createdAt   DateTime  @default(now())
 
   applications Application[]
 
+  @@unique([schoolId, userId])
+  @@index([schoolId])
   @@map("applicants")
 }
 
 model Application {
-  id            String @id @default(cuid())
-  referenceNo   String @unique // human-quotable, e.g. "APP-2025-000418"
-  applicantId   String
-  applicant     Applicant @relation(fields: [applicantId], references: [id], onDelete: Cascade)
-  programId     String
-  program       Program @relation(fields: [programId], references: [id])
-  termId        String
-  term          Term    @relation(fields: [termId], references: [id])
+  id          String    @id @default(cuid())
+  schoolId    String
+  referenceNo String // human-quotable, e.g. "APP-GEU-2025-000418"
+  applicantId String
+  applicant   Applicant @relation(fields: [applicantId], references: [id], onDelete: Cascade)
+  programId   String
+  program     Program   @relation(fields: [programId], references: [id])
+  termId      String
+  term        Term      @relation(fields: [termId], references: [id])
 
   /// ApplicationStatus lifecycle:
   /// DRAFT -> SUBMITTED -> UNDER_REVIEW -> (OFFERED | WAITLISTED | REJECTED)
   /// OFFERED -> (ACCEPTED -> ENROLLED | DECLINED | EXPIRED)
   /// Any pre-decision state -> WITHDRAWN
-  status        String @default("DRAFT")
+  status String @default("DRAFT")
 
   // --- raw evaluation inputs -------------------------------------------------
   /// Prior academic performance, normalised to a 0-100 scale.
-  priorGpaScore     Float?
+  priorGpaScore Float?
   /// Standardised entrance exam raw score.
   entranceExamScore Float?
   /// Rubric-scored personal statement (0-100), averaged across reviewers.
-  essayScore        Float?
+  essayScore Float?
   /// Rubric-scored interview (0-100), averaged across reviewers.
-  interviewScore    Float?
+  interviewScore Float?
   /// Extracurricular / service rubric (0-100).
   extracurricularScore Float?
 
   // --- computed by the admissions scoring engine -----------------------------
   /// Weighted composite on a 0-100 scale. Null until scored.
-  compositeScore    Float?
+  compositeScore Float?
   /// Rank within (programId, termId) at the moment of the last decision run.
-  rankInCohort      Int?
+  rankInCohort Int?
 
   personalStatement String?
   previousSchool    String?
@@ -381,28 +622,30 @@ model Application {
   decidedAt         DateTime?
   decisionNote      String?
   /// Deadline for the applicant to accept an offer.
-  offerExpiresAt    DateTime?
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
+  offerExpiresAt DateTime?
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   reviews   ApplicationReview[]
   documents ApplicationDocument[]
 
+  @@unique([schoolId, referenceNo])
   @@unique([applicantId, programId, termId])
+  @@index([schoolId, status])
   @@index([programId, termId, status])
-  @@index([status])
   @@map("applications")
 }
 
 model ApplicationReview {
-  id            String @id @default(cuid())
+  id            String      @id @default(cuid())
+  schoolId      String
   applicationId String
   application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
   reviewerId    String
   /// Rubric sub-scores, each 0-100.
-  academicScore       Float
-  essayScore          Float
-  interviewScore      Float?
+  academicScore        Float
+  essayScore           Float
+  interviewScore       Float?
   extracurricularScore Float?
   /// Recommendation: ADMIT | WAITLIST | REJECT
   recommendation String
@@ -410,21 +653,24 @@ model ApplicationReview {
   createdAt      DateTime @default(now())
 
   @@unique([applicationId, reviewerId])
+  @@index([schoolId])
   @@index([applicationId])
   @@map("application_reviews")
 }
 
 model ApplicationDocument {
-  id            String @id @default(cuid())
+  id            String      @id @default(cuid())
+  schoolId      String
   applicationId String
   application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
   /// DocumentKind: TRANSCRIPT | ID_CARD | BIRTH_CERTIFICATE | RECOMMENDATION | OTHER
-  kind          String
-  fileName      String
-  fileUrl       String
-  verified      Boolean @default(false)
-  uploadedAt    DateTime @default(now())
+  kind       String
+  fileName   String
+  fileUrl    String
+  verified   Boolean  @default(false)
+  uploadedAt DateTime @default(now())
 
+  @@index([schoolId])
   @@index([applicationId])
   @@map("application_documents")
 }
@@ -434,38 +680,40 @@ model ApplicationDocument {
 // -----------------------------------------------------------------------------
 
 model Enrollment {
-  id         String @id @default(cuid())
+  id         String         @id @default(cuid())
+  schoolId   String
   studentId  String
-  student    Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  student    Student        @relation(fields: [studentId], references: [id], onDelete: Cascade)
   offeringId String
   offering   CourseOffering @relation(fields: [offeringId], references: [id], onDelete: Cascade)
 
   /// EnrollmentStatus: REGISTERED | WAITLISTED | DROPPED | WITHDRAWN | COMPLETED
-  status     String @default("REGISTERED")
+  status String @default("REGISTERED")
   /// Position in the waitlist queue; null unless WAITLISTED. Monotonic per offering.
   waitlistPosition Int?
 
   // --- assessment ------------------------------------------------------------
   /// Continuous assessment, 0-40 by institutional policy.
-  caScore    Float?
+  caScore Float?
   /// Final examination, 0-60 by institutional policy.
-  examScore  Float?
+  examScore Float?
   /// caScore + examScore, 0-100. Materialised for reporting.
   totalScore Float?
   /// Letter grade derived from totalScore via the grading scale.
   letterGrade String?
-  /// Grade point for the letter grade (4.0 scale).
+  /// Grade point for the letter grade.
   gradePoint Float?
   /// True when this attempt is superseded by a later retake (excluded from CGPA
   /// under the "best attempt" policy).
   isRepeatSuperseded Boolean @default(false)
 
-  enrolledAt DateTime @default(now())
+  enrolledAt DateTime  @default(now())
   droppedAt  DateTime?
   gradedAt   DateTime?
-  updatedAt  DateTime @updatedAt
+  updatedAt  DateTime  @updatedAt
 
   @@unique([studentId, offeringId])
+  @@index([schoolId])
   @@index([offeringId, status])
   @@index([studentId, status])
   @@map("enrollments")
@@ -474,7 +722,8 @@ model Enrollment {
 /// Per-term GPA snapshot. Immutable once the term closes; the audit trail for
 /// how a CGPA was arrived at.
 model TermGpa {
-  id               String @id @default(cuid())
+  id               String  @id @default(cuid())
+  schoolId         String
   studentId        String
   student          Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
   termId           String
@@ -488,6 +737,7 @@ model TermGpa {
   computedAt       DateTime @default(now())
 
   @@unique([studentId, termId])
+  @@index([schoolId])
   @@index([studentId])
   @@map("term_gpas")
 }
@@ -495,19 +745,21 @@ model TermGpa {
 /// A block placed on a student's record. Any active hold with blocksRegistration
 /// prevents enrollment.
 model Hold {
-  id          String @id @default(cuid())
-  studentId   String
-  student     Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  id        String  @id @default(cuid())
+  schoolId  String
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
   /// HoldKind: FINANCIAL | ACADEMIC | DISCIPLINARY | DOCUMENTATION | HEALTH
-  kind        String
-  reason      String
-  blocksRegistration Boolean @default(true)
-  blocksTranscript   Boolean @default(false)
-  placedBy    String?
-  placedAt    DateTime @default(now())
-  releasedAt  DateTime?
-  releasedBy  String?
+  kind               String
+  reason             String
+  blocksRegistration Boolean   @default(true)
+  blocksTranscript   Boolean   @default(false)
+  placedBy           String?
+  placedAt           DateTime  @default(now())
+  releasedAt         DateTime?
+  releasedBy         String?
 
+  @@index([schoolId])
   @@index([studentId, releasedAt])
   @@map("holds")
 }
@@ -515,112 +767,123 @@ model Hold {
 // -----------------------------------------------------------------------------
 // Finance
 // -----------------------------------------------------------------------------
-// All amounts are INTEGER minor units (e.g. kobo). Currency is institution-wide.
+// All amounts are INTEGER minor units. Currency is per-school.
 
 /// The published price list. Assessment resolves the most specific matching
 /// structure for a (program, term, level) triple.
 model FeeStructure {
-  id        String  @id @default(cuid())
-  name      String
-  termId    String
-  term      Term    @relation(fields: [termId], references: [id], onDelete: Cascade)
+  id       String @id @default(cuid())
+  schoolId String
+  name     String
+  termId   String
+  term     Term   @relation(fields: [termId], references: [id], onDelete: Cascade)
   /// Null = applies to every program.
   programId String?
   program   Program? @relation(fields: [programId], references: [id], onDelete: Cascade)
   /// Null = applies to every level.
   level     Int?
-  isActive  Boolean @default(true)
+  isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
 
   items FeeItem[]
 
+  @@index([schoolId])
   @@index([termId, programId, level])
   @@map("fee_structures")
 }
 
 model FeeItem {
-  id             String @id @default(cuid())
+  id             String       @id @default(cuid())
+  schoolId       String
   feeStructureId String
   feeStructure   FeeStructure @relation(fields: [feeStructureId], references: [id], onDelete: Cascade)
   code           String // TUITION, LAB, LIBRARY, ACCOMMODATION, ...
   description    String
   /// Minor units. If perCreditHour is true this is the rate per credit hour.
-  amountMinor    Int
-  perCreditHour  Boolean @default(false)
-  isMandatory    Boolean @default(true)
+  amountMinor   Int
+  perCreditHour Boolean @default(false)
+  isMandatory   Boolean @default(true)
 
+  @@index([schoolId])
   @@index([feeStructureId])
   @@map("fee_items")
 }
 
 model Invoice {
-  id          String @id @default(cuid())
-  invoiceNo   String @unique // "INV-2025-000913"
-  studentId   String
-  student     Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  termId      String
-  term        Term    @relation(fields: [termId], references: [id], onDelete: Cascade)
+  id        String  @id @default(cuid())
+  schoolId  String
+  invoiceNo String // "INV-GEU-2025-000913"
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  termId    String
+  term      Term    @relation(fields: [termId], references: [id], onDelete: Cascade)
   /// InvoiceStatus: DRAFT | ISSUED | PARTIALLY_PAID | PAID | OVERDUE | VOID
-  status      String @default("ISSUED")
+  status String @default("ISSUED")
   /// Sum of line items, minor units.
-  subtotalMinor Int  @default(0)
+  subtotalMinor Int @default(0)
   /// Scholarships, bursaries, sibling discounts — stored positive, subtracted.
-  discountMinor Int  @default(0)
+  discountMinor Int @default(0)
   /// subtotal - discount. The amount actually owed.
-  totalMinor    Int  @default(0)
+  totalMinor Int @default(0)
   /// Sum of allocations from payments. Maintained transactionally.
-  paidMinor     Int  @default(0)
-  issuedAt    DateTime @default(now())
-  dueDate     DateTime
-  voidedAt    DateTime?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  paidMinor Int @default(0)
+  issuedAt  DateTime  @default(now())
+  dueDate   DateTime
+  voidedAt  DateTime?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
 
   lines       InvoiceLine[]
   allocations PaymentAllocation[]
 
+  @@unique([schoolId, invoiceNo])
   @@unique([studentId, termId])
-  @@index([status, dueDate])
+  @@index([schoolId, status, dueDate])
   @@map("invoices")
 }
 
 model InvoiceLine {
-  id          String @id @default(cuid())
+  id          String  @id @default(cuid())
+  schoolId    String
   invoiceId   String
   invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   code        String
   description String
-  quantity    Int    @default(1)
+  quantity    Int     @default(1)
   unitAmountMinor Int
   /// quantity * unitAmountMinor
   amountMinor Int
 
+  @@index([schoolId])
   @@index([invoiceId])
   @@map("invoice_lines")
 }
 
 model Payment {
-  id          String @id @default(cuid())
-  receiptNo   String @unique // "RCP-2025-004411"
+  id          String  @id @default(cuid())
+  schoolId    String
+  receiptNo   String // "RCP-GEU-2025-004411"
   studentId   String
   student     Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
   amountMinor Int
   /// PaymentMethod: CARD | BANK_TRANSFER | CASH | CHEQUE | SCHOLARSHIP | WAIVER
-  method      String
+  method String
   /// PaymentStatus: PENDING | CONFIRMED | FAILED | REVERSED
-  status      String @default("CONFIRMED")
-  /// Provider reference; unique per provider to make webhooks idempotent.
-  externalRef String? @unique
+  status String @default("CONFIRMED")
+  /// Provider reference; unique per school to make webhooks idempotent.
+  externalRef String?
   note        String?
   /// Portion not yet applied to any invoice (student credit balance).
-  unappliedMinor Int @default(0)
-  receivedAt  DateTime @default(now())
-  recordedBy  String?
-  createdAt   DateTime @default(now())
+  unappliedMinor Int      @default(0)
+  receivedAt     DateTime @default(now())
+  recordedBy     String?
+  createdAt      DateTime @default(now())
 
   allocations PaymentAllocation[]
 
-  @@index([studentId, receivedAt])
+  @@unique([schoolId, receiptNo])
+  @@unique([schoolId, externalRef])
+  @@index([schoolId, studentId, receivedAt])
   @@map("payments")
 }
 
@@ -628,15 +891,17 @@ model Payment {
 /// several invoices; an invoice may be settled by several payments. This table
 /// is what makes the ledger reconstructable.
 model PaymentAllocation {
-  id          String @id @default(cuid())
+  id          String   @id @default(cuid())
+  schoolId    String
   paymentId   String
-  payment     Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  payment     Payment  @relation(fields: [paymentId], references: [id], onDelete: Cascade)
   invoiceId   String
-  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
   amountMinor Int
   createdAt   DateTime @default(now())
 
   @@unique([paymentId, invoiceId])
+  @@index([schoolId])
   @@index([invoiceId])
   @@map("payment_allocations")
 }
@@ -646,17 +911,18 @@ model PaymentAllocation {
 // -----------------------------------------------------------------------------
 
 model Announcement {
-  id        String @id @default(cuid())
-  title     String
-  body      String
+  id       String @id @default(cuid())
+  schoolId String
+  title    String
+  body     String
   /// Comma-separated roles this is visible to; empty = everyone.
-  audience  String @default("")
+  audience String @default("")
   /// Severity: INFO | WARNING | URGENT
-  severity  String @default("INFO")
-  authorId  String?
-  publishedAt DateTime @default(now())
-  expiresAt DateTime?
+  severity    String    @default("INFO")
+  authorId    String?
+  publishedAt DateTime  @default(now())
+  expiresAt   DateTime?
 
-  @@index([publishedAt])
+  @@index([schoolId, publishedAt])
   @@map("announcements")
 }

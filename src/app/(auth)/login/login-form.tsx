@@ -16,12 +16,15 @@ function SubmitButton() {
   );
 }
 
-export function LoginForm({ next }: { next?: string }) {
+export function LoginForm({ next, schoolSlug }: { next?: string; schoolSlug?: string }) {
   const [state, formAction] = useActionState<SignInState, FormData>(signInAction, {});
 
   return (
     <form action={formAction} className="space-y-4">
       {next ? <input type="hidden" name="next" value={next} /> : null}
+      {/* Pins the tenant when signing in through /s/<slug>/login. Absent, the
+          action falls back to the user's primary membership. */}
+      {schoolSlug ? <input type="hidden" name="schoolSlug" value={schoolSlug} /> : null}
 
       {state.error ? <Alert tone="danger">{state.error}</Alert> : null}
 

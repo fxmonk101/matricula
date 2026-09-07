@@ -1,8 +1,7 @@
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 
-import { db } from '@/lib/db';
-import { requireRole } from '@/lib/auth/session';
+import { requireTenantRole } from '@/server/tenant-context';
 import { buildTranscript } from '@/server/services/gpa.service';
 import { getStudentAccount } from '@/server/services/finance.service';
 import { auditGraduation, classifyDegree } from '@/lib/domain/grading';
@@ -32,7 +31,7 @@ export default async function StudentDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  await requireRole('ADMIN', 'REGISTRAR', 'ADMISSIONS', 'FINANCE', 'INSTRUCTOR');
+  const { db, school, schoolId } = await requireTenantRole('ADMIN', 'REGISTRAR', 'ADMISSIONS', 'FINANCE', 'INSTRUCTOR');
   const { id } = await params;
 
   const student = await db.student.findUnique({
@@ -47,8 +46,8 @@ export default async function StudentDetailPage({
   if (!student) notFound();
 
   const [transcript, account, passedEnrollments] = await Promise.all([
-    buildTranscript(id),
-    getStudentAccount(id),
+    buildTranscript(schoolId, id),
+    getStudentAccount(schoolId, id),
     db.enrollment.findMany({
       where: { studentId: id, gradePoint: { gte: 0.5 } },
       select: { offering: { select: { courseId: true } } },

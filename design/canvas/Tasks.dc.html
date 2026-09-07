@@ -1,0 +1,250 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; font-family: ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background: #f8fafc; color: #0f172a; -webkit-font-smoothing: antialiased; }
+    a { color: #1449e1; text-decoration: none; }
+    a:hover { color: #173db6; text-decoration: underline; }
+    .num { font-variant-numeric: tabular-nums; }
+    .card { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 1px 2px 0 rgba(16,24,40,.06), 0 1px 3px 0 rgba(16,24,40,.10); }
+    .ct { font-size: 14px; font-weight: 600; margin: 0; }
+    .cd { font-size: 12px; color: #64748b; margin: 2px 0 0; }
+    .th { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: #64748b; text-align: left; padding: 9px 16px; background: #f8fafc; border-bottom: 1px solid #e2e8f0; }
+    .badge { display: inline-flex; align-items: center; gap: 4px; border-radius: 6px; padding: 2px 8px; font-size: 12px; font-weight: 500; box-shadow: inset 0 0 0 1px currentColor; }
+    .rail { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 8px; color: #64748b; }
+    .chip { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 8px; background: #fff; box-shadow: inset 0 0 0 1px #cbd5e1; font-size: 12.5px; font-weight: 500; color: #334155; }
+  </style>
+</helmet>
+
+<div style="display: flex; width: 1440px; height: 900px; overflow: hidden;">
+
+  <!-- collapsed rail -->
+  <aside style="width: 56px; flex-shrink: 0; background: #fff; border-right: 1px solid #e2e8f0; display: flex; flex-direction: column; align-items: center; padding: 10px 0; gap: 4px;">
+    <div style="width: 30px; height: 30px; border-radius: 8px; background: {{accent}}; color: #fff; display: grid; place-items: center; font-size: 10px; font-weight: 700; margin-bottom: 8px;">GEU</div>
+    <div class="rail"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5 12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1V9.5Z"/></svg></div>
+    <div class="rail" style="background: {{accentSoft}}; color: {{accent}}; position: relative;">
+      <div style="position: absolute; left: -11px; top: 6px; bottom: 6px; width: 3px; border-radius: 0 3px 3px 0; background: {{accent}};"></div>
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="m8 12 2.5 2.5L16 9"/></svg>
+    </div>
+    <div class="rail"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/></svg></div>
+    <div style="width: 24px; height: 1px; background: #e2e8f0; margin: 6px 0;"></div>
+    <div class="rail"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5Z"/></svg></div>
+    <div class="rail"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"/></svg></div>
+    <div class="rail"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5V6a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 1.5Z"/></svg></div>
+    <div style="flex-grow: 1;"></div>
+    <div style="width: 28px; height: 28px; border-radius: 999px; background: #1e293b; color: #fff; display: grid; place-items: center; font-size: 10px; font-weight: 600;">AO</div>
+  </aside>
+
+  <div style="flex-grow: 1; display: flex; flex-direction: column; min-width: 0;">
+
+    <header style="height: 48px; flex-shrink: 0; background: #fff; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; gap: 8px; padding: 0 20px;">
+      <span style="font-size: 13px; color: #94a3b8;">Workplace</span>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="2" stroke-linecap="round"><path d="m9 6 6 6-6 6"/></svg>
+      <span style="font-size: 13px; color: #0f172a; font-weight: 500;">Tasks</span>
+      <div style="flex-grow: 1;"></div>
+      <div style="position: relative; display: grid; place-items: center; width: 30px; height: 30px;">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 1 0-12 0c0 6-2 7-2 7h16s-2-1-2-7"/><path d="M13.7 20a2 2 0 0 1-3.4 0"/></svg>
+        <span class="num" style="position: absolute; top: 1px; right: 1px; min-width: 15px; height: 15px; border-radius: 999px; background: #e11d48; color: #fff; font-size: 10px; font-weight: 700; display: grid; place-items: center; padding: 0 3px; box-shadow: 0 0 0 2px #fff;">4</span>
+      </div>
+    </header>
+
+    <div style="flex-grow: 1; display: flex; min-height: 0;">
+
+      <!-- ===== list ===== -->
+      <div style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; padding: 18px 20px;">
+
+        <div style="display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; padding-bottom: 14px;">
+          <div>
+            <h1 style="font-size: 20px; font-weight: 600; letter-spacing: -.01em; margin: 0;">Tasks</h1>
+            <p style="font-size: 13px; color: #64748b; margin: 3px 0 0;">Faculty of Science · you and 4 direct reports</p>
+          </div>
+          <div style="display: inline-flex; align-items: center; height: 32px; padding: 0 14px; border-radius: 8px; background: {{accent}}; color: #fff; font-size: 13px; font-weight: 500;">New task</div>
+        </div>
+
+        <div style="display: flex; align-items: center; gap: 7px; padding-bottom: 12px; flex-wrap: wrap;">
+          <div style="display: inline-flex; background: #fff; border-radius: 8px; box-shadow: inset 0 0 0 1px #cbd5e1; overflow: hidden;">
+            <div style="padding: 5px 12px; font-size: 12.5px; font-weight: 600; background: {{accentSoft}}; color: {{accent}};">My team</div>
+            <div style="padding: 5px 12px; font-size: 12.5px; font-weight: 500; color: #64748b;">Assigned to me</div>
+            <div style="padding: 5px 12px; font-size: 12.5px; font-weight: 500; color: #64748b;">Created by me</div>
+          </div>
+          <div class="chip">Status: Open, In progress <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2.4" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></div>
+          <div class="chip">Overdue only</div>
+          <div class="chip">Type: All <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2.4" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg></div>
+          <div style="flex-grow: 1;"></div>
+          <span class="num" style="font-size: 12px; color: #64748b;">9 tasks</span>
+        </div>
+
+        <div class="card" style="overflow: hidden; flex-grow: 1;">
+          <table style="width: 100%; border-collapse: collapse;">
+            <thead>
+              <tr>
+                <th class="th" style="width: 26px;"></th>
+                <th class="th">Task</th>
+                <th class="th">Assignee</th>
+                <th class="th">Type</th>
+                <th class="th">Due</th>
+                <th class="th">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <sc-for list="{{rows}}" as="r" hint-placeholder-count="9">
+                <tr style="background: {{r.rowBg}};">
+                  <td style="padding: {{padY}}px 16px; border-bottom: 1px solid #f1f5f9;">
+                    <div style="width: 15px; height: 15px; border-radius: 4px; box-shadow: inset 0 0 0 1.5px #cbd5e1;"></div>
+                  </td>
+                  <td style="padding: {{padY}}px 16px; border-bottom: 1px solid #f1f5f9;">
+                    <div style="font-size: 14px; font-weight: 500; color: #0f172a;">{{r.title}}</div>
+                    <div style="font-size: 11px; color: #94a3b8; margin-top: 1px;">{{r.meta}}</div>
+                  </td>
+                  <td style="padding: {{padY}}px 16px; border-bottom: 1px solid #f1f5f9;">
+                    <div style="display: flex; align-items: center; gap: 7px;">
+                      <div style="width: 22px; height: 22px; border-radius: 999px; background: #f1f5f9; color: #475569; display: grid; place-items: center; font-size: 10px; font-weight: 600; flex-shrink: 0;">{{r.initials}}</div>
+                      <span style="font-size: 13px; color: #334155;">{{r.assignee}}</span>
+                    </div>
+                  </td>
+                  <td style="padding: {{padY}}px 16px; border-bottom: 1px solid #f1f5f9; font-size: 12.5px; color: #64748b;">{{r.type}}</td>
+                  <td class="num" style="padding: {{padY}}px 16px; border-bottom: 1px solid #f1f5f9; font-size: 13px; color: {{r.dueColor}}; font-weight: {{r.dueWeight}};">{{r.due}}</td>
+                  <td style="padding: {{padY}}px 16px; border-bottom: 1px solid #f1f5f9;">
+                    <span class="badge" style="background: {{r.bg}}; color: {{r.fg}};">{{r.status}}</span>
+                  </td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- ===== detail ===== -->
+      <aside style="width: 396px; flex-shrink: 0; background: #fff; border-left: 1px solid #e2e8f0; display: flex; flex-direction: column;">
+
+        <div style="padding: 16px 20px 14px; border-bottom: 1px solid #e2e8f0;">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span class="badge" style="background: #fff1f2; color: #be123c;">Overdue 2d</span>
+            <span class="num" style="font-size: 11px; color: #94a3b8;">TSK-2025-0418</span>
+            <div style="flex-grow: 1;"></div>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+          </div>
+          <h2 style="font-size: 16px; font-weight: 600; margin: 9px 0 0; line-height: 1.35;">Assign instructor to CSC301-B</h2>
+          <p style="font-size: 12.5px; color: #64748b; margin: 6px 0 0; line-height: 1.5;">Algorithms &amp; Complexity, section B, Fall 2025. 40 seats, Tue/Fri. Section cannot open for registration until an instructor of record is assigned.</p>
+        </div>
+
+        <div style="padding: 14px 20px; border-bottom: 1px solid #e2e8f0; display: flex; flex-direction: column; gap: 10px;">
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+            <span style="font-size: 12px; color: #64748b;">Status</span>
+            <div style="display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 10px; border-radius: 8px; box-shadow: inset 0 0 0 1px #cbd5e1; font-size: 12.5px; font-weight: 500;">
+              <span style="width: 7px; height: 7px; border-radius: 999px; background: #e11d48;"></span> Open
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2.4" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+            <span style="font-size: 12px; color: #64748b;">Assignee</span>
+            <div style="display: inline-flex; align-items: center; gap: 7px; height: 28px; padding: 0 10px 0 4px; border-radius: 8px; box-shadow: inset 0 0 0 1px #cbd5e1;">
+              <div style="width: 20px; height: 20px; border-radius: 999px; background: #1e293b; color: #fff; display: grid; place-items: center; font-size: 9px; font-weight: 600;">AO</div>
+              <span style="font-size: 12.5px; font-weight: 500;">Adaeze Okafor</span>
+            </div>
+          </div>
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+            <span style="font-size: 12px; color: #64748b;">Due</span>
+            <span class="num" style="font-size: 12.5px; font-weight: 500; color: #be123c;">24 Oct 2025</span>
+          </div>
+          <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+            <span style="font-size: 12px; color: #64748b;">Escalates to</span>
+            <span style="font-size: 12.5px; font-weight: 500;">Registrar · in 3d</span>
+          </div>
+        </div>
+
+        <!-- hierarchy assignment -->
+        <div style="padding: 14px 20px; border-bottom: 1px solid #e2e8f0;">
+          <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: #64748b; margin-bottom: 9px;">Reassign within your team</div>
+          <div style="display: flex; flex-direction: column; gap: 2px;">
+            <sc-for list="{{team}}" as="m" hint-placeholder-count="4">
+              <div style="display: flex; align-items: center; gap: 9px; padding: 7px 8px; border-radius: 8px; background: {{m.bg}};">
+                <div style="width: 26px; height: 26px; border-radius: 999px; background: #f1f5f9; color: #475569; display: grid; place-items: center; font-size: 10px; font-weight: 600; flex-shrink: 0;">{{m.initials}}</div>
+                <div style="min-width: 0; flex-grow: 1;">
+                  <div style="font-size: 13px; font-weight: 500; line-height: 1.3;">{{m.name}}</div>
+                  <div style="font-size: 11px; color: #94a3b8; line-height: 1.35;">{{m.title}}</div>
+                </div>
+                <div style="text-align: right; flex-shrink: 0;">
+                  <div class="num" style="font-size: 12px; font-weight: 600; color: {{m.loadColor}};">{{m.load}}</div>
+                  <div style="font-size: 10px; color: #94a3b8;">open</div>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+          <div style="display: flex; align-items: center; gap: 6px; margin-top: 10px; padding: 8px 10px; border-radius: 8px; background: #fffbeb; box-shadow: inset 0 0 0 1px #fde68a;">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#b45309" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink: 0;"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>
+            <span style="font-size: 11.5px; color: #92400e; line-height: 1.4;">Balogun is carrying 2× the team median. Consider Dauda or Eze.</span>
+          </div>
+        </div>
+
+        <!-- activity -->
+        <div style="flex-grow: 1; padding: 14px 20px; overflow: hidden;">
+          <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: #64748b; margin-bottom: 10px;">Activity</div>
+          <div style="display: flex; flex-direction: column; gap: 11px;">
+            <sc-for list="{{events}}" as="e" hint-placeholder-count="3">
+              <div style="display: flex; gap: 9px;">
+                <div style="width: 6px; height: 6px; border-radius: 999px; background: #cbd5e1; margin-top: 6px; flex-shrink: 0;"></div>
+                <div style="min-width: 0;">
+                  <div style="font-size: 12.5px; color: #334155; line-height: 1.45;">{{e.text}}</div>
+                  <div style="font-size: 11px; color: #94a3b8; margin-top: 1px;">{{e.when}}</div>
+                </div>
+              </div>
+            </sc-for>
+          </div>
+        </div>
+
+        <div style="padding: 12px 20px; border-top: 1px solid #e2e8f0; display: flex; gap: 8px;">
+          <div style="flex-grow: 1; height: 32px; border-radius: 8px; background: #f8fafc; box-shadow: inset 0 0 0 1px #e2e8f0; display: flex; align-items: center; padding: 0 11px; font-size: 12.5px; color: #94a3b8;">Add a comment…</div>
+          <div style="display: inline-flex; align-items: center; height: 32px; padding: 0 14px; border-radius: 8px; background: {{accent}}; color: #fff; font-size: 12.5px; font-weight: 500;">Send</div>
+        </div>
+      </aside>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"accent":{"editor":"color","default":"#1b5df5","options":["#1b5df5","#0f766e","#7c3aed","#b45309"],"section":"Brand"},"accentSoft":{"editor":"color","default":"#eef6ff","section":"Brand"},"density":{"editor":"enum","options":["Comfortable","Compact"],"default":"Comfortable","section":"Layout"}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const compact = (this.props.density ?? 'Comfortable') === 'Compact';
+    const r = (title, meta, initials, assignee, type, due, dueColor, dueWeight, status, bg, fg, rowBg) =>
+      ({ title, meta, initials, assignee, type, due, dueColor, dueWeight, status, bg, fg, rowBg });
+    const m = (initials, name, title, load, loadColor, bg) => ({ initials, name, title, load, loadColor, bg });
+    return {
+      accent: this.props.accent ?? '#1b5df5',
+      accentSoft: this.props.accentSoft ?? '#eef6ff',
+      padY: compact ? 7 : 11,
+      rows: [
+        r('Assign instructor to CSC301-B', 'Fall 2025 · 40 seats · unopened', 'AO', 'Adaeze Okafor', 'Course assignment', 'Overdue 2d', '#be123c', '600', 'Open', '#fff1f2', '#be123c', '#fffbfb'),
+        r('Submit CSC201-A final grades', '38 of 42 students graded', 'EB', 'Emeka Balogun', 'Grade submission', 'Overdue 1d', '#be123c', '600', 'In progress', '#eff6ff', '#1d4ed8', '#fffbfb'),
+        r('Upload MTH102 scheme of work', 'Required before week 4', 'FD', 'Fatima Dauda', 'Document request', 'Today', '#b45309', '600', 'Open', '#f1f5f9', '#475569', 'transparent'),
+        r('Approve overload — Chidi Eze', '27 credits · CGPA 4.00', 'AO', 'Adaeze Okafor', 'Approval', 'Today', '#b45309', '600', 'Open', '#f1f5f9', '#475569', 'transparent'),
+        r('Confirm EEE201 lab rota', 'Blocked — awaiting lab access', 'OE', 'Obinna Eze', 'Operations', 'in 2d', '#64748b', '500', 'Blocked', '#fffbeb', '#b45309', 'transparent'),
+        r('Review probation list', '14 students below CGPA 1.50', 'AO', 'Adaeze Okafor', 'Review', 'in 3d', '#64748b', '500', 'In progress', '#eff6ff', '#1d4ed8', 'transparent'),
+        r('Confirm CSC401 syllabus', 'Submitted 20 Oct by E. Balogun', 'AO', 'Adaeze Okafor', 'Approval', 'in 5d', '#64748b', '500', 'Open', '#f1f5f9', '#475569', 'transparent'),
+        r('Moderate reported forum post', '“Room clashes for CSC301 and CSC303”', 'EB', 'Emeka Balogun', 'Moderation', 'in 6d', '#64748b', '500', 'Open', '#f1f5f9', '#475569', 'transparent'),
+        r('Sign off Q1 activity report', 'Faculty of Science', 'AO', 'Adaeze Okafor', 'Report', 'in 8d', '#64748b', '500', 'Open', '#f1f5f9', '#475569', 'transparent'),
+      ],
+      team: [
+        m('EB', 'Emeka Balogun', 'Senior Lecturer', 9, '#be123c', '#fff1f2'),
+        m('FD', 'Fatima Dauda', 'Associate Professor', 4, '#475569', 'transparent'),
+        m('OE', 'Obinna Eze', 'Lecturer', 3, '#475569', 'transparent'),
+        m('IN', 'Ifeoma Nwachukwu', 'Assistant Lecturer', 2, '#047857', 'transparent'),
+      ],
+      events: [
+        { text: 'Escalation warning sent — 2 days past due', when: 'Today, 08:00' },
+        { text: 'Adaeze Okafor changed due date to 24 Oct', when: '22 Oct, 16:22' },
+        { text: 'Task created automatically when CSC301-B was scheduled', when: '15 Oct, 09:14' },
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

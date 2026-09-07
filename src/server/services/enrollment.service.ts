@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { db } from '@/lib/db';
+import { dbFor } from '@/lib/tenant';
 import {
   classifyDrop,
   evaluateEligibility,
@@ -60,12 +60,14 @@ export interface RegistrationResult {
 }
 
 export async function registerForOffering(params: {
+  schoolId: string;
   studentId: string;
   offeringId: string;
   actorId: string;
   now?: Date;
 }): Promise<RegistrationResult> {
   const now = params.now ?? new Date();
+  const db = dbFor(params.schoolId);
 
   try {
     return await db.$transaction(async (tx) => {
@@ -200,6 +202,7 @@ export async function registerForOffering(params: {
 
         const enrollment = await tx.enrollment.create({
           data: {
+            schoolId: params.schoolId,
             studentId: params.studentId,
             offeringId: offering.id,
             status: 'REGISTERED',
@@ -219,6 +222,7 @@ export async function registerForOffering(params: {
       // WAITLISTED
       const enrollment = await tx.enrollment.create({
         data: {
+          schoolId: params.schoolId,
           studentId: params.studentId,
           offeringId: offering.id,
           status: 'WAITLISTED',
@@ -245,6 +249,7 @@ export async function registerForOffering(params: {
     return reject('An unexpected error prevented registration. Please try again.');
   } finally {
     void recordAudit({
+      schoolId: params.schoolId,
       actorId: params.actorId,
       action: 'enrollment.attempt',
       entityType: 'CourseOffering',
@@ -280,11 +285,13 @@ function isUniqueViolation(error: unknown): boolean {
  * is never an interval in which a seat is free but the queue has not moved.
  */
 export async function dropEnrollment(params: {
+  schoolId: string;
   enrollmentId: string;
   actorId: string;
   now?: Date;
 }): Promise<{ ok: boolean; message: string }> {
   const now = params.now ?? new Date();
+  const db = dbFor(params.schoolId);
 
   return db.$transaction(async (tx) => {
     const enrollment = await tx.enrollment.findUnique({
@@ -361,6 +368,7 @@ export async function dropEnrollment(params: {
     }
 
     void recordAudit({
+      schoolId: params.schoolId,
       actorId: params.actorId,
       action: `enrollment.${outcome.kind.toLowerCase()}`,
       entityType: 'Enrollment',
@@ -383,7 +391,8 @@ export async function dropEnrollment(params: {
  * registration count. Intended for a scheduled job; also useful after any bulk
  * data operation that bypasses the service layer.
  */
-export async function reconcileSeatCounts(): Promise<{ repaired: number }> {
+export async function reconcileSeatCounts(schoolId: string): Promise<{ repaired: number }> {
+  const db = dbFor(schoolId);
   const offerings = await db.courseOffering.findMany({
     select: {
       id: true,

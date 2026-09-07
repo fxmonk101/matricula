@@ -3,8 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
-import { db } from '@/lib/db';
-import { requireRole } from '@/lib/auth/session';
+import { requireTenantRole } from '@/server/tenant-context';
 import { submitGrade } from '@/server/services/gpa.service';
 import { ASSESSMENT_WEIGHTS } from '@/lib/domain/grading';
 import { recordAudit } from '@/server/services/audit.service';
@@ -39,7 +38,7 @@ export async function saveGradesheetAction(
   _prev: GradeFormState,
   formData: FormData,
 ): Promise<GradeFormState> {
-  const session = await requireRole('INSTRUCTOR', 'ADMIN', 'REGISTRAR');
+  const { db, schoolId, session } = await requireTenantRole('INSTRUCTOR', 'ADMIN', 'REGISTRAR');
   const offeringId = String(formData.get('offeringId') ?? '');
 
   const offering = await db.courseOffering.findUnique({
@@ -95,6 +94,7 @@ export async function saveGradesheetAction(
 
   for (const row of rows) {
     await submitGrade({
+      schoolId,
       enrollmentId: row.enrollmentId,
       caScore: row.caScore,
       examScore: row.examScore,
@@ -120,7 +120,7 @@ export async function postGradesAction(
   _prev: GradeFormState,
   formData: FormData,
 ): Promise<GradeFormState> {
-  const session = await requireRole('INSTRUCTOR', 'ADMIN', 'REGISTRAR');
+  const { db, schoolId, session } = await requireTenantRole('INSTRUCTOR', 'ADMIN', 'REGISTRAR');
   const offeringId = String(formData.get('offeringId') ?? '');
 
   const offering = await db.courseOffering.findUnique({
@@ -153,6 +153,7 @@ export async function postGradesAction(
   });
 
   void recordAudit({
+    schoolId,
     actorId: session.sub,
     action: 'grade.post',
     entityType: 'CourseOffering',

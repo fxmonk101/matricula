@@ -30,9 +30,11 @@ function SubmitButton() {
 }
 
 export function ApplyForm({
+  schoolSlug,
   programs,
   terms,
 }: {
+  schoolSlug: string;
   programs: { id: string; code: string; name: string; faculty: string }[];
   terms: { id: string; name: string }[];
 }) {
@@ -55,7 +57,7 @@ export function ApplyForm({
             application, and to accept an offer if one is made.
           </p>
           <Link
-            href="/login"
+            href={`/s/${schoolSlug}/login`}
             className="mt-6 inline-flex items-center justify-center rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-brand-700"
           >
             Sign in to the applicant portal
@@ -67,6 +69,8 @@ export function ApplyForm({
 
   return (
     <form action={action} className="space-y-4">
+      {/* The tenant travels with the submission; the action re-verifies it. */}
+      <input type="hidden" name="schoolSlug" value={schoolSlug} />
       {state.message ? <Alert tone="danger">{state.message}</Alert> : null}
 
       <Card>

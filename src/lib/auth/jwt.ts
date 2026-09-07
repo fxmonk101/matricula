@@ -12,10 +12,19 @@ export const SESSION_COOKIE = 'geu_session';
 export interface SessionClaims extends JWTPayload {
   sub: string; // user id
   email: string;
-  role: Role;
   name: string;
+  /** The school this session is acting in. Authoritative for tenant scoping. */
+  sch: string;
+  /** The Membership granting `role` at `sch`. */
+  mbr: string;
+  /** Role held at `sch` — never a property of the user globally. */
+  role: Role;
+  /** School slug, for building tenant-aware public links. */
+  slug?: string;
   /** Profile id for the role (studentId / instructorId / applicantId). */
   pid?: string;
+  /** Platform operator. Deliberately not a Role. */
+  pa?: boolean;
 }
 
 function secretKey(): Uint8Array {
@@ -60,6 +69,9 @@ export async function verifySession(token: string | undefined): Promise<SessionC
       algorithms: ['HS256'],
     });
     if (typeof payload.sub !== 'string' || !isRole(payload.role)) return null;
+    // A session with no school cannot be scoped, so it is not a session. This
+    // is what stops a token minted before tenancy from authorising anything.
+    if (typeof payload.sch !== 'string' || payload.sch.length === 0) return null;
     return payload as SessionClaims;
   } catch {
     return null;

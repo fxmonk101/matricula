@@ -1,8 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
-import { db } from '@/lib/db';
-import { requireRole } from '@/lib/auth/session';
+import { requireTenantRole } from '@/server/tenant-context';
 import { titleCase } from '@/lib/utils';
 import {
   Badge,
@@ -26,7 +25,7 @@ export default async function StudentsPage({
 }: {
   searchParams: Promise<{ q?: string; program?: string; standing?: string; page?: string }>;
 }) {
-  await requireRole('ADMIN', 'REGISTRAR', 'ADMISSIONS', 'FINANCE', 'INSTRUCTOR');
+  const { db, school, schoolId } = await requireTenantRole('ADMIN', 'REGISTRAR', 'ADMISSIONS', 'FINANCE', 'INSTRUCTOR');
 
   const params = await searchParams;
   const q = params.q?.trim() ?? '';

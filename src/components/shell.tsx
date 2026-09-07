@@ -1,8 +1,9 @@
 import Link from 'next/link';
 
-import { INSTITUTION, initials } from '@/lib/utils';
+import { initials } from '@/lib/utils';
 import { ROLE_LABELS, type Role } from '@/lib/domain/enums';
 import type { SessionClaims } from '@/lib/auth/jwt';
+import type { School } from '@/server/tenant-context';
 import { NavLink } from './nav-link';
 import { SignOutButton } from './sign-out-button';
 
@@ -29,9 +30,11 @@ const NAV: { href: string; label: string; roles: Role[] }[] = [
 
 export function AppShell({
   session,
+  school,
   children,
 }: {
   session: SessionClaims;
+  school: School;
   children: React.ReactNode;
 }) {
   const links = NAV.filter((item) => item.roles.includes(session.role));
@@ -42,11 +45,14 @@ export function AppShell({
       <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur no-print">
         <div className="mx-auto flex h-14 max-w-[1400px] items-center gap-4 px-4 sm:px-6">
           <Link href="/" className="flex shrink-0 items-center gap-2.5">
-            <span className="grid h-8 w-8 place-items-center rounded-lg bg-brand-600 text-xs font-bold text-white">
-              {INSTITUTION.short.slice(0, 3)}
+            <span
+              className="grid h-8 w-8 place-items-center rounded-lg text-xs font-bold text-white"
+              style={{ backgroundColor: school.brandColor }}
+            >
+              {school.code.slice(0, 3)}
             </span>
             <span className="hidden text-sm font-semibold tracking-tight text-slate-900 sm:block">
-              {INSTITUTION.name}
+              {school.name}
             </span>
           </Link>
 
@@ -81,7 +87,7 @@ export function AppShell({
       <main className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6">{children}</main>
 
       <footer className="mx-auto max-w-[1400px] px-4 pb-8 pt-4 text-xs text-slate-400 sm:px-6 no-print">
-        {INSTITUTION.name} · Student Information System · Signed in as {session.email}
+        {school.name} · Signed in as {session.email}
       </footer>
     </div>
   );

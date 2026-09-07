@@ -1,0 +1,275 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+  <style>
+    body { margin: 0; font-family: ui-sans-serif, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background: #f8fafc; color: #0f172a; -webkit-font-smoothing: antialiased; }
+    a { color: #1449e1; text-decoration: none; }
+    a:hover { color: #173db6; text-decoration: underline; }
+    .num { font-variant-numeric: tabular-nums; }
+    .badge { display: inline-flex; align-items: center; gap: 4px; border-radius: 6px; padding: 2px 8px; font-size: 12px; font-weight: 500; box-shadow: inset 0 0 0 1px currentColor; }
+    .rail { display: grid; place-items: center; width: 34px; height: 34px; border-radius: 8px; color: #64748b; }
+    .cat { display: flex; align-items: center; gap: 9px; padding: 6px 10px; border-radius: 8px; font-size: 13px; color: #334155; }
+  </style>
+</helmet>
+
+<div style="display: flex; width: 1440px; height: 900px; overflow: hidden;">
+
+  <aside style="width: 56px; flex-shrink: 0; background: #fff; border-right: 1px solid #e2e8f0; display: flex; flex-direction: column; align-items: center; padding: 10px 0; gap: 4px;">
+    <div style="width: 30px; height: 30px; border-radius: 8px; background: {{accent}}; color: #fff; display: grid; place-items: center; font-size: 10px; font-weight: 700; margin-bottom: 8px;">GEU</div>
+    <div class="rail"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9.5 12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1V9.5Z"/></svg></div>
+    <div class="rail"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="m8 12 2.5 2.5L16 9"/></svg></div>
+    <div class="rail"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/></svg></div>
+    <div style="width: 24px; height: 1px; background: #e2e8f0; margin: 6px 0;"></div>
+    <div class="rail"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v15H6.5A2.5 2.5 0 0 0 4 20.5Z"/></svg></div>
+    <div class="rail" style="background: {{accentSoft}}; color: {{accent}}; position: relative;">
+      <div style="position: absolute; left: -11px; top: 6px; bottom: 6px; width: 3px; border-radius: 0 3px 3px 0; background: {{accent}};"></div>
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2Z"/></svg>
+    </div>
+    <div class="rail"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5V6a2 2 0 0 1 2-2h13v16H6a2 2 0 0 0-2 1.5Z"/></svg></div>
+    <div style="flex-grow: 1;"></div>
+    <div style="width: 28px; height: 28px; border-radius: 999px; background: #1e293b; color: #fff; display: grid; place-items: center; font-size: 10px; font-weight: 600;">AO</div>
+  </aside>
+
+  <div style="flex-grow: 1; display: flex; flex-direction: column; min-width: 0;">
+
+    <header style="height: 48px; flex-shrink: 0; background: #fff; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; gap: 8px; padding: 0 20px;">
+      <span style="font-size: 13px; color: #94a3b8;">Workplace</span>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="2" stroke-linecap="round"><path d="m9 6 6 6-6 6"/></svg>
+      <span style="font-size: 13px; color: #94a3b8;">Staff forum</span>
+      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="2" stroke-linecap="round"><path d="m9 6 6 6-6 6"/></svg>
+      <span style="font-size: 13px; font-weight: 500;">Timetabling</span>
+      <div style="flex-grow: 1;"></div>
+      <span class="badge" style="background: #f1f5f9; color: #475569;">
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+        Staff only
+      </span>
+      <div style="position: relative; display: grid; place-items: center; width: 30px; height: 30px; margin-left: 6px;">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8a6 6 0 1 0-12 0c0 6-2 7-2 7h16s-2-1-2-7"/><path d="M13.7 20a2 2 0 0 1-3.4 0"/></svg>
+        <span class="num" style="position: absolute; top: 1px; right: 1px; min-width: 15px; height: 15px; border-radius: 999px; background: #e11d48; color: #fff; font-size: 10px; font-weight: 700; display: grid; place-items: center; padding: 0 3px; box-shadow: 0 0 0 2px #fff;">4</span>
+      </div>
+    </header>
+
+    <div style="flex-grow: 1; display: flex; min-height: 0;">
+
+      <!-- categories -->
+      <div style="width: 206px; flex-shrink: 0; background: #fff; border-right: 1px solid #e2e8f0; padding: 14px 10px; display: flex; flex-direction: column;">
+        <div style="display: inline-flex; align-items: center; justify-content: center; height: 32px; border-radius: 8px; background: {{accent}}; color: #fff; font-size: 13px; font-weight: 500; margin-bottom: 14px;">New thread</div>
+        <div style="font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: #94a3b8; padding: 0 10px 6px;">Categories</div>
+        <div style="display: flex; flex-direction: column; gap: 1px;">
+          <sc-for list="{{categories}}" as="c" hint-placeholder-count="6">
+            <div class="cat" style="background: {{c.bg}}; color: {{c.fg}}; font-weight: {{c.weight}};">
+              <span style="width: 7px; height: 7px; border-radius: 2px; background: {{c.dot}}; flex-shrink: 0;"></span>
+              <span style="flex-grow: 1;">{{c.name}}</span>
+              <span class="num" style="font-size: 11px; color: #94a3b8;">{{c.count}}</span>
+            </div>
+          </sc-for>
+        </div>
+        <div style="flex-grow: 1;"></div>
+        <div style="padding: 10px; border-radius: 8px; background: #f8fafc; box-shadow: inset 0 0 0 1px #e2e8f0;">
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#b45309" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 9v4M12 17h.01"/><circle cx="12" cy="12" r="9"/></svg>
+            <span style="font-size: 11.5px; font-weight: 600; color: #92400e;">1 reported post</span>
+          </div>
+          <p style="font-size: 11px; color: #64748b; margin: 5px 0 0; line-height: 1.45;">A moderation task has been raised in the moderation queue.</p>
+        </div>
+      </div>
+
+      <!-- thread list -->
+      <div style="width: 428px; flex-shrink: 0; background: #fff; border-right: 1px solid #e2e8f0; display: flex; flex-direction: column; min-height: 0;">
+        <div style="padding: 12px 16px; border-bottom: 1px solid #e2e8f0; display: flex; align-items: center; gap: 8px;">
+          <div style="flex-grow: 1; display: flex; align-items: center; gap: 7px; height: 30px; padding: 0 10px; border-radius: 8px; background: #f8fafc; box-shadow: inset 0 0 0 1px #e2e8f0;">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+            <span style="font-size: 12.5px; color: #94a3b8;">Search threads</span>
+          </div>
+          <div style="display: inline-flex; align-items: center; gap: 5px; height: 30px; padding: 0 10px; border-radius: 8px; box-shadow: inset 0 0 0 1px #cbd5e1; font-size: 12.5px; font-weight: 500; color: #334155;">
+            Hot
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2.4" stroke-linecap="round"><path d="m6 9 6 6 6-6"/></svg>
+          </div>
+        </div>
+
+        <div style="flex-grow: 1; overflow: hidden;">
+          <sc-for list="{{threads}}" as="t" hint-placeholder-count="7">
+            <div style="padding: 11px 16px; border-bottom: 1px solid #f1f5f9; background: {{t.bg}}; position: relative;">
+              <div style="position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: {{t.marker}};"></div>
+              <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 3px;">
+                <sc-if value="{{t.pinned}}" hint-placeholder-val="{{true}}">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#b45309" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5M9 3h6l-1 7 3 3H7l3-3-1-7Z"/></svg>
+                </sc-if>
+                <sc-if value="{{t.locked}}" hint-placeholder-val="{{false}}">
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#94a3b8" stroke-width="2" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+                </sc-if>
+                <span style="font-size: 13.5px; font-weight: {{t.weight}}; color: #0f172a; line-height: 1.35;">{{t.title}}</span>
+              </div>
+              <div style="font-size: 12px; color: #64748b; line-height: 1.45; margin-bottom: 6px;">{{t.excerpt}}</div>
+              <div style="display: flex; align-items: center; gap: 8px;">
+                <div style="width: 18px; height: 18px; border-radius: 999px; background: #f1f5f9; color: #475569; display: grid; place-items: center; font-size: 9px; font-weight: 600; flex-shrink: 0;">{{t.initials}}</div>
+                <span style="font-size: 11.5px; color: #64748b;">{{t.author}}</span>
+                <span style="font-size: 11.5px; color: #cbd5e1;">·</span>
+                <span class="num" style="font-size: 11.5px; color: #64748b;">{{t.replies}} replies</span>
+                <div style="flex-grow: 1;"></div>
+                <span style="font-size: 11px; color: #94a3b8;">{{t.when}}</span>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+      </div>
+
+      <!-- thread view -->
+      <div style="flex-grow: 1; min-width: 0; display: flex; flex-direction: column; background: #f8fafc;">
+
+        <div style="background: #fff; border-bottom: 1px solid #e2e8f0; padding: 16px 24px 14px;">
+          <div style="display: flex; align-items: flex-start; gap: 12px;">
+            <div style="min-width: 0; flex-grow: 1;">
+              <div style="display: flex; align-items: center; gap: 7px; margin-bottom: 5px;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#b45309" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 17v5M9 3h6l-1 7 3 3H7l3-3-1-7Z"/></svg>
+                <span class="badge" style="background: #fffbeb; color: #b45309;">Pinned</span>
+                <span class="badge" style="background: #f1f5f9; color: #475569;">Timetabling</span>
+              </div>
+              <h1 style="font-size: 19px; font-weight: 600; letter-spacing: -.01em; margin: 0; line-height: 1.3;">Room clashes for CSC301 and CSC303, Tuesday mornings</h1>
+              <p style="font-size: 12.5px; color: #64748b; margin: 6px 0 0;">Started by Emeka Balogun · 22 October · 8 replies · 24 participants viewing</p>
+            </div>
+            <div style="display: flex; gap: 6px; flex-shrink: 0;">
+              <div style="display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; box-shadow: inset 0 0 0 1px #cbd5e1;" title="Lock thread">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="1.9" stroke-linecap="round"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></svg>
+              </div>
+              <div style="display: grid; place-items: center; width: 30px; height: 30px; border-radius: 8px; box-shadow: inset 0 0 0 1px #cbd5e1;" title="More">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#475569" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style="flex-grow: 1; overflow: hidden; padding: 16px 24px;">
+          <sc-for list="{{posts}}" as="p" hint-placeholder-count="3">
+            <div style="background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; box-shadow: 0 1px 2px 0 rgba(16,24,40,.06), 0 1px 3px 0 rgba(16,24,40,.10); padding: 14px 16px; margin-bottom: 12px;">
+              <div style="display: flex; align-items: center; gap: 9px; margin-bottom: 9px;">
+                <div style="width: 28px; height: 28px; border-radius: 999px; background: {{p.avBg}}; color: {{p.avFg}}; display: grid; place-items: center; font-size: 11px; font-weight: 600; flex-shrink: 0;">{{p.initials}}</div>
+                <div style="min-width: 0;">
+                  <div style="display: flex; align-items: center; gap: 6px;">
+                    <span style="font-size: 13px; font-weight: 600;">{{p.author}}</span>
+                    <span class="badge" style="background: {{p.roleBg}}; color: {{p.roleFg}};">{{p.role}}</span>
+                  </div>
+                  <div style="font-size: 11px; color: #94a3b8; line-height: 1.35;">{{p.when}}</div>
+                </div>
+                <div style="flex-grow: 1;"></div>
+                <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="#cbd5e1" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+              </div>
+              <div style="font-size: 13.5px; color: #334155; line-height: 1.6; white-space: pre-line;">{{p.body}}</div>
+              <div style="display: flex; align-items: center; gap: 14px; margin-top: 11px; padding-top: 10px; border-top: 1px solid #f1f5f9;">
+                <div style="display: inline-flex; align-items: center; gap: 5px; font-size: 12px; color: {{p.likeColor}}; font-weight: 500;">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="{{p.likeFill}}" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 20V9l4.5-6.5A2 2 0 0 1 15 4v4h4.5a2 2 0 0 1 2 2.4l-1.6 8A2 2 0 0 1 18 20Z"/></svg>
+                  <span class="num">{{p.likes}}</span>
+                </div>
+                <span style="font-size: 12px; color: #64748b; font-weight: 500;">Reply</span>
+                <span style="font-size: 12px; color: #94a3b8;">Quote</span>
+              </div>
+            </div>
+          </sc-for>
+        </div>
+
+        <div style="background: #fff; border-top: 1px solid #e2e8f0; padding: 12px 24px;">
+          <div style="display: flex; gap: 10px;">
+            <div style="width: 28px; height: 28px; border-radius: 999px; background: #1e293b; color: #fff; display: grid; place-items: center; font-size: 11px; font-weight: 600; flex-shrink: 0;">AO</div>
+            <div style="flex-grow: 1;">
+              <div style="min-height: 58px; border-radius: 8px; background: #f8fafc; box-shadow: inset 0 0 0 1px #e2e8f0; padding: 9px 12px; font-size: 13px; color: #94a3b8;">Write a reply… Markdown supported.</div>
+              <div style="display: flex; align-items: center; gap: 8px; margin-top: 8px;">
+                <div style="display: flex; gap: 3px;">
+                  <div style="display: grid; place-items: center; width: 26px; height: 26px; border-radius: 6px; font-size: 12px; font-weight: 700; color: #64748b;">B</div>
+                  <div style="display: grid; place-items: center; width: 26px; height: 26px; border-radius: 6px; font-size: 12px; font-style: italic; color: #64748b;">I</div>
+                  <div style="display: grid; place-items: center; width: 26px; height: 26px; border-radius: 6px; color: #64748b;">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1"/><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/></svg>
+                  </div>
+                </div>
+                <div style="flex-grow: 1;"></div>
+                <div style="display: inline-flex; align-items: center; height: 30px; padding: 0 14px; border-radius: 8px; background: {{accent}}; color: #fff; font-size: 12.5px; font-weight: 500;">Post reply</div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+</x-dc>
+
+<script data-dc-script data-props='{"accent":{"editor":"color","default":"#1b5df5","options":["#1b5df5","#0f766e","#7c3aed","#b45309"],"section":"Brand"},"accentSoft":{"editor":"color","default":"#eef6ff","section":"Brand"}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const accent = this.props.accent ?? '#1b5df5';
+    const accentSoft = this.props.accentSoft ?? '#eef6ff';
+    const c = (name, count, dot, active) => ({
+      name, count, dot,
+      bg: active ? accentSoft : 'transparent',
+      fg: active ? accent : '#334155',
+      weight: active ? '600' : '500',
+    });
+    const t = (title, excerpt, initials, author, replies, when, opts) => ({
+      title, excerpt, initials, author, replies, when,
+      pinned: !!(opts && opts.pinned),
+      locked: !!(opts && opts.locked),
+      weight: (opts && opts.unread) ? '600' : '500',
+      bg: (opts && opts.active) ? '#f8fafc' : 'transparent',
+      marker: (opts && opts.active) ? accent : 'transparent',
+    });
+    const p = (initials, author, role, roleBg, roleFg, avBg, avFg, when, body, likes, liked) => ({
+      initials, author, role, roleBg, roleFg, avBg, avFg, when, body, likes,
+      likeColor: liked ? accent : '#64748b',
+      likeFill: liked ? accent : 'none',
+    });
+
+    return {
+      accent, accentSoft,
+      categories: [
+        c('Announcements', 4, '#e11d48', false),
+        c('Academic policy', 18, '#1b5df5', false),
+        c('Timetabling', 7, '#0891b2', true),
+        c('Examinations', 12, '#7c3aed', false),
+        c('IT & systems', 9, '#0f766e', false),
+        c('Staff room', 31, '#94a3b8', false),
+      ],
+      threads: [
+        t('Room clashes for CSC301 and CSC303, Tuesday mornings',
+          'Both sections are scheduled 09:00–11:00 in LT-1. The registration engine is rejecting…',
+          'EB', 'Emeka Balogun', 8, '2h ago', { pinned: true, active: true, unread: true }),
+        t('Proposed lab rota for EEE201, semester 2',
+          'Draft attached. Two groups of 20, alternating Fridays. Comments before Thursday please.',
+          'OE', 'Obinna Eze', 3, '5h ago', { unread: true }),
+        t('Reminder: scheme of work due before week 4',
+          'Heads of department, please chase outstanding submissions — 6 still missing.',
+          'AO', 'Adaeze Okafor', 1, 'Yesterday', {}),
+        t('Can we move the faculty board to Thursdays?',
+          'Wednesday clashes with the senate subcommittee for three of us.',
+          'FD', 'Fatima Dauda', 14, 'Yesterday', {}),
+        t('LT-2 unavailable on Tuesdays — need a room swap',
+          'Estates have it booked for maintenance all term. Two sections affected.',
+          'IN', 'Ifeoma Nwachukwu', 6, '2d ago', {}),
+        t('Exam timetable draft — clashes flagged',
+          'Three level-300 clashes resolved. Final unless anyone objects by Friday.',
+          'AO', 'Adaeze Okafor', 22, '4d ago', { locked: true }),
+        t('Compress Friday afternoon slots to three hours?',
+          'Attendance after 15:00 on Fridays is under 40% across the faculty.',
+          'AO', 'Adaeze Okafor', 11, '1w ago', {}),
+      ],
+      posts: [
+        p('EB', 'Emeka Balogun', 'Senior Lecturer', '#f1f5f9', '#475569', '#e0e7ff', '#3730a3', '22 October, 09:14',
+          'Both CSC301-A and CSC303-A are scheduled 09:00–11:00 on Tuesdays, and both are down for LT-1.\n\nThe registration engine is correctly refusing to let any student take both — which is most of level 300. Two students have already raised it with me. Can we move CSC303-A to Thursday 08:00, where LT-4 is free?',
+          4, false),
+        p('FD', 'Fatima Dauda', 'Associate Professor', '#f1f5f9', '#475569', '#fae8ff', '#86198f', '22 October, 10:02',
+          'Thursday 08:00 works from my side — MTH102 is at 11:00 that day, so there is no knock-on for the shared cohort.',
+          2, false),
+        p('AO', 'Adaeze Okafor', 'Dean', accentSoft, accent, '#1e293b', '#ffffff', '22 October, 11:40',
+          'Agreed. I have raised a timetabling task against the Registrar to make the change before add/drop closes on the 31st.\n\nEmeka — please confirm here once the section shows the new slot, and I will unpin this.',
+          7, true),
+      ],
+    };
+  }
+}
+</script>
+</body>
+</html>

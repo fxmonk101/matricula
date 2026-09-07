@@ -6,6 +6,11 @@
  * this file should hard-code an enum literal.
  */
 
+/**
+ * A role is held per-school, on `Membership` — never on `User`. The same
+ * person can be an instructor at one school and a guardian at another, and
+ * neither fact should authorise them at the other.
+ */
 export const ROLES = [
   'ADMIN',
   'REGISTRAR',
@@ -14,17 +19,23 @@ export const ROLES = [
   'INSTRUCTOR',
   'STUDENT',
   'APPLICANT',
+  'LIBRARIAN',
+  'STAFF',
+  'GUARDIAN',
 ] as const;
 export type Role = (typeof ROLES)[number];
 
 export const ROLE_LABELS: Record<Role, string> = {
-  ADMIN: 'System Administrator',
+  ADMIN: 'School Administrator',
   REGISTRAR: 'Registrar',
   FINANCE: 'Bursary / Finance',
   ADMISSIONS: 'Admissions Officer',
   INSTRUCTOR: 'Instructor',
   STUDENT: 'Student',
   APPLICANT: 'Applicant',
+  LIBRARIAN: 'Librarian',
+  STAFF: 'Staff',
+  GUARDIAN: 'Parent / Guardian',
 };
 
 /** Landing page per role after sign-in. */
@@ -36,7 +47,47 @@ export const ROLE_HOME: Record<Role, string> = {
   INSTRUCTOR: '/teaching',
   STUDENT: '/me',
   APPLICANT: '/portal',
+  LIBRARIAN: '/dashboard',
+  STAFF: '/dashboard',
+  GUARDIAN: '/dashboard',
 };
+
+// -----------------------------------------------------------------------------
+// Tenancy
+// -----------------------------------------------------------------------------
+
+/**
+ * Selects which academic engines and vocabulary a school runs on. A university
+ * has faculties, programs, credit hours and a CGPA; a K-12 school has year
+ * groups, form classes, subjects and a termly report card. Overloading one set
+ * of concepts to mean both is how school systems become unusable for either.
+ */
+export const ACADEMIC_MODELS = ['HIGHER_ED', 'K12'] as const;
+export type AcademicModel = (typeof ACADEMIC_MODELS)[number];
+
+export const ACADEMIC_MODEL_LABELS: Record<AcademicModel, string> = {
+  HIGHER_ED: 'Higher education',
+  K12: 'Primary & secondary',
+};
+
+export const SCHOOL_STATUSES = ['ACTIVE', 'TRIAL', 'SUSPENDED', 'PROVISIONING'] as const;
+export type SchoolStatus = (typeof SCHOOL_STATUSES)[number];
+
+export const MEMBERSHIP_STATUSES = ['ACTIVE', 'INVITED', 'SUSPENDED'] as const;
+export type MembershipStatus = (typeof MEMBERSHIP_STATUSES)[number];
+
+export const ORG_UNIT_KINDS = [
+  'FACULTY',
+  'DEPARTMENT',
+  'ADMIN_UNIT',
+  'SCHOOL_SECTION',
+  'TEAM',
+] as const;
+export type OrgUnitKind = (typeof ORG_UNIT_KINDS)[number];
+
+/** Ships unused; the SSO phase reads it. */
+export const IDP_KINDS = ['OIDC', 'SAML', 'GOOGLE', 'ENTRA'] as const;
+export type IdpKind = (typeof IDP_KINDS)[number];
 
 export const DEGREE_TYPES = ['BSC', 'BA', 'BENG', 'MSC', 'MA', 'PHD', 'DIPLOMA'] as const;
 export type DegreeType = (typeof DEGREE_TYPES)[number];

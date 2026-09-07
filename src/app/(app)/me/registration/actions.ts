@@ -3,9 +3,8 @@
 import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
-import { requireRole } from '@/lib/auth/session';
+import { requireTenantRole } from '@/server/tenant-context';
 import { registerForOffering, dropEnrollment } from '@/server/services/enrollment.service';
-import { db } from '@/lib/db';
 
 export interface RegistrationFormState {
   ok?: boolean;
@@ -28,13 +27,14 @@ export async function registerAction(
   _prev: RegistrationFormState,
   formData: FormData,
 ): Promise<RegistrationFormState> {
-  const session = await requireRole('STUDENT');
+  const { db, schoolId, session } = await requireTenantRole('STUDENT');
   if (!session.pid) return { ok: false, message: 'No student record is linked to your account.' };
 
   const parsed = registerSchema.safeParse({ offeringId: formData.get('offeringId') });
   if (!parsed.success) return { ok: false, message: 'Invalid section.' };
 
   const result = await registerForOffering({
+    schoolId,
     studentId: session.pid,
     offeringId: parsed.data.offeringId,
     actorId: session.sub,
@@ -54,7 +54,7 @@ export async function dropAction(
   _prev: RegistrationFormState,
   formData: FormData,
 ): Promise<RegistrationFormState> {
-  const session = await requireRole('STUDENT');
+  const { db, schoolId, session } = await requireTenantRole('STUDENT');
   if (!session.pid) return { ok: false, message: 'No student record is linked to your account.' };
 
   const parsed = dropSchema.safeParse({ enrollmentId: formData.get('enrollmentId') });
@@ -73,6 +73,7 @@ export async function dropAction(
   }
 
   const result = await dropEnrollment({
+    schoolId,
     enrollmentId: parsed.data.enrollmentId,
     actorId: session.sub,
   });

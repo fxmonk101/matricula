@@ -1,0 +1,35 @@
+{
+  "artboards": [
+    { "file": "Main.dc.html", "x": 0, "y": 0, "w": 1440, "h": 900, "title": "Home — Dean" },
+    { "file": "Tasks.dc.html", "x": 1560, "y": 0, "w": 1440, "h": 900, "title": "Tasks — board & detail" },
+    { "file": "Team.dc.html", "x": 3120, "y": 0, "w": 1440, "h": 900, "title": "Team monitoring" },
+    { "file": "Forum.dc.html", "x": 0, "y": 1060, "w": 1440, "h": 900, "title": "Staff forum" },
+    { "file": "Library.dc.html", "x": 1560, "y": 1060, "w": 1440, "h": 900, "title": "Resource library" },
+    { "file": "Setup.dc.html", "x": 3120, "y": 1060, "w": 1440, "h": 900, "title": "School setup — Grading" },
+    { "file": "ReportCard.dc.html", "x": 0, "y": 2120, "w": 794, "h": 1123, "title": "K-12 report card (A4)", "print": "fixed" }
+  ],
+  "annotations": [
+    {
+      "id": "note-shell",
+      "x": -560,
+      "y": 0,
+      "w": 480,
+      "text": "SHELL & WORKPLACE\n\nEvery screen is built from the tokens already in the app — brand #1b5df5, slate neutrals, 12px card radii, the same shadow, and the uppercase 12px table headers from src/components/ui.\n\nThe sidebar is new. It expands (Home) and collapses to an icon rail (every other board), because staff screens need the width.\n\nThe brand accent is a tweak chip above each artboard — that is the per-school brand colour, so you can see any school's palette instantly."
+    },
+    {
+      "id": "note-modules",
+      "x": -560,
+      "y": 1060,
+      "w": 480,
+      "text": "MODULES & CONFIGURATION\n\nStaff forum: 3-pane — categories, thread list, thread. Reported posts raise a moderation task rather than sitting in a separate queue.\n\nResource library: digital only, per your decision. No loans, due dates or fines. Filters are subject / type / level / access.\n\nSchool setup: the Grading tab is open because it is the heart of multi-tenancy — a school picks a published scheme or defines its own bands, and the contiguity check runs before save."
+    },
+    {
+      "id": "note-k12",
+      "x": -560,
+      "y": 2120,
+      "w": 480,
+      "text": "K-12 REPORT CARD\n\nDrawn at true A4 (794×1123 at 96dpi), so Export PDF gives a real printable page — report cards get handed to parents.\n\nIt reads from the same configured grade bands as the university transcript; only the presentation differs. That is what the academicModel switch buys.\n\nPlaceholder content throughout — names, marks and remarks are invented."
+    }
+  ],
+  "launch": { "view": "canvas" }
+}

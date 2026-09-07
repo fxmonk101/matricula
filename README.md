@@ -1,7 +1,9 @@
-# Golden Eagles University — Student Information System
+# School Platform — multi-tenant student information system
 
-A modern university management platform covering **admissions**, **student records**,
-**registration & assessment**, and **finance** on one authoritative record.
+A multi-tenant school platform covering **admissions**, **student records**,
+**registration & assessment**, and **finance** on one authoritative record —
+with any number of schools on it, each configuring its own structure, grading
+scheme, currency and branding.
 
 Built with Next.js 15 (App Router, React 19), TypeScript, Prisma, and Tailwind CSS.
 
@@ -25,14 +27,20 @@ Built with Next.js 15 (App Router, React 19), TypeScript, Prisma, and Tailwind C
 
 ```bash
 npm install
-npx prisma migrate dev --name init   # creates the SQLite database
-npm run db:seed                      # loads a complete demo institution
+npx prisma migrate dev               # creates the SQLite database
+npm run db:seed                      # loads two demo schools
 npm run dev                          # http://localhost:3000
 ```
 
 Then sign in at [http://localhost:3000/login](http://localhost:3000/login).
 
 ### Demo accounts — password `Password123!`
+
+The seed builds **two** schools, because a single tenant proves nothing about
+isolation. Sign in at `/login` (routes you to your primary school) or at
+`/s/<slug>/login` to pin one.
+
+**Golden Eagles University** — `/s/golden-eagles/login` · Nigeria · NGN · 4.0 scale
 
 | Email | Role | What to look at |
 |---|---|---|
@@ -44,7 +52,20 @@ Then sign in at [http://localhost:3000/login](http://localhost:3000/login).
 | `chidi.eze@student.geu.edu` | Student | Strong record — registration, transcript, fees |
 | `kunle.adeoye@student.geu.edu` | Student | **Repeated course** — see the `R` marker on the transcript |
 | `segun.okonkwo@student.geu.edu` | Student | **Probation + financial hold** — registration is blocked with reasons |
-| `hopeful@example.com` | Applicant | Application tracking and offer response |
+| `hopeful.golden-eagles@example.com` | Applicant | Application tracking and offer response |
+
+**Meridian Institute of Technology** — `/s/meridian/login` · Ghana · GHS · **5.0 scale**
+
+| Email | Role |
+|---|---|
+| `admin@meridian.edu.gh` | School administrator |
+| `registrar@meridian.edu.gh` | Registrar |
+| `ama.darko@student.meridian.edu.gh` | Student |
+
+> **One identity, two schools.** `a.okafor@geu.edu` is a Dean at Golden Eagles
+> *and* a visiting professor at Meridian — one user row, two memberships, a
+> different role and a different dataset at each. Sign in through either school
+> link to see the app change around you. That is why `User` carries no role.
 
 ### Things worth trying
 
@@ -90,13 +111,16 @@ src/
 │   ├── academics.ts        GPA recomputation (guard-free: the seed uses it too)
 │   └── services/           enrollment, finance, admissions, audit, sequences
 │
+├── lib/tenant.ts        ← TENANT ISOLATION. dbFor(schoolId) — the cross-tenant guard.
+├── server/tenant-context ← request-scoped school + scoped client (React-cached)
+│
 ├── lib/auth/            ← jwt (edge-safe) · session (Node) · rbac (permission matrix)
 ├── app/                 ← routes, server actions, React Server Components
 ├── components/          ← design-system primitives
 └── middleware.ts        ← edge route gating (defence in depth, not the boundary)
 
-tests/                   ← 128 unit tests over the domain layer
-prisma/                  ← schema + a seed that exercises every interesting path
+tests/                   ← 148 tests: 128 pure-domain + 20 cross-tenant isolation
+prisma/                  ← schema + a seed that builds TWO schools through one function
 ```
 
 **Why the split.** Eligibility rules change every academic session; the transaction that
@@ -109,6 +133,14 @@ is small enough to review line by line.
 ## Correctness properties
 
 These are the behaviours the system is built to guarantee. Each is covered by tests.
+
+**Multi-tenancy** — every claim below is asserted in `tests/tenant.test.ts` and was re-verified in the running app
+- One school can never read, update or delete another's rows; a cross-tenant `findUnique` returns `null` and a cross-tenant `update`/`delete` **throws**
+- `schoolId` is `NOT NULL` on all 25 tenant tables, so a scoping failure fails closed rather than writing an unscoped row
+- Tenant scoping survives into interactive transactions — where every service body runs
+- The tenant-model registry is derived from the schema, so a new model is scoped the moment it exists
+- Identity is global, authorisation per-school: one person can hold different roles at different schools
+- Platform routes are gated on a platform claim, not a role — a school ADMIN cannot reach them
 
 **Academic record**
 - GPA is credit-weighted — a 4-credit A and a 1-credit F give 3.20, not 2.00

@@ -2,8 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
-import { db } from '@/lib/db';
-import { requireRole } from '@/lib/auth/session';
+import { requireTenantRole } from '@/server/tenant-context';
 import {
   ADMISSION_WEIGHTS,
   aggregateReviews,
@@ -32,7 +31,7 @@ export default async function ApplicationDetailPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const session = await requireRole('ADMIN', 'ADMISSIONS', 'REGISTRAR');
+  const { db, school, schoolId, session } = await requireTenantRole('ADMIN', 'ADMISSIONS', 'REGISTRAR');
   const { id } = await params;
 
   const application = await db.application.findUnique({
