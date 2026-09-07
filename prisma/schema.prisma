@@ -1,0 +1,662 @@
+// =============================================================================
+// Golden Eagles University — Data Model
+// =============================================================================
+// Portability note: this schema deliberately avoids SQLite-only and
+// Postgres-only features. Enumerations are modelled as String columns whose
+// legal values are enforced by Zod at the application boundary
+// (see src/lib/domain/enums.ts). This keeps `provider` a one-line change:
+//
+//   provider = "sqlite"      -> local development, zero setup
+//   provider = "postgresql"  -> production
+//
+// Monetary amounts are stored as INTEGER minor units (kobo/cents). Never float.
+// =============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// -----------------------------------------------------------------------------
+// Identity & access
+// -----------------------------------------------------------------------------
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  phone        String?
+  role         String // Role: ADMIN | REGISTRAR | FINANCE | ADMISSIONS | INSTRUCTOR | STUDENT | APPLICANT
+  isActive     Boolean  @default(true)
+  lastLoginAt  DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  student    Student?
+  instructor Instructor?
+  applicant  Applicant?
+  auditLogs  AuditLog[]
+
+  @@index([role])
+  @@map("users")
+}
+
+/// Append-only trail of every state-changing operation. Never updated, never
+/// deleted — required for registrarial and financial defensibility.
+model AuditLog {
+  id         String   @id @default(cuid())
+  actorId    String?
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action     String // e.g. "enrollment.create", "grade.submit", "payment.record"
+  entityType String
+  entityId   String
+  summary    String
+  metadata   String? // JSON blob
+  ipAddress  String?
+  createdAt  DateTime @default(now())
+
+  @@index([entityType, entityId])
+  @@index([actorId, createdAt])
+  @@map("audit_logs")
+}
+
+// -----------------------------------------------------------------------------
+// Organisational structure
+// -----------------------------------------------------------------------------
+
+model Faculty {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  createdAt DateTime @default(now())
+
+  departments Department[]
+
+  @@map("faculties")
+}
+
+model Department {
+  id        String   @id @default(cuid())
+  code      String   @unique
+  name      String
+  facultyId String
+  faculty   Faculty  @relation(fields: [facultyId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  programs    Program[]
+  courses     Course[]
+  instructors Instructor[]
+
+  @@index([facultyId])
+  @@map("departments")
+}
+
+model Program {
+  id             String  @id @default(cuid())
+  code           String  @unique
+  name           String
+  degreeType     String // DegreeType: BSC | BA | BENG | MSC | MA | PHD | DIPLOMA
+  departmentId   String
+  department     Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  /// Credits required to graduate.
+  creditsRequired Int    @default(120)
+  /// Nominal duration in academic terms.
+  durationTerms  Int     @default(8)
+  minCgpaToGraduate Float @default(1.5)
+  isActive       Boolean @default(true)
+  createdAt      DateTime @default(now())
+
+  students          Student[]
+  applications      Application[]
+  requirements      ProgramRequirement[]
+  feeStructures     FeeStructure[]
+
+  @@index([departmentId])
+  @@map("programs")
+}
+
+/// A course that counts toward a program, and in what capacity.
+model ProgramRequirement {
+  id        String  @id @default(cuid())
+  programId String
+  program   Program @relation(fields: [programId], references: [id], onDelete: Cascade)
+  courseId  String
+  course    Course  @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  /// RequirementKind: CORE | ELECTIVE | GENERAL_STUDIES
+  kind      String  @default("CORE")
+  /// Recommended level of study (100, 200, ...).
+  level     Int     @default(100)
+
+  @@unique([programId, courseId])
+  @@index([courseId])
+  @@map("program_requirements")
+}
+
+// -----------------------------------------------------------------------------
+// Academic calendar
+// -----------------------------------------------------------------------------
+
+model Term {
+  id        String   @id @default(cuid())
+  code      String   @unique // e.g. "2025-FALL"
+  name      String
+  academicYear String // e.g. "2025/2026"
+  /// TermSeason: FALL | SPRING | SUMMER
+  season    String
+  startDate DateTime
+  endDate   DateTime
+  /// Registration window — enrollment requests outside it are rejected.
+  registrationOpensAt  DateTime
+  registrationClosesAt DateTime
+  /// Last day a student may drop without a "W" transcript notation.
+  addDropDeadline      DateTime
+  /// Last day a student may withdraw at all.
+  withdrawalDeadline   DateTime
+  /// Only one term may be current; enforced in application logic.
+  isCurrent Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  offerings  CourseOffering[]
+  invoices   Invoice[]
+  termGpas   TermGpa[]
+  applications Application[]
+  feeStructures FeeStructure[]
+
+  @@index([isCurrent])
+  @@map("terms")
+}
+
+// -----------------------------------------------------------------------------
+// Curriculum
+// -----------------------------------------------------------------------------
+
+model Course {
+  id           String  @id @default(cuid())
+  code         String  @unique // e.g. "CSC301"
+  title        String
+  description  String?
+  creditHours  Int
+  level        Int     @default(100)
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  isActive     Boolean @default(true)
+  createdAt    DateTime @default(now())
+
+  offerings     CourseOffering[]
+  requirements  ProgramRequirement[]
+  prerequisites Prerequisite[] @relation("CourseToPrereq")
+  requiredBy    Prerequisite[] @relation("PrereqToCourse")
+
+  @@index([departmentId])
+  @@index([level])
+  @@map("courses")
+}
+
+/// Directed edge in the prerequisite DAG: `course` requires `prerequisite`.
+model Prerequisite {
+  id             String @id @default(cuid())
+  courseId       String
+  course         Course @relation("CourseToPrereq", fields: [courseId], references: [id], onDelete: Cascade)
+  prerequisiteId String
+  prerequisite   Course @relation("PrereqToCourse", fields: [prerequisiteId], references: [id], onDelete: Cascade)
+  /// Minimum grade point that must have been earned in the prerequisite.
+  minGradePoint  Float  @default(1.0)
+  /// CONCURRENT prerequisites may be taken in the same term.
+  isConcurrent   Boolean @default(false)
+
+  @@unique([courseId, prerequisiteId])
+  @@index([prerequisiteId])
+  @@map("prerequisites")
+}
+
+/// A concrete section of a course taught in a term ("CSC301-A, Fall 2025").
+model CourseOffering {
+  id           String @id @default(cuid())
+  courseId     String
+  course       Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  termId       String
+  term         Term   @relation(fields: [termId], references: [id], onDelete: Cascade)
+  section      String @default("A")
+  instructorId String?
+  instructor   Instructor? @relation(fields: [instructorId], references: [id], onDelete: SetNull)
+  capacity     Int    @default(50)
+  /// Denormalised counter kept consistent inside the enrollment transaction.
+  /// Source of truth remains COUNT(enrollments WHERE status IN (REGISTERED)).
+  seatsTaken   Int    @default(0)
+  waitlistCapacity Int @default(10)
+  room         String?
+  /// OfferingStatus: PLANNED | OPEN | CLOSED | CANCELLED
+  status       String @default("OPEN")
+  /// True once the instructor has submitted final grades.
+  gradesPosted Boolean @default(false)
+  createdAt    DateTime @default(now())
+
+  meetings    Meeting[]
+  enrollments Enrollment[]
+
+  @@unique([courseId, termId, section])
+  @@index([termId])
+  @@index([instructorId])
+  @@map("course_offerings")
+}
+
+/// One weekly timeslot for an offering. Times are minutes-from-midnight in the
+/// institution's local timezone, which makes conflict detection pure integer math.
+model Meeting {
+  id         String @id @default(cuid())
+  offeringId String
+  offering   CourseOffering @relation(fields: [offeringId], references: [id], onDelete: Cascade)
+  /// 1 = Monday ... 7 = Sunday (ISO-8601).
+  dayOfWeek  Int
+  startMinute Int
+  endMinute   Int
+  room        String?
+
+  @@index([offeringId])
+  @@index([dayOfWeek])
+  @@map("meetings")
+}
+
+// -----------------------------------------------------------------------------
+// People
+// -----------------------------------------------------------------------------
+
+model Student {
+  id            String  @id @default(cuid())
+  userId        String  @unique
+  user          User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  matricNumber  String  @unique
+  programId     String
+  program       Program @relation(fields: [programId], references: [id])
+  /// Level of study: 100, 200, 300, 400...
+  level         Int     @default(100)
+  admissionTermCode String?
+  dateOfBirth   DateTime?
+  gender        String?
+  nationality   String?
+  address       String?
+  /// StudentStatus: ACTIVE | PROBATION | SUSPENDED | WITHDRAWN | GRADUATED | DEFERRED
+  status        String  @default("ACTIVE")
+  /// AcademicStanding: GOOD | DEANS_LIST | WARNING | PROBATION | DISMISSED
+  academicStanding String @default("GOOD")
+  /// Cached aggregates, recomputed by the GPA engine. Never authoritative.
+  cgpa          Float   @default(0)
+  creditsEarned Int     @default(0)
+  creditsAttempted Int  @default(0)
+  /// A non-zero hold count blocks registration.
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  enrollments Enrollment[]
+  invoices    Invoice[]
+  payments    Payment[]
+  termGpas    TermGpa[]
+  holds       Hold[]
+
+  @@index([programId])
+  @@index([status])
+  @@map("students")
+}
+
+model Instructor {
+  id           String @id @default(cuid())
+  userId       String @unique
+  user         User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  staffNumber  String @unique
+  departmentId String
+  department   Department @relation(fields: [departmentId], references: [id])
+  /// AcademicRank: PROFESSOR | ASSOCIATE_PROFESSOR | SENIOR_LECTURER | LECTURER | ASSISTANT_LECTURER
+  rank         String @default("LECTURER")
+  officeRoom   String?
+  createdAt    DateTime @default(now())
+
+  offerings CourseOffering[]
+
+  @@index([departmentId])
+  @@map("instructors")
+}
+
+// -----------------------------------------------------------------------------
+// Admissions
+// -----------------------------------------------------------------------------
+
+model Applicant {
+  id          String @id @default(cuid())
+  userId      String @unique
+  user        User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  dateOfBirth DateTime?
+  gender      String?
+  nationality String?
+  address     String?
+  createdAt   DateTime @default(now())
+
+  applications Application[]
+
+  @@map("applicants")
+}
+
+model Application {
+  id            String @id @default(cuid())
+  referenceNo   String @unique // human-quotable, e.g. "APP-2025-000418"
+  applicantId   String
+  applicant     Applicant @relation(fields: [applicantId], references: [id], onDelete: Cascade)
+  programId     String
+  program       Program @relation(fields: [programId], references: [id])
+  termId        String
+  term          Term    @relation(fields: [termId], references: [id])
+
+  /// ApplicationStatus lifecycle:
+  /// DRAFT -> SUBMITTED -> UNDER_REVIEW -> (OFFERED | WAITLISTED | REJECTED)
+  /// OFFERED -> (ACCEPTED -> ENROLLED | DECLINED | EXPIRED)
+  /// Any pre-decision state -> WITHDRAWN
+  status        String @default("DRAFT")
+
+  // --- raw evaluation inputs -------------------------------------------------
+  /// Prior academic performance, normalised to a 0-100 scale.
+  priorGpaScore     Float?
+  /// Standardised entrance exam raw score.
+  entranceExamScore Float?
+  /// Rubric-scored personal statement (0-100), averaged across reviewers.
+  essayScore        Float?
+  /// Rubric-scored interview (0-100), averaged across reviewers.
+  interviewScore    Float?
+  /// Extracurricular / service rubric (0-100).
+  extracurricularScore Float?
+
+  // --- computed by the admissions scoring engine -----------------------------
+  /// Weighted composite on a 0-100 scale. Null until scored.
+  compositeScore    Float?
+  /// Rank within (programId, termId) at the moment of the last decision run.
+  rankInCohort      Int?
+
+  personalStatement String?
+  previousSchool    String?
+  submittedAt       DateTime?
+  decidedAt         DateTime?
+  decisionNote      String?
+  /// Deadline for the applicant to accept an offer.
+  offerExpiresAt    DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  reviews   ApplicationReview[]
+  documents ApplicationDocument[]
+
+  @@unique([applicantId, programId, termId])
+  @@index([programId, termId, status])
+  @@index([status])
+  @@map("applications")
+}
+
+model ApplicationReview {
+  id            String @id @default(cuid())
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  reviewerId    String
+  /// Rubric sub-scores, each 0-100.
+  academicScore       Float
+  essayScore          Float
+  interviewScore      Float?
+  extracurricularScore Float?
+  /// Recommendation: ADMIT | WAITLIST | REJECT
+  recommendation String
+  comments       String?
+  createdAt      DateTime @default(now())
+
+  @@unique([applicationId, reviewerId])
+  @@index([applicationId])
+  @@map("application_reviews")
+}
+
+model ApplicationDocument {
+  id            String @id @default(cuid())
+  applicationId String
+  application   Application @relation(fields: [applicationId], references: [id], onDelete: Cascade)
+  /// DocumentKind: TRANSCRIPT | ID_CARD | BIRTH_CERTIFICATE | RECOMMENDATION | OTHER
+  kind          String
+  fileName      String
+  fileUrl       String
+  verified      Boolean @default(false)
+  uploadedAt    DateTime @default(now())
+
+  @@index([applicationId])
+  @@map("application_documents")
+}
+
+// -----------------------------------------------------------------------------
+// Registration & assessment
+// -----------------------------------------------------------------------------
+
+model Enrollment {
+  id         String @id @default(cuid())
+  studentId  String
+  student    Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  offeringId String
+  offering   CourseOffering @relation(fields: [offeringId], references: [id], onDelete: Cascade)
+
+  /// EnrollmentStatus: REGISTERED | WAITLISTED | DROPPED | WITHDRAWN | COMPLETED
+  status     String @default("REGISTERED")
+  /// Position in the waitlist queue; null unless WAITLISTED. Monotonic per offering.
+  waitlistPosition Int?
+
+  // --- assessment ------------------------------------------------------------
+  /// Continuous assessment, 0-40 by institutional policy.
+  caScore    Float?
+  /// Final examination, 0-60 by institutional policy.
+  examScore  Float?
+  /// caScore + examScore, 0-100. Materialised for reporting.
+  totalScore Float?
+  /// Letter grade derived from totalScore via the grading scale.
+  letterGrade String?
+  /// Grade point for the letter grade (4.0 scale).
+  gradePoint Float?
+  /// True when this attempt is superseded by a later retake (excluded from CGPA
+  /// under the "best attempt" policy).
+  isRepeatSuperseded Boolean @default(false)
+
+  enrolledAt DateTime @default(now())
+  droppedAt  DateTime?
+  gradedAt   DateTime?
+  updatedAt  DateTime @updatedAt
+
+  @@unique([studentId, offeringId])
+  @@index([offeringId, status])
+  @@index([studentId, status])
+  @@map("enrollments")
+}
+
+/// Per-term GPA snapshot. Immutable once the term closes; the audit trail for
+/// how a CGPA was arrived at.
+model TermGpa {
+  id               String @id @default(cuid())
+  studentId        String
+  student          Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  termId           String
+  term             Term    @relation(fields: [termId], references: [id], onDelete: Cascade)
+  creditsAttempted Int
+  creditsEarned    Int
+  qualityPoints    Float
+  gpa              Float
+  cumulativeGpa    Float
+  academicStanding String
+  computedAt       DateTime @default(now())
+
+  @@unique([studentId, termId])
+  @@index([studentId])
+  @@map("term_gpas")
+}
+
+/// A block placed on a student's record. Any active hold with blocksRegistration
+/// prevents enrollment.
+model Hold {
+  id          String @id @default(cuid())
+  studentId   String
+  student     Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  /// HoldKind: FINANCIAL | ACADEMIC | DISCIPLINARY | DOCUMENTATION | HEALTH
+  kind        String
+  reason      String
+  blocksRegistration Boolean @default(true)
+  blocksTranscript   Boolean @default(false)
+  placedBy    String?
+  placedAt    DateTime @default(now())
+  releasedAt  DateTime?
+  releasedBy  String?
+
+  @@index([studentId, releasedAt])
+  @@map("holds")
+}
+
+// -----------------------------------------------------------------------------
+// Finance
+// -----------------------------------------------------------------------------
+// All amounts are INTEGER minor units (e.g. kobo). Currency is institution-wide.
+
+/// The published price list. Assessment resolves the most specific matching
+/// structure for a (program, term, level) triple.
+model FeeStructure {
+  id        String  @id @default(cuid())
+  name      String
+  termId    String
+  term      Term    @relation(fields: [termId], references: [id], onDelete: Cascade)
+  /// Null = applies to every program.
+  programId String?
+  program   Program? @relation(fields: [programId], references: [id], onDelete: Cascade)
+  /// Null = applies to every level.
+  level     Int?
+  isActive  Boolean @default(true)
+  createdAt DateTime @default(now())
+
+  items FeeItem[]
+
+  @@index([termId, programId, level])
+  @@map("fee_structures")
+}
+
+model FeeItem {
+  id             String @id @default(cuid())
+  feeStructureId String
+  feeStructure   FeeStructure @relation(fields: [feeStructureId], references: [id], onDelete: Cascade)
+  code           String // TUITION, LAB, LIBRARY, ACCOMMODATION, ...
+  description    String
+  /// Minor units. If perCreditHour is true this is the rate per credit hour.
+  amountMinor    Int
+  perCreditHour  Boolean @default(false)
+  isMandatory    Boolean @default(true)
+
+  @@index([feeStructureId])
+  @@map("fee_items")
+}
+
+model Invoice {
+  id          String @id @default(cuid())
+  invoiceNo   String @unique // "INV-2025-000913"
+  studentId   String
+  student     Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  termId      String
+  term        Term    @relation(fields: [termId], references: [id], onDelete: Cascade)
+  /// InvoiceStatus: DRAFT | ISSUED | PARTIALLY_PAID | PAID | OVERDUE | VOID
+  status      String @default("ISSUED")
+  /// Sum of line items, minor units.
+  subtotalMinor Int  @default(0)
+  /// Scholarships, bursaries, sibling discounts — stored positive, subtracted.
+  discountMinor Int  @default(0)
+  /// subtotal - discount. The amount actually owed.
+  totalMinor    Int  @default(0)
+  /// Sum of allocations from payments. Maintained transactionally.
+  paidMinor     Int  @default(0)
+  issuedAt    DateTime @default(now())
+  dueDate     DateTime
+  voidedAt    DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  lines       InvoiceLine[]
+  allocations PaymentAllocation[]
+
+  @@unique([studentId, termId])
+  @@index([status, dueDate])
+  @@map("invoices")
+}
+
+model InvoiceLine {
+  id          String @id @default(cuid())
+  invoiceId   String
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  code        String
+  description String
+  quantity    Int    @default(1)
+  unitAmountMinor Int
+  /// quantity * unitAmountMinor
+  amountMinor Int
+
+  @@index([invoiceId])
+  @@map("invoice_lines")
+}
+
+model Payment {
+  id          String @id @default(cuid())
+  receiptNo   String @unique // "RCP-2025-004411"
+  studentId   String
+  student     Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  amountMinor Int
+  /// PaymentMethod: CARD | BANK_TRANSFER | CASH | CHEQUE | SCHOLARSHIP | WAIVER
+  method      String
+  /// PaymentStatus: PENDING | CONFIRMED | FAILED | REVERSED
+  status      String @default("CONFIRMED")
+  /// Provider reference; unique per provider to make webhooks idempotent.
+  externalRef String? @unique
+  note        String?
+  /// Portion not yet applied to any invoice (student credit balance).
+  unappliedMinor Int @default(0)
+  receivedAt  DateTime @default(now())
+  recordedBy  String?
+  createdAt   DateTime @default(now())
+
+  allocations PaymentAllocation[]
+
+  @@index([studentId, receivedAt])
+  @@map("payments")
+}
+
+/// Explicit many-to-many between payments and invoices. A payment may settle
+/// several invoices; an invoice may be settled by several payments. This table
+/// is what makes the ledger reconstructable.
+model PaymentAllocation {
+  id          String @id @default(cuid())
+  paymentId   String
+  payment     Payment @relation(fields: [paymentId], references: [id], onDelete: Cascade)
+  invoiceId   String
+  invoice     Invoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  amountMinor Int
+  createdAt   DateTime @default(now())
+
+  @@unique([paymentId, invoiceId])
+  @@index([invoiceId])
+  @@map("payment_allocations")
+}
+
+// -----------------------------------------------------------------------------
+// Communications
+// -----------------------------------------------------------------------------
+
+model Announcement {
+  id        String @id @default(cuid())
+  title     String
+  body      String
+  /// Comma-separated roles this is visible to; empty = everyone.
+  audience  String @default("")
+  /// Severity: INFO | WARNING | URGENT
+  severity  String @default("INFO")
+  authorId  String?
+  publishedAt DateTime @default(now())
+  expiresAt DateTime?
+
+  @@index([publishedAt])
+  @@map("announcements")
+}
