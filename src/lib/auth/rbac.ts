@@ -41,6 +41,9 @@ export const PERMISSIONS = [
   // Collaboration (Phase 3)
   'task:read:own', 'task:create', 'task:assign', 'task:admin',
   'team:read', 'notification:read',
+  // Owner tier and user management
+  'user:create', 'user:role:set', 'user:suspend', 'user:password:reset',
+  'school:delete', 'subscription:read',
   // Forums (Phase 4)
   'forum:read', 'forum:post', 'forum:moderate',
   // Library (Phase 5)
@@ -61,6 +64,34 @@ export type Permission = (typeof PERMISSIONS)[number];
  * those two capabilities is what keeps the grade ledger trustworthy.
  */
 export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
+  /**
+   * The school's super administrator. Everything ADMIN has, plus the four
+   * user-management grants, destructive deletes and subscription visibility.
+   *
+   * The asymmetry that matters is not in this table: an ADMIN holds no
+   * `user:role:set`, so an admin cannot demote the owner. That an OWNER also
+   * cannot be removed by an admin is enforced per-record in the people
+   * service, because it is a fact about a ROW, not about a role.
+   */
+  OWNER: [
+    'student:read', 'student:write',
+    'instructor:read', 'instructor:write',
+    'course:read', 'course:write',
+    'offering:read', 'offering:write', 'term:write',
+    'enrollment:read:any', 'enrollment:write:any',
+    'grade:read:any', 'grade:override',
+    'transcript:read:any',
+    'application:read:any', 'application:decide', 'application:convert',
+    'invoice:read:any', 'invoice:write', 'payment:record', 'payment:read:any', 'fee:configure',
+    'hold:manage', 'user:manage', 'audit:read', 'announcement:write',
+    'school:config:read', 'school:config:write', 'org:read', 'org:manage', 'directory:read',
+    'class:read', 'class:manage', 'report:generate', 'attendance:record',
+    'task:read:own', 'task:create', 'task:assign', 'task:admin', 'team:read', 'notification:read',
+    'forum:read', 'forum:post', 'forum:moderate',
+    'library:read', 'library:manage', 'library:analytics',    'user:create', 'user:role:set', 'user:suspend', 'user:password:reset',
+    'school:delete', 'subscription:read',
+  ],
+
   ADMIN: [
     'student:read', 'student:write',
     'instructor:read', 'instructor:write',
@@ -176,6 +207,24 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
   ],
 };
 
+/**
+ * Does `actual` satisfy a requirement expressed as a list of roles?
+ *
+ * OWNER is a strict superset of ADMIN, so it satisfies anywhere ADMIN would.
+ * Stated ONCE, here, rather than prepending 'OWNER' to the thirty-six
+ * `requireTenantRole('ADMIN', …)` calls across the pages — which would work
+ * today and then quietly fail on the thirty-seventh, written by someone who
+ * did not know the rule.
+ *
+ * This is a hierarchy between two roles, not a general one. Every other role
+ * is a peer: a REGISTRAR is not a lesser ADMIN, it is a different job.
+ */
+export function roleSatisfies(actual: Role, allowed: readonly Role[]): boolean {
+  if (allowed.includes(actual)) return true;
+  if (actual === 'OWNER' && allowed.includes('ADMIN')) return true;
+  return false;
+}
+
 export function can(role: Role, permission: Permission): boolean {
   return ROLE_PERMISSIONS[role]?.includes(permission) ?? false;
 }
@@ -221,28 +270,28 @@ export interface RouteGuard {
 }
 
 export const ROUTE_GUARDS: RouteGuard[] = [
-  { prefix: '/dashboard', roles: ['ADMIN', 'REGISTRAR'] },
-  { prefix: '/students', roles: ['ADMIN', 'REGISTRAR', 'INSTRUCTOR', 'ADMISSIONS', 'FINANCE'] },
-  { prefix: '/instructors', roles: ['ADMIN', 'REGISTRAR'] },
-  { prefix: '/courses', roles: ['ADMIN', 'REGISTRAR', 'INSTRUCTOR', 'STUDENT', 'ADMISSIONS'] },
-  { prefix: '/offerings', roles: ['ADMIN', 'REGISTRAR', 'INSTRUCTOR', 'STUDENT'] },
-  { prefix: '/admissions', roles: ['ADMIN', 'ADMISSIONS', 'REGISTRAR'] },
-  { prefix: '/finance', roles: ['ADMIN', 'FINANCE', 'REGISTRAR'] },
+  { prefix: '/dashboard', roles: ['OWNER', 'ADMIN', 'REGISTRAR'] },
+  { prefix: '/students', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'INSTRUCTOR', 'ADMISSIONS', 'FINANCE'] },
+  { prefix: '/instructors', roles: ['OWNER', 'ADMIN', 'REGISTRAR'] },
+  { prefix: '/courses', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'INSTRUCTOR', 'STUDENT', 'ADMISSIONS'] },
+  { prefix: '/offerings', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'INSTRUCTOR', 'STUDENT'] },
+  { prefix: '/admissions', roles: ['OWNER', 'ADMIN', 'ADMISSIONS', 'REGISTRAR'] },
+  { prefix: '/finance', roles: ['OWNER', 'ADMIN', 'FINANCE', 'REGISTRAR'] },
   { prefix: '/teaching', roles: ['INSTRUCTOR', 'ADMIN'] },
   { prefix: '/me', roles: ['STUDENT'] },
   { prefix: '/portal', roles: ['APPLICANT'] },
-  { prefix: '/classes', roles: ['ADMIN', 'REGISTRAR', 'INSTRUCTOR'] },
-  { prefix: '/reports', roles: ['ADMIN', 'REGISTRAR', 'INSTRUCTOR'] },
+  { prefix: '/classes', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'INSTRUCTOR'] },
+  { prefix: '/reports', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'INSTRUCTOR'] },
   { prefix: '/family', roles: ['GUARDIAN'] },
   // Tasks are open to every staff role. Which tasks a person actually sees is
   // a RELATIONSHIP question answered per record by `canViewTask`, not a role
   // question — the guard here only says "may use the task system at all".
-  { prefix: '/tasks', roles: ['ADMIN', 'REGISTRAR', 'FINANCE', 'ADMISSIONS', 'INSTRUCTOR', 'LIBRARIAN', 'STAFF'] },
+  { prefix: '/tasks', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'FINANCE', 'ADMISSIONS', 'INSTRUCTOR', 'LIBRARIAN', 'STAFF'] },
   // Reachable by any instructor; a lecturer with no reports sees an empty team
   // rather than a 403, because having no subordinates is an ordinary fact
   // about most staff, not a permission failure.
-  { prefix: '/team', roles: ['ADMIN', 'REGISTRAR', 'INSTRUCTOR'] },
-  { prefix: '/org', roles: ['ADMIN', 'REGISTRAR', 'INSTRUCTOR'] },
+  { prefix: '/team', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'INSTRUCTOR'] },
+  { prefix: '/org', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'INSTRUCTOR'] },
   // Guardians and applicants are absent on purpose: a parent in the staff
   // room is obviously wrong, and a parent in the student common room is
   // subtler but no better. Which forums a member then sees is decided per
@@ -250,13 +299,13 @@ export const ROUTE_GUARDS: RouteGuard[] = [
   // Guardians and applicants are absent: the library is for the school's own
   // staff and students. A guardian's access to their child's material runs
   // through the family portal.
-  { prefix: '/library', roles: ['ADMIN', 'REGISTRAR', 'FINANCE', 'ADMISSIONS', 'INSTRUCTOR', 'LIBRARIAN', 'STAFF', 'STUDENT'] },
-  { prefix: '/library/manage', roles: ['ADMIN', 'REGISTRAR', 'LIBRARIAN'] },
-  { prefix: '/forums', roles: ['ADMIN', 'REGISTRAR', 'FINANCE', 'ADMISSIONS', 'INSTRUCTOR', 'LIBRARIAN', 'STAFF', 'STUDENT'] },
-  { prefix: '/settings/school', roles: ['ADMIN'] },
+  { prefix: '/library', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'FINANCE', 'ADMISSIONS', 'INSTRUCTOR', 'LIBRARIAN', 'STAFF', 'STUDENT'] },
+  { prefix: '/library/manage', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'LIBRARIAN'] },
+  { prefix: '/forums', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'FINANCE', 'ADMISSIONS', 'INSTRUCTOR', 'LIBRARIAN', 'STAFF', 'STUDENT'] },
+  { prefix: '/settings/school', roles: ['OWNER', 'ADMIN'] },
   // Longest-prefix wins, so this stays reachable by a school ADMIN while
   // /admin/platform below is platform-only.
-  { prefix: '/admin', roles: ['ADMIN'] },
+  { prefix: '/admin', roles: ['OWNER', 'ADMIN'] },
   { prefix: '/admin/platform', roles: [], platformOnly: true },
 ];
 

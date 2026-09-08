@@ -36,3 +36,6 @@ tsconfig.tsbuildinfo
 *.tmp.mts
 *.tmp.cjs
 *.tmp.html
+
+# Local file storage (development driver). Never committed.
+.storage/

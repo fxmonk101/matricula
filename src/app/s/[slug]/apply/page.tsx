@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { schoolAcceptsPublicTraffic } from '@/lib/domain/enums';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
@@ -23,7 +24,7 @@ export default async function SchoolApplyPage({
     where: { slug },
     select: { id: true, name: true, shortName: true, code: true, brandColor: true, status: true },
   });
-  if (!school || school.status === 'SUSPENDED') notFound();
+  if (!school || !schoolAcceptsPublicTraffic(school.status)) notFound();
 
   const db = dbFor(school.id);
 

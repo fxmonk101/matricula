@@ -7,6 +7,7 @@ import { createApplicantAccount } from '@/server/services/admissions.service';
 import { nextApplicationReference } from '@/server/services/sequence.service';
 import { recordAudit } from '@/server/services/audit.service';
 import { APPLY_POLICY } from '@/lib/domain/rate-limit';
+import { schoolAcceptsPublicTraffic } from '@/lib/domain/enums';
 import { callerAddress, checkLimit, recordAttempt } from '@/server/services/rate-limit.service';
 
 export interface ApplyState {
@@ -101,7 +102,7 @@ export async function submitApplicationAction(
     where: { slug: d.schoolSlug },
     select: { id: true, code: true, name: true, status: true },
   });
-  if (!school || school.status === 'SUSPENDED') {
+  if (!school || !schoolAcceptsPublicTraffic(school.status)) {
     return { ok: false, message: 'That school is not accepting applications.' };
   }
 

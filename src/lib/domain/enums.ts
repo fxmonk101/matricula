@@ -12,6 +12,14 @@
  * neither fact should authorise them at the other.
  */
 export const ROLES = [
+  /**
+   * The school's own super administrator, created by the platform when a
+   * school is provisioned. Everything ADMIN has, plus user management,
+   * destructive deletes and subscription visibility — and deliberately NOT
+   * removable or demotable by an ADMIN, so a mistaken or rogue admin cannot
+   * lock a school out of its own account.
+   */
+  'OWNER',
   'ADMIN',
   'REGISTRAR',
   'FINANCE',
@@ -26,6 +34,7 @@ export const ROLES = [
 export type Role = (typeof ROLES)[number];
 
 export const ROLE_LABELS: Record<Role, string> = {
+  OWNER: 'School Owner',
   ADMIN: 'School Administrator',
   REGISTRAR: 'Registrar',
   FINANCE: 'Bursary / Finance',
@@ -50,6 +59,7 @@ export const ROLE_LABELS: Record<Role, string> = {
  * page all three are forbidden from.
  */
 export const ROLE_HOME: Record<Role, string> = {
+  OWNER: '/dashboard',
   ADMIN: '/dashboard',
   REGISTRAR: '/dashboard',
   FINANCE: '/finance',
@@ -82,6 +92,38 @@ export const ACADEMIC_MODEL_LABELS: Record<AcademicModel, string> = {
 
 export const SCHOOL_STATUSES = ['ACTIVE', 'TRIAL', 'SUSPENDED', 'PROVISIONING'] as const;
 export type SchoolStatus = (typeof SCHOOL_STATUSES)[number];
+
+/**
+ * May the public reach this school at all — its branded login page, its
+ * application form, the school picker?
+ *
+ * An ALLOW-LIST, and that is the point. Every one of these checks used to read
+ * `status === 'SUSPENDED'`, which meant a school in PROVISIONING — half set up,
+ * possibly with no grading scheme and no terms — was fully reachable by anyone
+ * who knew its slug. A deny-list also admits by default any status added later,
+ * which is exactly backwards for a gate.
+ */
+export function schoolAcceptsPublicTraffic(status: string): boolean {
+  return status === 'ACTIVE' || status === 'TRIAL';
+}
+
+/**
+ * May this person sign in to this school?
+ *
+ * PROVISIONING is the interesting case. The platform creates a school and its
+ * OWNER together, and that owner has to get in to finish the setup — but staff
+ * and pupils must not, or they arrive at a school with no grading scheme, no
+ * terms and no timetable and conclude the product is broken. So the owner is
+ * let through and nobody else is.
+ *
+ * Unrecognised statuses deny. A gate that admits what it does not understand is
+ * not a gate.
+ */
+export function schoolAllowsSignIn(status: string, role: Role): boolean {
+  if (schoolAcceptsPublicTraffic(status)) return true;
+  if (status === 'PROVISIONING') return role === 'OWNER';
+  return false;
+}
 
 export const MEMBERSHIP_STATUSES = ['ACTIVE', 'INVITED', 'SUSPENDED'] as const;
 export type MembershipStatus = (typeof MEMBERSHIP_STATUSES)[number];

@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
 import { SESSION_COOKIE, verifySession } from '@/lib/auth/jwt';
-import { guardForPath } from '@/lib/auth/rbac';
+import { guardForPath, roleSatisfies } from '@/lib/auth/rbac';
 import { ROLE_HOME } from '@/lib/domain/enums';
 
 /**
@@ -86,7 +86,9 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  if (!guard.roles.includes(session.role)) {
+  // Same hierarchy as requireTenantRole, from the same function, so the edge
+  // gate and the page gate can never disagree about whether OWNER may pass.
+  if (!roleSatisfies(session.role, guard.roles)) {
     return NextResponse.redirect(new URL('/forbidden', request.url));
   }
 

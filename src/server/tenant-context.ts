@@ -8,8 +8,9 @@ import { loadSchoolConfig } from './school-config';
 import { makeMoney, type Money } from '@/lib/domain/money';
 import type { SchoolConfigBundle } from '@/lib/domain/config';
 import { getSession } from '@/lib/auth/session';
+import { roleSatisfies } from '@/lib/auth/rbac';
 import type { SessionClaims } from '@/lib/auth/jwt';
-import type { AcademicModel, Role } from '@/lib/domain/enums';
+import { schoolAllowsSignIn, type AcademicModel, type Role } from '@/lib/domain/enums';
 
 /**
  * Request-scoped tenant context.
@@ -88,10 +89,15 @@ export const getTenantContext = cache(async (): Promise<TenantContext | null> =>
   if (!session) return null;
 
   const school = await loadSchool(session.sch);
-  // The session names a school that no longer exists, or has been suspended.
-  // Treating that as signed-out is the safe reading: a suspended school's
-  // staff should not keep working off a token minted before the suspension.
-  if (!school || school.status === 'SUSPENDED') return null;
+  // The session names a school that no longer exists, or is not open to this
+  // person right now. Treating that as signed-out is the safe reading: a
+  // suspended school's staff should not keep working off a token minted before
+  // the suspension, and a half-provisioned school should admit only its owner.
+  //
+  // An ALLOW-LIST via schoolAllowsSignIn, not the `=== 'SUSPENDED'` test this
+  // replaces — that deny-list let a PROVISIONING school be used in full by
+  // anyone holding a membership of it.
+  if (!school || !schoolAllowsSignIn(school.status, session.role)) return null;
 
   const config = await loadSchoolConfig(school.id);
 
@@ -138,6 +144,8 @@ export async function requireTenantContext(): Promise<TenantContext> {
  */
 export async function requireTenantRole(...allowed: Role[]): Promise<TenantContext> {
   const ctx = await requireTenantContext();
-  if (!allowed.includes(ctx.role)) redirect('/forbidden');
+  // `roleSatisfies`, not `allowed.includes` — OWNER outranks ADMIN, and that
+  // rule lives in one function rather than in every call site.
+  if (!roleSatisfies(ctx.role, allowed)) redirect('/forbidden');
   return ctx;
 }
