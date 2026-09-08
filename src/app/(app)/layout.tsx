@@ -1,4 +1,4 @@
-import type { Metadata } from 'next';
+import type { Metadata, Viewport } from 'next';
 
 import { getTenantContext, requireTenantContext } from '@/server/tenant-context';
 import { AppShell } from '@/components/shell';
@@ -16,8 +16,19 @@ export async function generateMetadata(): Promise<Metadata> {
       default: ctx?.school.name ?? 'Portal',
       template: `%s · ${ctx?.school.shortName ?? 'Portal'}`,
     },
-    themeColor: ctx?.school.brandColor,
   };
+}
+
+/**
+ * `themeColor` moved out of `metadata` in Next.js 15 — leaving it there logs a
+ * deprecation on every render and, more to the point, stops being applied.
+ * It is per-tenant, so it belongs in `generateViewport` rather than a static
+ * export: the browser chrome should carry the colour of the school the user is
+ * actually signed in to.
+ */
+export async function generateViewport(): Promise<Viewport> {
+  const ctx = await getTenantContext();
+  return { themeColor: ctx?.school.brandColor };
 }
 
 /**

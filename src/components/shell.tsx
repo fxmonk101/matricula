@@ -36,6 +36,7 @@ const NAV: NavItem[] = [
   { href: '/tasks', label: 'Tasks', roles: ['ADMIN', 'REGISTRAR', 'FINANCE', 'ADMISSIONS', 'INSTRUCTOR', 'LIBRARIAN', 'STAFF'] },
   { href: '/team', label: 'My Team', roles: ['ADMIN', 'REGISTRAR', 'INSTRUCTOR'] },
   { href: '/org', label: 'Organisation', roles: ['ADMIN', 'REGISTRAR', 'INSTRUCTOR'] },
+  { href: '/library', label: 'Library', roles: ['ADMIN', 'REGISTRAR', 'FINANCE', 'ADMISSIONS', 'INSTRUCTOR', 'LIBRARIAN', 'STAFF', 'STUDENT'] },
   { href: '/forums', label: 'Forums', roles: ['ADMIN', 'REGISTRAR', 'FINANCE', 'ADMISSIONS', 'INSTRUCTOR', 'LIBRARIAN', 'STAFF', 'STUDENT'] },
   { href: '/me', label: 'My Record', roles: ['STUDENT'] },
   { href: '/me/registration', label: 'Registration', roles: ['STUDENT'] },

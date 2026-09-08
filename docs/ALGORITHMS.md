@@ -867,6 +867,93 @@ a person hammer the button. Timestamps come from the caller, which is what makes
 testable without waiting.
 
 
+## 27. Resource visibility (additive targeting)
+
+```
+audience gate  -> STAFF material is staff-only, always
+programme gate -> pass if unrestricted, or the viewer's programme is listed
+year gate      -> pass if unrestricted, or the viewer's year group is listed
+level gate     -> pass if unrestricted, or the viewer's level is listed
+```
+
+**O(1) per resource.**
+
+**An empty dimension means "no restriction", not "matches nothing".** That is the reading which
+makes an unconfigured resource visible to the school rather than invisible to everyone — and a
+librarian who uploads a reading list nobody can see will conclude the software is broken. The
+confidential case is served by `audience: STAFF`, a deliberate act rather than an omission.
+
+**Staff bypass programme, year and level — but never the audience gate.** A lecturer must see the
+reading list they set for a programme they do not belong to; that is what those dimensions are
+*for*. The audience gate is different in kind: it is the confidentiality boundary, and nothing
+passes it upward.
+
+**A null programme fails a programme restriction.** "Unknown" must not satisfy a restriction, or
+an incompletely set-up student record quietly widens access.
+
+---
+
+## 28. Library search relevance
+
+```
+exact title match          100      author contains query       25
+title starts with query     60      exact tag match             20
+title contains query        40      tag contains query          10
+description contains query   5      + log10(views + 1)
+```
+
+**O(n) to score, O(n log n) to sort.**
+
+**Not full-text search in the database, deliberately.** A school library is hundreds to low
+thousands of records. In-memory scoring after one indexed scan beats the round trips a ranked SQL
+query needs, and it is PORTABLE — SQLite FTS5 and Postgres tsvector differ in syntax, ranking and
+results, so the development database would quietly disagree with production. When the catalogue
+outgrows this, the replacement is a search index, not a cleverer query.
+
+**Popularity is log-scaled, small, and additive only to a non-zero score.** It breaks ties between
+equally relevant records without letting the most-viewed book become the top answer to every
+query regardless of what was asked. A record that matches nothing scores exactly zero and is
+excluded, so popularity can never float an irrelevant result into the list.
+
+---
+
+## 29. View de-duplication
+
+```
+countable = lastViewedAt is null OR (now - lastViewedAt) >= 30 minutes
+```
+
+**O(1).**
+
+**Counting every page load makes the figures worthless.** A reader who refreshes, opens three
+tabs, or returns twice while writing an essay would register as three or five or ten reads, and a
+head of department deciding whether to renew a subscription would be reading noise.
+
+**The window is generous because the error is asymmetric.** Over-counting flatters the library and
+misleads a purchasing decision; under-counting a genuine second visit an hour later costs almost
+nothing.
+
+**Per person, not per session or per IP** — a shared library terminal must not collapse ten
+students into one reader. A `lastViewedAt` in the future (clock skew) counts rather than
+permanently suppressing the resource.
+
+---
+
+## 30. Usage summaries: two denominators, named apart
+
+**Unique readers is reported alongside total views, never instead of it.** 400 views by 3 people is
+a very different library from 400 views by 300 people, and a dashboard showing only the total
+cannot tell a head of department which one they have.
+
+**`unviewedInRange` is named for what it is.** It counts resources with no view *among the records
+passed in* — so a caller that windows views to 90 days gets "not opened in 90 days", which is NOT
+"never opened". Those diverge the moment the catalogue outlives the window. The dashboard
+therefore computes its headline "never opened" figure from the all-time counter, so the tile and
+the list beside it cannot drift apart.
+
+**Top resources rank by distinct readers before raw views**, so one obsessive reader does not
+outrank genuine breadth of use.
+
 ## Appendix A — Why money is never a float
 
 ```js

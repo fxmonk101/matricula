@@ -1,7 +1,7 @@
 # Platform Roadmap
 ## From single-university SIS → multi-tenant school platform
 
-**Status:** Phases 0-4 **complete**. Phase 5 next. Phases ship independently; each ends with a green build, green tests, and a demoable app.
+**Status:** Phases 0-5 **complete**. Phase 6 next. Phases ship independently; each ends with a green build, green tests, and a demoable app.
 
 | Phase | State |
 |---|---|
@@ -10,7 +10,7 @@
 | 2 — K-12 academic model & guardians | ✅ Done — 38 K-12 tests; report cards, mark sheets and guardian portal verified live |
 | 3 — Org hierarchy, tasks, notifications, shell | ✅ Done — 72 new tests; dean workflow verified live at both universities |
 | 4 — Forums | ✅ Done — 97 new tests incl. 12 XSS payloads; CSP shipped; verified live |
-| 5 — Digital resource library | Planned |
+| 5 — Digital resource library | ✅ Done — 48 new tests; targeting verified live through direct URLs |
 | 6 — UI system pass | Planned |
 
 ---
@@ -374,13 +374,63 @@ emitted markup, which is both correct and strictly stronger.
 
 ---
 
-## Phase 5 — Digital resource library
+## Phase 5 — Digital resource library ✅
 
 Scoped to digital only per your decision — no copies, loans, due dates, reservations, or fines.
 
 `LibraryResource` (title, authors, kind: EBOOK/DOCUMENT/LINK/VIDEO/AUDIO, url or file, subjects, year-group/program targeting, visibility), `ResourceCollection`, `ResourceView` (access tracking).
 
 Access control by role, year group, and program. Search and subject-tag filtering. Usage analytics for librarians and heads of department. Requires the file-storage layer (below).
+
+### What shipped, and what was verified
+
+**Digital only, as decided** — no copies, loans, due dates, reservations or fines. That removes
+the entire circulation model, which is most of what makes a library system large, and leaves the
+part a school uses daily: finding material, and knowing whether anyone read it.
+
+`src/lib/domain/library.ts` — 48 tests. Decisions worth recording (ALGORITHMS.md §27-30):
+
+| Decision | Why |
+|---|---|
+| An empty targeting dimension means **no restriction**, not "matches nothing" | Otherwise a librarian uploads a reading list and finds nobody can see it. Confidentiality is expressed by `audience: STAFF` — a deliberate act, not an omission |
+| Staff bypass programme/year/level but **never** the audience gate | A lecturer must see the list they set for a programme they do not belong to; the audience gate is a different kind of thing — the confidentiality boundary |
+| A **null** programme fails a programme restriction | "Unknown" must not satisfy a restriction, or an incomplete student record quietly widens access |
+| Search scores in memory, not in the database | SQLite FTS5 and Postgres tsvector rank differently, so dev would disagree with production. At this scale one indexed scan is faster anyway |
+| Popularity is log-scaled and **only added to a non-zero score** | Otherwise the most-viewed book is the top answer to every query regardless of what was asked |
+| Views de-duplicated per person per 30 minutes | Counting refreshes makes the figures noise, and a renewal decision rests on them |
+| Resource URLs reuse the **forum renderer's** scheme allowlist | A catalogue record is a stored user-supplied URL rendered as a link in someone else's browser — the identical vector. Two notions of "safe link" in one codebase is how one ends up weaker |
+| Archive, never delete | The usage history is what a renewal decision rests on; a hard delete cascades it away |
+
+**Verified live**, production build, four sessions:
+
+| Check | Result |
+|---|---|
+| Staff-only material | Invisible to a student in the listing **and 404 on the direct URL**; visible to the librarian |
+| Level targeting | A level-200 student opens a `[200,300]` resource (200) and is **404**ed from a `[300,400]` one; the librarian sees both |
+| Cross-school | A Golden Eagles student is 404ed from a Meridian record; the Meridian student opens it |
+| Route guard | Student → `/library/manage` redirects to `/forbidden` |
+| View de-duplication | A fresh resource went 0 → 1 on first open and stayed at 1 after four refreshes, with the counter and the view rows consistent throughout |
+| Analytics | 51 reads, 11 distinct readers, 8 in the last week, 1 never opened — and the "never opened" panel lists exactly that one resource |
+
+**Three defects found and fixed during the phase:**
+
+1. **The seed stopped completing.** `createTask` transactions began dying at the 5s default. Root
+   cause: services deliberately fire `recordAudit` and `notify` without awaiting them — correct in
+   a request, but in a batch they pile up, and SQLite serialises writes at the file level, so a
+   transaction that takes milliseconds sat waiting for the lock and expired mid-flight, leaving a
+   task with no CREATED event. Fixed by raising the interactive-transaction and pool limits for
+   the development database, with the reasoning recorded in `src/lib/db.ts` and `.env`. Postgres
+   does not have this shape of contention, so production inherits nothing.
+2. **A latent dashboard lie.** The "Never opened" tile counted resources unviewed *in the 90-day
+   window* while the list beside it counted resources never opened *at all*. They agreed only
+   because every seeded view fell inside the window. Renamed the pure field to `unviewedInRange`,
+   moved the headline figure onto the all-time counter, and added a test pinning that the two are
+   genuinely different numbers.
+3. **A Next.js 15 deprecation in my own code** — `themeColor` in `metadata` logs on every render
+   and stops being applied. Moved to `generateViewport`, which is also where it belongs given it
+   is per-tenant.
+
+435 tests green · `tsc --noEmit` clean · production build clean.
 
 ---
 

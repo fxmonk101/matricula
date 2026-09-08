@@ -85,6 +85,8 @@ model School {
   tasks             Task[]
   notifications     Notification[]
   forums            Forum[]
+  libraryResources  LibraryResource[]
+  collections       ResourceCollection[]
 
   @@index([status])
   @@map("schools")
@@ -169,6 +171,11 @@ model Membership {
   reactions       PostReaction[]
   reportsMade     PostReport[]   @relation("ReportReporter")
   reportsResolved PostReport[]   @relation("ReportResolver")
+
+  // --- library (Phase 5) ---
+  resourcesAdded     LibraryResource[]    @relation("ResourceAdder")
+  collectionsCurated ResourceCollection[] @relation("CollectionCurator")
+  resourceViews      ResourceView[]
 
   @@unique([userId, schoolId])
   @@index([schoolId, role])
@@ -1603,4 +1610,142 @@ model PostReport {
   @@unique([postId, reporterId])
   @@index([schoolId, status])
   @@map("post_reports")
+}
+
+// =============================================================================
+// SECTION 6 — DIGITAL RESOURCE LIBRARY (Phase 5)
+// =============================================================================
+// Digital only, by an explicit product decision: no copies, no loans, no due
+// dates, no reservations, no fines. That removes the entire circulation model —
+// which is most of what makes a library system large — and leaves the part a
+// school uses daily: finding material, and knowing whether anyone read it.
+
+model LibraryResource {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  title       String
+  /// Free text rather than a normalised Author table. A catalogue of this size
+  /// gains nothing from the join, and "Axler, S." vs "Sheldon Axler" is a
+  /// cataloguing problem no schema solves.
+  authors     String  @default("")
+  description String?
+  /// ResourceKind: EBOOK | DOCUMENT | LINK | VIDEO | AUDIO | DATASET
+  kind        String  @default("DOCUMENT")
+
+  /// Where the material lives. Validated against the SAME scheme allowlist the
+  /// forum renderer uses — a catalogue record is a stored, user-supplied URL
+  /// rendered as a link in someone else's browser, which is the identical
+  /// vector to a forum post.
+  url         String
+  /// Bibliographic extras, all optional — a school library is not MARC.
+  publisher   String?
+  isbn        String?
+  edition     String?
+  language    String  @default("en")
+  pageCount   Int?
+  /// Minutes, for video and audio.
+  durationMin Int?
+
+  /// Comma-separated, normalised lower-case. Stored denormalised because the
+  /// filter sidebar is computed over the result set in memory, not queried.
+  tags String @default("")
+
+  // --- targeting -------------------------------------------------------------
+  /// ResourceAudience: ALL | STAFF | STUDENT
+  audience String @default("ALL")
+  /// JSON arrays. EMPTY means "no restriction on this dimension", not "matches
+  /// nothing" — so an unconfigured resource is visible to the school rather
+  /// than invisible to everyone. Confidentiality is expressed by `audience`,
+  /// which is a deliberate act rather than an omission.
+  programIdsJson   String @default("[]")
+  yearGroupIdsJson String @default("[]")
+  levelsJson       String @default("[]")
+
+  /// Denormalised counter, maintained inside the view transaction — the same
+  /// pattern as CourseOffering.seatsTaken and Thread.postCount.
+  viewCount Int @default(0)
+
+  addedById String?
+  addedBy   Membership? @relation("ResourceAdder", fields: [addedById], references: [id], onDelete: SetNull)
+
+  /// Null while a draft; set when the resource goes live in the catalogue.
+  publishedAt DateTime?
+  isArchived  Boolean   @default(false)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  views       ResourceView[]
+  collections ResourceCollectionItem[]
+
+  @@index([schoolId, isArchived, publishedAt])
+  @@index([schoolId, kind])
+  @@map("library_resources")
+}
+
+/// A curated reading list: a module's set texts, a year group's recommended
+/// reading, a department's core references.
+model ResourceCollection {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  slug        String
+  name        String
+  description String?
+  /// ResourceAudience: ALL | STAFF | STUDENT
+  audience    String  @default("ALL")
+
+  curatorId String?
+  curator   Membership? @relation("CollectionCurator", fields: [curatorId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  items ResourceCollectionItem[]
+
+  @@unique([schoolId, slug])
+  @@map("resource_collections")
+}
+
+model ResourceCollectionItem {
+  id           String             @id @default(cuid())
+  schoolId     String
+  collectionId String
+  collection   ResourceCollection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+  resourceId   String
+  resource     LibraryResource    @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  /// The curator's note on why this item is on the list.
+  note     String?
+  position Int     @default(0)
+
+  @@unique([collectionId, resourceId])
+  @@index([schoolId])
+  @@map("resource_collection_items")
+}
+
+/// One counted visit to a resource.
+///
+/// De-duplicated in the service by a 30-minute window per PERSON, so a refresh
+/// or three open tabs is one read. Without that, a head of department deciding
+/// whether to renew a subscription would be reading noise.
+model ResourceView {
+  id         String          @id @default(cuid())
+  schoolId   String
+  resourceId String
+  resource   LibraryResource @relation(fields: [resourceId], references: [id], onDelete: Cascade)
+
+  /// Nullable so a view survives the reader's membership being removed — the
+  /// usage history is what a renewal decision rests on, and losing it when
+  /// somebody graduates would quietly rewrite the past.
+  membershipId String?
+  membership   Membership? @relation(fields: [membershipId], references: [id], onDelete: SetNull)
+
+  viewedAt DateTime @default(now())
+
+  @@index([resourceId, viewedAt])
+  @@index([schoolId, membershipId, viewedAt])
+  @@map("resource_views")
 }

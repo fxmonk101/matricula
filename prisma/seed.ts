@@ -1131,6 +1131,24 @@ async function main() {
   );
   console.log(`  MIT  ${mitForums.forums} forums · ${mitForums.threads} threads · ${mitForums.posts} posts`);
 
+  // --- library (Phase 5) -----------------------------------------------------
+  console.log('\nSeeding the resource library…');
+  const { seedLibrary, GEU_RESOURCES, MIT_RESOURCES } = await import('./seed-library');
+
+  const geuLib = await seedLibrary(
+    { db, schoolId: geu.schoolId },
+    { curatorEmail: 'library@geu.edu', resources: GEU_RESOURCES },
+  );
+  console.log(`  GEU  ${geuLib.added} resources (${geuLib.refused} refused) · ${geuLib.views} views`);
+
+  // Meridian has no librarian membership, so the registrar curates — which is
+  // also the realistic case for a smaller institution.
+  const mitLib = await seedLibrary(
+    { db, schoolId: mit.schoolId },
+    { curatorEmail: 'registrar@meridian.edu.gh', resources: MIT_RESOURCES },
+  );
+  console.log(`  MIT  ${mitLib.added} resources (${mitLib.refused} refused) · ${mitLib.views} views`);
+
   // An escalation sweep, so overdue work has actually escalated and the bell
   // has something in it on first sign-in.
   const { runEscalationSweep } = await import('../src/server/services/task.service');
