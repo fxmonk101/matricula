@@ -38,8 +38,8 @@ export function NewThreadButton({
 
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-scrim/50 p-4 pt-12">
-      <div className="w-full max-w-2xl rounded-xl bg-white shadow-xl">
-        <div className="border-b border-slate-200 px-5 py-4">
+      <div className="w-full max-w-2xl rounded-2xl bg-white shadow-lg ring-1 ring-slate-900/[0.06]">
+        <div className="border-b border-slate-200/70 px-5 py-4">
           <h2 className="text-sm font-semibold text-slate-900">Start a discussion</h2>
           <p className="mt-0.5 text-xs text-slate-500">
             Everyone who can see this forum will be able to read it.
@@ -110,7 +110,7 @@ export function NewThreadButton({
             </p>
           </div>
 
-          <div className="flex justify-end gap-2 border-t border-slate-200 pt-4">
+          <div className="flex justify-end gap-2 border-t border-slate-200/70 pt-4">
             <Button type="button" variant="secondary" onClick={() => setOpen(false)}>
               Cancel
             </Button>

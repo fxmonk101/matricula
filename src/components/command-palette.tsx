@@ -101,7 +101,7 @@ export function CommandPalette() {
       <button
         type="button"
         onClick={() => setOpen(true)}
-        className="flex w-full items-center gap-2 rounded-lg bg-slate-100 px-3 py-1.5 text-left text-xs text-slate-500 transition-colors hover:bg-slate-200"
+        className="flex w-full items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-left text-xs text-slate-500 shadow-xs ring-1 ring-inset ring-slate-200 transition-colors hover:bg-white hover:ring-slate-300"
       >
         <svg viewBox="0 0 20 20" fill="currentColor" className="h-3.5 w-3.5 shrink-0" aria-hidden>
           <path
@@ -123,13 +123,13 @@ export function CommandPalette() {
           role="presentation"
         >
           <div
-            className="w-full max-w-xl overflow-hidden rounded-xl bg-white shadow-2xl ring-1 ring-slate-200"
+            className="w-full max-w-xl overflow-hidden rounded-2xl bg-white shadow-lg ring-1 ring-slate-900/[0.06]"
             onClick={(e) => e.stopPropagation()}
             role="dialog"
             aria-modal="true"
             aria-label="Search"
           >
-            <div className="flex items-center gap-2 border-b border-slate-200 px-4">
+            <div className="flex items-center gap-2 border-b border-slate-200/70 px-4">
               <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 shrink-0 text-slate-400" aria-hidden>
                 <path
                   fillRule="evenodd"
@@ -198,7 +198,7 @@ export function CommandPalette() {
               )}
             </div>
 
-            <div className="flex items-center gap-3 border-t border-slate-200 px-4 py-2 text-[10px] text-slate-400">
+            <div className="flex items-center gap-3 border-t border-slate-200/70 px-4 py-2 text-[10px] text-slate-400">
               <span>↑↓ to move</span>
               <span>↵ to open</span>
               <span>esc to close</span>

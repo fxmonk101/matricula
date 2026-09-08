@@ -77,8 +77,8 @@ export function NotificationBell({
             tabIndex={-1}
             onClick={() => setOpen(false)}
           />
-          <div className="absolute right-0 z-50 mt-2 w-80 overflow-hidden rounded-xl border border-slate-200 bg-white shadow-lg">
-            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-2.5">
+          <div className="absolute right-0 z-50 mt-2 w-80 origin-top-right overflow-hidden rounded-xl border border-slate-200/70 bg-white shadow-lg ring-1 ring-slate-900/[0.04]">
+            <div className="flex items-center justify-between border-b border-slate-200/70 px-4 py-2.5">
               <p className="text-xs font-semibold text-slate-900">
                 Notifications{unread > 0 ? ` · ${unread} unread` : ''}
               </p>
@@ -147,7 +147,7 @@ export function NotificationBell({
             <Link
               href="/notifications"
               onClick={() => setOpen(false)}
-              className="block border-t border-slate-200 px-4 py-2.5 text-center text-[11px] font-medium text-brand-700 hover:bg-slate-50"
+              className="block border-t border-slate-200/70 px-4 py-2.5 text-center text-[11px] font-medium text-brand-700 hover:bg-slate-50"
             >
               See all notifications
             </Link>

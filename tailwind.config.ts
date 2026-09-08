@@ -56,13 +56,45 @@ const config: Config = {
         gold: scale('gold', [400, 500, 600]),
       },
       fontFamily: {
-        sans: ['ui-sans-serif', 'system-ui', 'Segoe UI', 'Roboto', 'Helvetica Neue', 'Arial', 'sans-serif'],
+        // Inter first (self-hosted via next/font, see app/layout.tsx), then a
+        // near-identical system stack so the pre-swap frame barely moves.
+        sans: [
+          'var(--font-sans)',
+          'ui-sans-serif',
+          'system-ui',
+          '-apple-system',
+          'Segoe UI',
+          'Roboto',
+          'Helvetica Neue',
+          'Arial',
+          'sans-serif',
+        ],
         mono: ['ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace'],
       },
+      /**
+       * A layered shadow scale.
+       *
+       * Each level is TWO shadows: a tight, near-opaque one that reads as a
+       * hairline lift, plus a wider, softer one that reads as ambient depth.
+       * A single blurred shadow looks like a drop shadow from 2010; the pair
+       * is what modern surfaces use. Tinted very slightly cool (16 24 40)
+       * rather than pure black, which greys the edge instead of dirtying it.
+       *
+       * Shadows are near-invisible on the dark theme, which leans on the
+       * raised card colour for separation instead — so nothing here needs a
+       * dark variant.
+       */
       boxShadow: {
-        // Shadows read as depth against light surfaces and as nothing against
-        // dark ones, so the dark theme leans on the raised card colour instead.
-        card: '0 1px 2px 0 rgb(16 24 40 / 0.06), 0 1px 3px 0 rgb(16 24 40 / 0.10)',
+        xs: '0 1px 2px 0 rgb(16 24 40 / 0.04)',
+        sm: '0 1px 2px -1px rgb(16 24 40 / 0.08), 0 1px 3px 0 rgb(16 24 40 / 0.06)',
+        md: '0 2px 4px -2px rgb(16 24 40 / 0.06), 0 6px 16px -4px rgb(16 24 40 / 0.10)',
+        lg: '0 4px 8px -4px rgb(16 24 40 / 0.08), 0 16px 32px -8px rgb(16 24 40 / 0.14)',
+        // Kept: dozens of call sites use `shadow-card`. Now an alias for `sm`.
+        card: '0 1px 2px -1px rgb(16 24 40 / 0.08), 0 1px 3px 0 rgb(16 24 40 / 0.06)',
+      },
+      transitionTimingFunction: {
+        // A gentle overshoot-free ease used for hover lifts and menu reveals.
+        'out-quart': 'cubic-bezier(0.25, 1, 0.5, 1)',
       },
       keyframes: {
         shimmer: {

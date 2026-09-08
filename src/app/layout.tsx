@@ -1,6 +1,25 @@
 import type { Metadata, Viewport } from 'next';
+import { Inter } from 'next/font/google';
 import './globals.css';
 import { THEME_BOOT_SCRIPT } from '@/components/theme-toggle';
+
+/**
+ * Inter, self-hosted.
+ *
+ * `next/font` downloads the font FILES at build time and serves them from
+ * `/_next/static` — there is no runtime request to Google, so this works under
+ * the strict `font-src 'self'` in the CSP without loosening it. The `<style>`
+ * it injects is inline, already covered by `style-src 'unsafe-inline'`.
+ *
+ * `display: 'swap'` shows the system fallback immediately and swaps Inter in
+ * when it loads, rather than blocking first paint on a font file. The stack in
+ * `tailwind.config.ts` is chosen so the swap barely moves anything.
+ */
+const inter = Inter({
+  subsets: ['latin'],
+  display: 'swap',
+  variable: '--font-sans',
+});
 
 /**
  * Root metadata is PLATFORM-level and deliberately names no school: this layout
@@ -24,7 +43,7 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en" suppressHydrationWarning>
+    <html lang="en" className={inter.variable} suppressHydrationWarning>
       <head>
         {/*
          * The theme is applied BEFORE first paint, not after hydration.
@@ -40,7 +59,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
          */}
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
       </head>
-      <body className="min-h-screen">{children}</body>
+      <body className="min-h-screen font-sans">{children}</body>
     </html>
   );
 }

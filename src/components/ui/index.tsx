@@ -16,24 +16,35 @@ import { cn } from '@/lib/utils';
 
 const buttonVariants = {
   primary:
-    'bg-brand-600 text-onAccent hover:bg-brand-700 focus-visible:outline-brand-600 disabled:bg-brand-300',
+    'bg-brand-600 text-onAccent shadow-sm hover:bg-brand-700 hover:shadow disabled:bg-brand-300 disabled:shadow-none',
   secondary:
-    'bg-white text-slate-800 ring-1 ring-inset ring-slate-300 hover:bg-slate-50 focus-visible:outline-slate-500',
-  danger: 'bg-rose-600 text-onAccent hover:bg-rose-700 focus-visible:outline-rose-600',
-  success: 'bg-emerald-600 text-onAccent hover:bg-emerald-700 focus-visible:outline-emerald-600',
-  ghost: 'bg-transparent text-slate-700 hover:bg-slate-100 focus-visible:outline-slate-400',
+    'bg-white text-slate-800 shadow-xs ring-1 ring-inset ring-slate-300 hover:bg-slate-50 hover:ring-slate-400',
+  danger: 'bg-rose-600 text-onAccent shadow-sm hover:bg-rose-700 hover:shadow',
+  success: 'bg-emerald-600 text-onAccent shadow-sm hover:bg-emerald-700 hover:shadow',
+  ghost: 'bg-transparent text-slate-600 hover:bg-slate-100 hover:text-slate-900',
 } as const;
 
 const buttonSizes = {
-  sm: 'px-2.5 py-1.5 text-xs gap-1.5',
-  md: 'px-3.5 py-2 text-sm gap-2',
-  lg: 'px-5 py-2.5 text-sm gap-2',
+  sm: 'h-8 px-3 text-xs gap-1.5',
+  md: 'h-9 px-4 text-sm gap-2',
+  lg: 'h-11 px-5 text-sm gap-2',
 } as const;
 
 export interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: keyof typeof buttonVariants;
   size?: keyof typeof buttonSizes;
 }
+
+/**
+ * Fixed heights per size rather than padding, so a button lines up with an
+ * input of the same size without either of them knowing about the other.
+ * `active:translate-y-px` is the whole press feedback — small enough not to
+ * be a distraction on a form with six buttons, present enough to feel real.
+ */
+const buttonBase =
+  'inline-flex items-center justify-center whitespace-nowrap rounded-lg font-medium ' +
+  'transition duration-150 ease-out-quart active:translate-y-px ' +
+  'disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-60';
 
 export function Button({
   className,
@@ -43,14 +54,7 @@ export function Button({
 }: ButtonProps) {
   return (
     <button
-      className={cn(
-        'inline-flex items-center justify-center rounded-lg font-medium transition-colors',
-        'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2',
-        'disabled:cursor-not-allowed disabled:opacity-60',
-        buttonVariants[variant],
-        buttonSizes[size],
-        className,
-      )}
+      className={cn(buttonBase, buttonVariants[variant], buttonSizes[size], className)}
       {...props}
     />
   );
@@ -67,13 +71,7 @@ export function LinkButton({
 }) {
   return (
     <Link
-      className={cn(
-        'inline-flex items-center justify-center rounded-lg font-medium transition-colors',
-        'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2',
-        buttonVariants[variant],
-        buttonSizes[size],
-        className,
-      )}
+      className={cn(buttonBase, buttonVariants[variant], buttonSizes[size], className)}
       {...props}
     />
   );
@@ -87,7 +85,10 @@ export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElemen
   return (
     <div
       className={cn(
-        'rounded-xl border border-slate-200 bg-white shadow-card',
+        // A hairline border AND a soft shadow: the border defines the edge at
+        // any zoom, the shadow lifts it off the page. Border at 70% opacity so
+        // it reads as a hairline rather than a drawn line.
+        'rounded-xl border border-slate-200/70 bg-white shadow-sm',
         className,
       )}
       {...props}
@@ -109,14 +110,14 @@ export function CardHeader({
   return (
     <div
       className={cn(
-        'flex flex-wrap items-start justify-between gap-3 border-b border-slate-200 px-5 py-4',
+        'flex flex-wrap items-start justify-between gap-3 border-b border-slate-200/70 px-5 py-3.5',
         className,
       )}
     >
       <div className="min-w-0">
-        <h2 className="text-sm font-semibold text-slate-900">{title}</h2>
+        <h2 className="text-[13px] font-semibold leading-5 text-slate-900">{title}</h2>
         {description ? (
-          <p className="mt-0.5 text-xs text-slate-500">{description}</p>
+          <p className="mt-0.5 text-xs leading-relaxed text-slate-500">{description}</p>
         ) : null}
       </div>
       {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
@@ -133,31 +134,53 @@ export function CardBody({ className, ...props }: React.HTMLAttributes<HTMLDivEl
 // -----------------------------------------------------------------------------
 
 const badgeTones = {
-  neutral: 'bg-slate-100 text-slate-700 ring-slate-200',
-  brand: 'bg-brand-50 text-brand-700 ring-brand-200',
-  success: 'bg-emerald-50 text-emerald-700 ring-emerald-200',
-  warning: 'bg-amber-50 text-amber-800 ring-amber-200',
-  danger: 'bg-rose-50 text-rose-700 ring-rose-200',
-  info: 'bg-sky-50 text-sky-700 ring-sky-200',
-  gold: 'bg-amber-100 text-amber-900 ring-amber-300',
+  neutral: 'bg-slate-100 text-slate-600 ring-slate-500/10',
+  brand: 'bg-brand-50 text-brand-700 ring-brand-600/15',
+  success: 'bg-emerald-50 text-emerald-700 ring-emerald-600/15',
+  warning: 'bg-amber-50 text-amber-800 ring-amber-600/20',
+  danger: 'bg-rose-50 text-rose-700 ring-rose-600/15',
+  info: 'bg-sky-50 text-sky-700 ring-sky-600/15',
+  gold: 'bg-amber-100 text-amber-900 ring-amber-700/20',
 } as const;
 
 export type BadgeTone = keyof typeof badgeTones;
 
+/**
+ * `dot` prepends a small filled circle in the tone colour — the modern way to
+ * show a status without the label having to shout it. `pill` rounds fully,
+ * which reads better for a single-word state; the default squared shape is
+ * kept for multi-word tags.
+ */
 export function Badge({
   tone = 'neutral',
+  dot,
+  pill,
   className,
+  children,
   ...props
-}: React.HTMLAttributes<HTMLSpanElement> & { tone?: BadgeTone }) {
+}: React.HTMLAttributes<HTMLSpanElement> & { tone?: BadgeTone; dot?: boolean; pill?: boolean }) {
+  const dotColour: Record<BadgeTone, string> = {
+    neutral: 'bg-slate-400',
+    brand: 'bg-brand-500',
+    success: 'bg-emerald-500',
+    warning: 'bg-amber-500',
+    danger: 'bg-rose-500',
+    info: 'bg-sky-500',
+    gold: 'bg-amber-500',
+  };
   return (
     <span
       className={cn(
-        'inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium ring-1 ring-inset',
+        'inline-flex items-center gap-1.5 px-2 py-0.5 text-xs font-medium ring-1 ring-inset',
+        pill ? 'rounded-full' : 'rounded-md',
         badgeTones[tone],
         className,
       )}
       {...props}
-    />
+    >
+      {dot ? <span className={cn('h-1.5 w-1.5 rounded-full', dotColour[tone])} aria-hidden /> : null}
+      {children}
+    </span>
   );
 }
 
@@ -208,27 +231,34 @@ export function toneForStatus(status: string): BadgeTone {
 // Form controls
 // -----------------------------------------------------------------------------
 
+/**
+ * `h-9` matches the `md` button, so a field and its submit button are the same
+ * height without coordination. The focus state is a 2px inset brand ring that
+ * REPLACES the resting border rather than stacking on it, so the control does
+ * not visibly grow when focused.
+ */
 const fieldBase =
-  'block w-full rounded-lg border-0 px-3 py-2 text-sm text-slate-900 shadow-sm ring-1 ring-inset ' +
-  'ring-slate-300 placeholder:text-slate-400 focus:ring-2 focus:ring-inset focus:ring-brand-600 ' +
+  'block w-full rounded-lg border-0 bg-white px-3 text-sm text-slate-900 shadow-xs ring-1 ring-inset ' +
+  'ring-slate-300 transition-shadow placeholder:text-slate-400 ' +
+  'focus:outline-none focus:ring-2 focus:ring-inset focus:ring-brand-600 ' +
   'disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-500';
 
 export function Input({ className, ...props }: React.InputHTMLAttributes<HTMLInputElement>) {
-  return <input className={cn(fieldBase, className)} {...props} />;
+  return <input className={cn(fieldBase, 'h-9', className)} {...props} />;
 }
 
 export function Textarea({
   className,
   ...props
 }: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
-  return <textarea className={cn(fieldBase, 'min-h-24', className)} {...props} />;
+  return <textarea className={cn(fieldBase, 'min-h-24 py-2 leading-relaxed', className)} {...props} />;
 }
 
 export function Select({
   className,
   ...props
 }: React.SelectHTMLAttributes<HTMLSelectElement>) {
-  return <select className={cn(fieldBase, 'pr-8', className)} {...props} />;
+  return <select className={cn(fieldBase, 'h-9 pr-8', className)} {...props} />;
 }
 
 export function Field({
@@ -271,17 +301,29 @@ export function Field({
 export function Table({ className, ...props }: React.TableHTMLAttributes<HTMLTableElement>) {
   return (
     <div className="overflow-x-auto">
-      <table className={cn('min-w-full divide-y divide-slate-200 text-sm', className)} {...props} />
+      <table
+        className={cn(
+          'min-w-full divide-y divide-slate-200/70 text-sm [&_thead_tr]:border-b [&_thead_tr]:border-slate-200/70',
+          className,
+        )}
+        {...props}
+      />
     </div>
   );
 }
 
+/**
+ * Header cells are sentence-case `text-xs font-medium`, not uppercase with
+ * letter-spacing. The uppercase-tracked convention dates a UI instantly; a
+ * quiet medium-weight label in the muted ink is what current products use, and
+ * it stays legible next to the data instead of competing with it.
+ */
 export function Th({ className, ...props }: React.ThHTMLAttributes<HTMLTableCellElement>) {
   return (
     <th
       scope="col"
       className={cn(
-        'whitespace-nowrap px-4 py-2.5 text-left text-xs font-semibold uppercase tracking-wide text-slate-500',
+        'whitespace-nowrap px-4 py-2.5 text-left text-xs font-medium text-slate-500',
         className,
       )}
       {...props}
@@ -290,23 +332,39 @@ export function Th({ className, ...props }: React.ThHTMLAttributes<HTMLTableCell
 }
 
 export function Td({ className, ...props }: React.TdHTMLAttributes<HTMLTableCellElement>) {
-  return <td className={cn('px-4 py-3 align-middle text-slate-700', className)} {...props} />;
+  return <td className={cn('px-4 py-2.5 align-middle text-slate-700', className)} {...props} />;
 }
 
 export function EmptyState({
   title,
   description,
   action,
+  icon,
 }: {
   title: string;
   description?: string;
   action?: React.ReactNode;
+  icon?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-2 px-6 py-12 text-center">
-      <p className="text-sm font-medium text-slate-900">{title}</p>
-      {description ? <p className="max-w-md text-xs text-slate-500">{description}</p> : null}
-      {action ? <div className="mt-2">{action}</div> : null}
+    <div className="flex flex-col items-center justify-center gap-3 px-6 py-14 text-center">
+      <span
+        className="grid h-11 w-11 place-items-center rounded-full bg-slate-100 text-slate-400"
+        aria-hidden
+      >
+        {icon ?? (
+          <svg viewBox="0 0 20 20" fill="currentColor" className="h-5 w-5">
+            <path d="M4 3h9l3 3v11H4Zm9 1.5V7h2.5Z" />
+          </svg>
+        )}
+      </span>
+      <div className="space-y-1">
+        <p className="text-sm font-semibold text-slate-900">{title}</p>
+        {description ? (
+          <p className="mx-auto max-w-sm text-xs leading-relaxed text-slate-500">{description}</p>
+        ) : null}
+      </div>
+      {action ? <div className="pt-1">{action}</div> : null}
     </div>
   );
 }
@@ -316,11 +374,18 @@ export function EmptyState({
 // -----------------------------------------------------------------------------
 
 const alertTones = {
-  info: 'bg-sky-50 text-sky-900 ring-sky-200',
-  success: 'bg-emerald-50 text-emerald-900 ring-emerald-200',
-  warning: 'bg-amber-50 text-amber-900 ring-amber-200',
-  danger: 'bg-rose-50 text-rose-900 ring-rose-200',
+  info: 'bg-sky-50 text-sky-900 ring-sky-600/15',
+  success: 'bg-emerald-50 text-emerald-900 ring-emerald-600/15',
+  warning: 'bg-amber-50 text-amber-900 ring-amber-600/20',
+  danger: 'bg-rose-50 text-rose-900 ring-rose-600/15',
 } as const;
+
+const alertIcons: Record<keyof typeof alertTones, string> = {
+  info: 'M10 2a8 8 0 1 0 0 16 8 8 0 0 0 0-16Zm1 12H9V9h2Zm0-7H9V5h2Z',
+  success: 'M10 2a8 8 0 1 0 0 16 8 8 0 0 0 0-16Zm3.7 6.2-4.2 4.2a1 1 0 0 1-1.4 0L6 10.5A1 1 0 1 1 7.4 9l1.4 1.4 3.5-3.5a1 1 0 1 1 1.4 1.4Z',
+  warning: 'M8.6 3.2 1.7 15a1.6 1.6 0 0 0 1.4 2.4h13.8A1.6 1.6 0 0 0 18.3 15L11.4 3.2a1.6 1.6 0 0 0-2.8 0ZM11 15H9v-2h2Zm0-4H9V7h2Z',
+  danger: 'M10 2a8 8 0 1 0 0 16 8 8 0 0 0 0-16Zm1 12H9v-2h2Zm0-4H9V5h2Z',
+};
 
 export function Alert({
   tone = 'info',
@@ -336,10 +401,21 @@ export function Alert({
   return (
     <div
       role={tone === 'danger' ? 'alert' : 'status'}
-      className={cn('rounded-lg px-4 py-3 text-sm ring-1 ring-inset', alertTones[tone], className)}
+      className={cn(
+        'flex gap-2.5 rounded-xl px-3.5 py-3 text-sm ring-1 ring-inset',
+        alertTones[tone],
+        className,
+      )}
     >
-      {title ? <p className="font-semibold">{title}</p> : null}
-      {children ? <div className={cn(title && 'mt-1', 'text-xs leading-relaxed')}>{children}</div> : null}
+      <svg viewBox="0 0 20 20" fill="currentColor" className="mt-px h-4 w-4 shrink-0 opacity-70" aria-hidden>
+        <path fillRule="evenodd" d={alertIcons[tone]} clipRule="evenodd" />
+      </svg>
+      <div className="min-w-0">
+        {title ? <p className="font-semibold">{title}</p> : null}
+        {children ? (
+          <div className={cn(title && 'mt-0.5', 'text-xs leading-relaxed')}>{children}</div>
+        ) : null}
+      </div>
     </div>
   );
 }
@@ -348,6 +424,12 @@ export function Alert({
 // Statistics
 // -----------------------------------------------------------------------------
 
+/**
+ * The number is the point, so it is large, tight and tabular. The label is a
+ * small eyebrow above it; the sublabel a quiet line below. A hairline accent
+ * bar down the left edge carries the tone — enough to group tiles by state on
+ * a dashboard without tinting the whole card.
+ */
 export function StatTile({
   label,
   value,
@@ -359,21 +441,27 @@ export function StatTile({
   sublabel?: React.ReactNode;
   tone?: BadgeTone;
 }) {
-  const accent: Record<BadgeTone, string> = {
-    neutral: 'text-slate-900',
-    brand: 'text-brand-700',
-    success: 'text-emerald-700',
-    warning: 'text-amber-700',
-    danger: 'text-rose-700',
-    info: 'text-sky-700',
-    gold: 'text-amber-700',
+  const accent: Record<BadgeTone, { text: string; bar: string }> = {
+    neutral: { text: 'text-slate-900', bar: 'bg-slate-200' },
+    brand: { text: 'text-brand-700', bar: 'bg-brand-500' },
+    success: { text: 'text-emerald-700', bar: 'bg-emerald-500' },
+    warning: { text: 'text-amber-700', bar: 'bg-amber-500' },
+    danger: { text: 'text-rose-700', bar: 'bg-rose-500' },
+    info: { text: 'text-sky-700', bar: 'bg-sky-500' },
+    gold: { text: 'text-amber-700', bar: 'bg-amber-500' },
   };
 
   return (
-    <Card className="p-4">
-      <p className="text-xs font-medium uppercase tracking-wide text-slate-500">{label}</p>
-      <p className={cn('mt-1.5 text-2xl font-semibold tabular-nums', accent[tone])}>{value}</p>
-      {sublabel ? <p className="mt-1 text-xs text-slate-500">{sublabel}</p> : null}
+    <Card className="relative overflow-hidden p-4 pl-5">
+      <span
+        className={cn('absolute inset-y-0 left-0 w-1', accent[tone].bar)}
+        aria-hidden
+      />
+      <p className="text-[11px] font-medium uppercase tracking-wide text-slate-500">{label}</p>
+      <p className={cn('mt-1.5 text-[1.75rem] font-semibold leading-none tracking-tight tabular-nums', accent[tone].text)}>
+        {value}
+      </p>
+      {sublabel ? <p className="mt-2 text-xs leading-relaxed text-slate-500">{sublabel}</p> : null}
     </Card>
   );
 }
@@ -382,18 +470,28 @@ export function PageHeader({
   title,
   description,
   actions,
+  eyebrow,
 }: {
   title: string;
   description?: string;
   actions?: React.ReactNode;
+  /** A small label above the title — a section name, a status, a count. */
+  eyebrow?: React.ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-end justify-between gap-3 pb-5">
-      <div>
-        <h1 className="text-xl font-semibold tracking-tight text-slate-900">{title}</h1>
-        {description ? <p className="mt-1 text-sm text-slate-500">{description}</p> : null}
+    <div className="flex flex-wrap items-start justify-between gap-4 pb-6">
+      <div className="min-w-0">
+        {eyebrow ? (
+          <p className="mb-1 text-xs font-medium uppercase tracking-wide text-slate-400">{eyebrow}</p>
+        ) : null}
+        <h1 className="text-[1.375rem] font-semibold leading-tight tracking-tight text-slate-900">
+          {title}
+        </h1>
+        {description ? (
+          <p className="mt-1.5 max-w-2xl text-sm leading-relaxed text-slate-500">{description}</p>
+        ) : null}
       </div>
-      {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
+      {actions ? <div className="flex shrink-0 items-center gap-2">{actions}</div> : null}
     </div>
   );
 }
@@ -407,8 +505,8 @@ export function DetailRow({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-baseline justify-between gap-4 border-b border-slate-100 py-2 last:border-0">
-      <dt className="text-xs text-slate-500">{label}</dt>
+    <div className="flex items-baseline justify-between gap-4 border-b border-slate-100 py-2.5 last:border-0">
+      <dt className="shrink-0 text-xs text-slate-500">{label}</dt>
       <dd className="text-right text-sm font-medium text-slate-900">{children}</dd>
     </div>
   );
@@ -418,23 +516,26 @@ export function DetailRow({
 export function Meter({ value, tone = 'brand' }: { value: number; tone?: BadgeTone }) {
   const clamped = Math.max(0, Math.min(100, value));
   const fills: Record<BadgeTone, string> = {
-    neutral: 'bg-slate-500',
-    brand: 'bg-brand-600',
-    success: 'bg-emerald-600',
+    neutral: 'bg-slate-400',
+    brand: 'bg-brand-500',
+    success: 'bg-emerald-500',
     warning: 'bg-amber-500',
-    danger: 'bg-rose-600',
-    info: 'bg-sky-600',
+    danger: 'bg-rose-500',
+    info: 'bg-sky-500',
     gold: 'bg-amber-500',
   };
   return (
     <div
-      className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200"
+      className="h-1.5 w-full overflow-hidden rounded-full bg-slate-200/80"
       role="progressbar"
       aria-valuenow={Math.round(clamped)}
       aria-valuemin={0}
       aria-valuemax={100}
     >
-      <div className={cn('h-full rounded-full transition-all', fills[tone])} style={{ width: `${clamped}%` }} />
+      <div
+        className={cn('h-full rounded-full transition-[width] duration-500 ease-out-quart', fills[tone])}
+        style={{ width: `${clamped}%` }}
+      />
     </div>
   );
 }
@@ -485,7 +586,7 @@ export function Avatar({
   return (
     <span
       className={cn(
-        'grid shrink-0 place-items-center rounded-full font-semibold uppercase',
+        'grid shrink-0 place-items-center rounded-full font-semibold uppercase ring-1 ring-inset ring-slate-900/5',
         avatarSizes[size],
         tints[hash % tints.length],
         className,
@@ -517,7 +618,7 @@ export function Tabs({
   className?: string;
 }) {
   return (
-    <div className={cn('flex flex-wrap items-center gap-1 border-b border-slate-200', className)} role="tablist">
+    <div className={cn('flex flex-wrap items-center gap-1 border-b border-slate-200/70', className)} role="tablist">
       {tabs.map((t) => (
         <Link
           key={t.href}
@@ -525,7 +626,7 @@ export function Tabs({
           role="tab"
           aria-selected={t.active}
           className={cn(
-            '-mb-px flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors',
+            '-mb-px flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors duration-150',
             t.active
               ? 'border-brand-600 text-brand-700'
               : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-800',

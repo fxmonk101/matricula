@@ -152,11 +152,14 @@ export function AppShell({
       <SidebarToggle>
         <nav
           aria-label="Primary"
-          className="flex h-full flex-col gap-1 overflow-y-auto border-r border-slate-200 bg-white px-3 py-4"
+          className="flex h-full flex-col gap-0.5 overflow-y-auto border-r border-slate-200/80 bg-white px-3 py-4"
         >
-          <Link href="/" className="mb-3 flex items-center gap-2.5 px-2">
+          <Link
+            href="/"
+            className="mb-4 flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-slate-50"
+          >
             <span
-              className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-xs font-bold text-onAccent"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-[10px] text-xs font-bold text-onAccent shadow-sm ring-1 ring-inset ring-slate-900/10"
               style={{ backgroundColor: school.brandColor }}
             >
               {school.code.slice(0, 3)}
@@ -171,13 +174,13 @@ export function AppShell({
             </span>
           </Link>
 
-          <div className="mb-2 px-1">
+          <div className="mb-3 px-1">
             <CommandPalette />
           </div>
 
           {sections.map((section) => (
-            <div key={section.heading} className="mb-1">
-              <p className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+            <div key={section.heading} className="mb-2">
+              <p className="px-3 pb-1.5 pt-2 text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">
                 {section.heading}
               </p>
               <ul className="space-y-0.5">
@@ -192,16 +195,16 @@ export function AppShell({
             </div>
           ))}
 
-          <div className="mt-auto space-y-3 border-t border-slate-200 pt-3">
+          <div className="mt-auto space-y-3 border-t border-slate-200/80 pt-3">
             <div className="flex items-center justify-between px-2">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+              <span className="text-[10px] font-semibold uppercase tracking-[0.08em] text-slate-400">
                 Theme
               </span>
               <ThemeToggle />
             </div>
-            <div className="flex items-center gap-2.5 px-2">
+            <div className="flex items-center gap-2.5 rounded-lg px-2 py-1.5">
               <span
-                className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-ink text-xs font-semibold text-onInk"
+                className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-ink text-xs font-semibold text-onInk ring-1 ring-inset ring-slate-900/10"
                 aria-hidden
               >
                 {initials(firstName, lastName || firstName)}
@@ -223,21 +226,21 @@ export function AppShell({
       </SidebarToggle>
 
       <div className="lg:pl-64">
-        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-slate-200 bg-white/95 px-4 backdrop-blur no-print sm:px-6">
+        <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b border-slate-200/80 bg-white/80 px-4 backdrop-blur-md no-print sm:px-6">
           {/* The mobile menu button is rendered by SidebarToggle into this
               slot's leading space; the spacer keeps the title clear of it. */}
           <span className="w-9 shrink-0 lg:hidden" aria-hidden />
-          <p className="truncate text-sm font-medium text-slate-500">{school.name}</p>
+          <p className="truncate text-[13px] font-medium text-slate-500">{school.name}</p>
           <div className="ml-auto flex items-center gap-2">
             <NotificationBell items={notifications} unread={unreadCount} />
           </div>
         </header>
 
-        <main id="main" className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6">
+        <main id="main" className="mx-auto max-w-[1400px] px-4 py-8 sm:px-6 lg:px-8">
           {children}
         </main>
 
-        <footer className="mx-auto max-w-[1400px] px-4 pb-8 pt-4 text-xs text-slate-400 sm:px-6 no-print">
+        <footer className="mx-auto max-w-[1400px] px-4 pb-8 pt-4 text-xs text-slate-400 sm:px-6 lg:px-8 no-print">
           {school.name} · Signed in as {session.email}
         </footer>
       </div>

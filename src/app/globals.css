@@ -21,11 +21,44 @@
 
   body {
     @apply bg-slate-50 text-slate-900 antialiased;
+    /* Inter's optical sizing and a hair of negative tracking at body size —
+       the same trick every modern product UI uses to keep Inter from looking
+       loose. Undone per-element where a wider heading is wanted. */
+    font-feature-settings: 'cv11', 'ss01';
+    letter-spacing: -0.006em;
   }
 
-  /* Keyboard focus should always be obvious; never remove it wholesale. */
+  /* Keyboard focus should always be obvious; never remove it wholesale. A
+     ring with an offset reads as intentional where a bare outline reads as a
+     browser default. Kept 2px and high-contrast for visibility. */
   :focus-visible {
-    @apply outline-2 outline-offset-2 outline-brand-600;
+    @apply outline-none ring-2 ring-brand-500 ring-offset-2 ring-offset-slate-50;
+  }
+  .dark :focus-visible {
+    @apply ring-offset-slate-100;
+  }
+
+  /* A branded selection instead of the OS default blue. */
+  ::selection {
+    @apply bg-brand-500/20 text-slate-900;
+  }
+
+  /* Slim, unobtrusive scrollbars on the surfaces that scroll. Chromium only;
+     Firefox keeps its own, which is already slim. */
+  @supports selector(::-webkit-scrollbar) {
+    ::-webkit-scrollbar {
+      width: 10px;
+      height: 10px;
+    }
+    ::-webkit-scrollbar-thumb {
+      @apply rounded-full border-[3px] border-solid border-transparent bg-slate-300 bg-clip-content;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+      @apply bg-slate-400;
+    }
+    ::-webkit-scrollbar-track {
+      @apply bg-transparent;
+    }
   }
 
   /* Respect a reader who has asked the system for less motion. Skeletons and
@@ -52,8 +85,27 @@
     @apply bg-slate-50/60;
   }
 
+  .table-hover tbody tr {
+    @apply transition-colors duration-100;
+  }
   .table-hover tbody tr:hover {
-    @apply bg-brand-50/50;
+    @apply bg-slate-50;
+  }
+  .dark .table-hover tbody tr:hover {
+    @apply bg-slate-100/60;
+  }
+
+  /* A card that is itself a link or opens something. The lift is small — 1px
+     and a shadow step — because a big hover animation on a dense dashboard is
+     noise, not delight. */
+  .card-interactive {
+    @apply transition duration-150 ease-out-quart;
+  }
+  .card-interactive:hover {
+    @apply -translate-y-px shadow-md;
+  }
+  .card-interactive:active {
+    @apply translate-y-0 shadow-sm;
   }
 
   /*

@@ -37,14 +37,19 @@ export function NavLink({
       href={href}
       aria-current={isActive ? 'page' : undefined}
       className={cn(
-        'flex items-center gap-2.5 rounded-lg px-3 py-1.5 text-sm font-medium transition-colors',
+        // The active pill is a soft brand wash with an inset ring for a crisp
+        // edge; the left accent bar (via before:) is the extra cue that reads
+        // at a glance down a column of items.
+        'relative flex items-center gap-2.5 rounded-lg px-3 py-[7px] text-[13px] font-medium transition-colors duration-100',
         isActive
-          ? 'bg-brand-50 text-brand-700'
+          ? 'bg-brand-50 text-brand-700 ring-1 ring-inset ring-brand-600/10 before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:rounded-full before:bg-brand-600'
           : 'text-slate-600 hover:bg-slate-100 hover:text-slate-900',
       )}
     >
       {icon ? (
-        <span className={isActive ? 'text-brand-600' : 'text-slate-400'}>{icon}</span>
+        <span className={cn('transition-colors', isActive ? 'text-brand-600' : 'text-slate-400')}>
+          {icon}
+        </span>
       ) : null}
       <span className="truncate">{children}</span>
     </Link>
