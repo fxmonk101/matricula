@@ -68,10 +68,35 @@ import { db } from './db';
  * exactly the kind of thing that goes stale the day someone adds a model, and
  * a model missing from it would silently lose all tenant scoping.
  */
+/**
+ * Models that carry a required `schoolId` but belong to the VENDOR, not to the
+ * school.
+ *
+ * A subscription is about a school without being the school's data. If it were
+ * tenant-scoped, an administrator could reach their own row through
+ * `dbFor(schoolId)` and raise their own seat limit, clear their own PAST_DUE
+ * status, or extend their own trial. The tenant extension is a convenience for
+ * data a school owns; commercial terms are not that.
+ *
+ * This is the one hand-maintained list in this file, and it is deliberate: the
+ * DMMF cannot know which side of a commercial boundary a column sits on.
+ * `tests/tenant.test.ts` pins that every name here is real and unreachable
+ * through a scoped client.
+ */
+export const VENDOR_MODELS = [
+  'Plan',
+  'Subscription',
+  'SubscriptionInvoice',
+  'SubscriptionInvoiceLine',
+] as const;
+
+const VENDOR_MODEL_SET: ReadonlySet<string> = new Set(VENDOR_MODELS);
+
 const TENANT_MODELS: ReadonlySet<string> = new Set(
   Prisma.dmmf.datamodel.models
     .filter((m) => m.fields.some((f) => f.name === 'schoolId' && f.isRequired && !f.relationName))
-    .map((m) => m.name),
+    .map((m) => m.name)
+    .filter((name) => !VENDOR_MODEL_SET.has(name)),
 );
 
 /**

@@ -2,43 +2,25 @@ import 'server-only';
 
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
-import bcrypt from 'bcryptjs';
-
 import { SESSION_COOKIE, cookieOptions, signSession, verifySession, type SessionClaims } from './jwt';
+import { roleSatisfies } from './rbac';
+import { platformDb } from '@/lib/tenant';
 import type { Role } from '@/lib/domain/enums';
 
 /**
- * Node-runtime session helpers. Imports bcryptjs, so this module must never be
- * pulled into middleware — use `./jwt` there instead.
- */
-
-/**
- * Cost factor 12: roughly 250ms per hash on commodity hardware in 2025. High
- * enough to make offline cracking expensive, low enough that a login does not
- * feel slow. Revisit upward as hardware improves.
- */
-const BCRYPT_ROUNDS = 12;
-
-export async function hashPassword(plain: string): Promise<string> {
-  return bcrypt.hash(plain, BCRYPT_ROUNDS);
-}
-
-export async function verifyPassword(plain: string, hash: string): Promise<boolean> {
-  return bcrypt.compare(plain, hash);
-}
-
-/**
- * A dummy hash compared against when the email does not exist.
+ * Node-runtime session helpers: cookies, redirects, and the guards pages call.
  *
- * Without this, a non-existent email returns in ~1ms while a real one takes
- * ~250ms, and that timing difference is a free user-enumeration oracle. Doing
- * the wasted comparison equalises the two paths.
+ * Password hashing lives in `./password` rather than here — it has no request
+ * to be bound to, and keeping it in this `server-only` module made the seed
+ * and any provisioning script pull in `next/headers`. Re-exported below so
+ * existing call sites are unaffected.
  */
-export const DUMMY_HASH = '$2a$12$abcdefghijklmnopqrstuv.wxyz0123456789ABCDEFGHIJKLMNOPqr';
-
-export async function equaliseTiming(): Promise<void> {
-  await bcrypt.compare('timing-equaliser', DUMMY_HASH).catch(() => false);
-}
+export {
+  DUMMY_HASH,
+  equaliseTiming,
+  hashPassword,
+  verifyPassword,
+} from './password';
 
 export async function createSession(claims: Omit<SessionClaims, 'iat' | 'exp'>): Promise<void> {
   const token = await signSession(claims);
@@ -74,7 +56,9 @@ export async function requireSession(): Promise<SessionClaims> {
  */
 export async function requireRole(...allowed: Role[]): Promise<SessionClaims> {
   const session = await requireSession();
-  if (!allowed.includes(session.role)) redirect('/forbidden');
+  // `roleSatisfies`, not `includes`: OWNER holds everything ADMIN holds, so a
+  // page written before OWNER existed must not lock the school's own owner out.
+  if (!roleSatisfies(session.role, allowed)) redirect('/forbidden');
   return session;
 }
 
@@ -92,10 +76,24 @@ export async function requireTenant(): Promise<{ session: SessionClaims; schoolI
  * Platform operators act across tenants, so they are gated separately from the
  * per-school permission matrix — a platform admin is not a Role and can never
  * be granted by a school.
+ *
+ * THE DATABASE IS RE-CHECKED ON EVERY CALL, and the `pa` claim is only a fast
+ * negative. A JWT lives eight hours, so trusting the claim alone means revoking
+ * an operator does nothing until their session happens to expire — the one
+ * grant in the system where that delay is least acceptable, since it is the
+ * grant that reaches every school's data at once. Middleware still checks the
+ * claim cheaply and without a query; this is the check that actually decides.
  */
 export async function requirePlatformAdmin(): Promise<SessionClaims> {
   const session = await requireSession();
   if (!session.pa) redirect('/forbidden');
+
+  const grant = await platformDb.platformAdmin.findUnique({
+    where: { userId: session.sub },
+    select: { id: true },
+  });
+  if (!grant) redirect('/forbidden');
+
   return session;
 }
 

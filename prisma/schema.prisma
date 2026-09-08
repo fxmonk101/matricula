@@ -85,6 +85,7 @@ model School {
   tasks             Task[]
   notifications     Notification[]
   forums            Forum[]
+  subscription      Subscription?
   libraryResources  LibraryResource[]
   collections       ResourceCollection[]
 
@@ -264,6 +265,11 @@ model User {
   lastName     String
   phone        String?
   isActive     Boolean   @default(true)
+  /// Set when an account is created with a generated one-time password, and
+  /// cleared the moment the person sets their own. Defaults FALSE so that
+  /// every account that already existed when this column arrived is not
+  /// suddenly locked behind a change-password gate.
+  mustChangePassword Boolean @default(false)
   lastLoginAt  DateTime?
   createdAt    DateTime  @default(now())
   updatedAt    DateTime  @updatedAt
@@ -1778,4 +1784,145 @@ model RateLimitHit {
   @@index([action, address, createdAt])
   @@index([createdAt])
   @@map("rate_limit_hits")
+}
+
+// =============================================================================
+// SECTION 7 — THE PLATFORM BUSINESS (Package 1)
+// =============================================================================
+// VENDOR-OWNED. These carry a `schoolId` but are NOT tenant data: they belong
+// to the company selling the software, not to the school buying it. They are
+// listed in VENDOR_MODELS in src/lib/tenant.ts and therefore excluded from the
+// tenant-scoping extension — a school administrator reaching their own
+// Subscription through dbFor() could raise their own seat limit or clear their
+// own suspension.
+
+/// A commercial plan the platform sells.
+model Plan {
+  id   String @id @default(cuid())
+  code String @unique
+  name String
+  description String?
+
+  /// Recurring price in MINOR units, in `currencyCode`. Integer, never float —
+  /// the same rule the student finance engine follows.
+  priceMinor   Int    @default(0)
+  currencyCode String @default("NGN")
+  /// BillingPeriod: MONTHLY | TERMLY | ANNUAL
+  billingPeriod String @default("ANNUAL")
+
+  /// Ceilings. Null means unlimited, which is not the same as zero — a plan
+  /// with `maxStaff: 0` sells nothing, and one with null sells everything.
+  maxStudents Int?
+  maxStaff    Int?
+
+  /// Feature gates, as a JSON object of flag -> boolean. String rather than
+  /// Json for the same portability reason as SchoolConfig.
+  featuresJson String @default("{}")
+
+  /// Days of trial granted on provisioning. 0 means the school goes straight
+  /// to ACTIVE and is expected to pay.
+  trialDays Int @default(0)
+
+  isActive  Boolean  @default(true)
+  position  Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  subscriptions Subscription[]
+
+  @@map("plans")
+}
+
+/// One school's commercial relationship with the platform.
+model Subscription {
+  id       String @id @default(cuid())
+  schoolId String @unique
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  planId String
+  plan   Plan   @relation(fields: [planId], references: [id])
+
+  /// SubscriptionStatus: TRIALING | ACTIVE | PAST_DUE | CANCELLED
+  status String @default("TRIALING")
+
+  /// Per-school overrides of the plan's ceilings, for a negotiated deal.
+  /// Null falls back to the plan. Kept separate from the plan so raising one
+  /// school's limit does not raise everybody's.
+  seatOverrideStudents Int?
+  seatOverrideStaff    Int?
+
+  startedAt   DateTime  @default(now())
+  trialEndsAt DateTime?
+  /// End of the paid period. Null on a trial that has never been invoiced.
+  renewsAt    DateTime?
+  cancelledAt DateTime?
+  /// Free text for "why is this school suspended" — read by the operator, not
+  /// by the school.
+  note String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  invoices SubscriptionInvoice[]
+
+  @@index([status])
+  @@map("subscriptions")
+}
+
+/// What the platform bills a school. Distinct from the tenant-scoped `Invoice`,
+/// which is what a school bills a STUDENT — the two must never be confused,
+/// which is why this one is named for its subject rather than sharing a table.
+model SubscriptionInvoice {
+  id       String @id @default(cuid())
+  schoolId String
+
+  subscriptionId String
+  subscription   Subscription @relation(fields: [subscriptionId], references: [id], onDelete: Cascade)
+
+  /// Human-quotable, e.g. "SUB-GEU-2026-000001".
+  reference String @unique
+
+  /// InvoiceStatus reused: DRAFT | ISSUED | PARTIALLY_PAID | PAID | OVERDUE | VOID
+  status String @default("DRAFT")
+
+  currencyCode String @default("NGN")
+  subtotalMinor Int   @default(0)
+  taxMinor      Int   @default(0)
+  totalMinor    Int   @default(0)
+  paidMinor     Int   @default(0)
+
+  periodStart DateTime
+  periodEnd   DateTime
+  issuedAt    DateTime?
+  dueAt       DateTime?
+  paidAt      DateTime?
+
+  /// How the school paid, recorded by the operator. There is no gateway.
+  paymentMethod    String?
+  paymentReference String?
+  note             String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  lines SubscriptionInvoiceLine[]
+
+  @@index([schoolId, status])
+  @@index([status, dueAt])
+  @@map("subscription_invoices")
+}
+
+model SubscriptionInvoiceLine {
+  id        String              @id @default(cuid())
+  invoiceId String
+  invoice   SubscriptionInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  description String
+  quantity    Int @default(1)
+  unitMinor   Int @default(0)
+  amountMinor Int @default(0)
+  position    Int @default(0)
+
+  @@index([invoiceId])
+  @@map("subscription_invoice_lines")
 }

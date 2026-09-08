@@ -209,7 +209,14 @@ export function toneForStatus(status: string): BadgeTone {
     case 'PENDING':
     case 'UNDER_REVIEW':
     case 'PROBATION':
+    // A school still being set up, and one whose subscription has lapsed, are
+    // both "needs attention" rather than failures — neither locks anyone out.
+    case 'PROVISIONING':
+    case 'PAST_DUE':
       return 'warning';
+    case 'TRIAL':
+    case 'TRIALING':
+      return 'info';
     case 'REJECTED':
     case 'DISMISSED':
     case 'SUSPENDED':

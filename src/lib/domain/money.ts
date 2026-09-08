@@ -24,6 +24,41 @@ export type Minor = number;
  */
 export const CURRENCY: CurrencyConfig = DEFAULT_FINANCE_CONFIG.currency;
 
+/**
+ * Symbol and exponent for the currencies the platform can be sold in.
+ *
+ * A school's own money always comes from its `FinanceConfig`, which is
+ * authoritative and editable. This table exists for the VENDOR's side — plan
+ * prices and subscription invoices, which are held per-plan and per-invoice as
+ * a bare currency code with no config to consult.
+ *
+ * The exponent matters more than the symbol: rendering a zero-decimal currency
+ * with two decimals inflates every amount by a hundred, and the wrong SYMBOL is
+ * merely wrong where the wrong EXPONENT is a wrong number.
+ */
+const CURRENCIES: Record<string, CurrencyConfig> = {
+  NGN: { code: 'NGN', symbol: '₦', exponent: 2 },
+  GHS: { code: 'GHS', symbol: '₵', exponent: 2 },
+  KES: { code: 'KES', symbol: 'KSh', exponent: 2 },
+  ZAR: { code: 'ZAR', symbol: 'R', exponent: 2 },
+  GBP: { code: 'GBP', symbol: '£', exponent: 2 },
+  USD: { code: 'USD', symbol: '$', exponent: 2 },
+  EUR: { code: 'EUR', symbol: '€', exponent: 2 },
+  JPY: { code: 'JPY', symbol: '¥', exponent: 0 },
+};
+
+/**
+ * Resolve a currency code to its configuration.
+ *
+ * An unknown code falls back to the CODE ITSELF as the symbol — "XOF 1,500.00"
+ * — rather than to a default currency's symbol. Showing an unrecognised amount
+ * with a naira sign would state something false; showing it with its own code
+ * states exactly what is known.
+ */
+export function currencyFor(code: string): CurrencyConfig {
+  return CURRENCIES[code.toUpperCase()] ?? { code, symbol: `${code} `, exponent: 2 };
+}
+
 const minorPerMajor = (currency: CurrencyConfig) => 10 ** currency.exponent;
 
 export class MoneyError extends Error {

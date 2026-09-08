@@ -311,6 +311,74 @@ function defaultConfig(spec: SchoolSpec) {
 // seedSchool
 // -----------------------------------------------------------------------------
 
+/**
+ * The plans a school can be sold.
+ *
+ * Prices in MINOR units, as everywhere else in the system. The ceilings are the
+ * interesting part: `null` is unlimited and `0` sells nothing, and the two must
+ * stay distinguishable — `checkSeat` treats them as opposites and a test pins
+ * that they are not confused.
+ */
+async function seedPlans() {
+  const specs = [
+    {
+      code: 'STARTER',
+      name: 'Starter',
+      description: 'A single primary or secondary school finding its feet.',
+      priceMinor: 45_000_00,
+      maxStudents: 300,
+      maxStaff: 30,
+      trialDays: 30,
+      position: 0,
+      features: { library: true, forums: true, timetable: true, admissions: false },
+    },
+    {
+      code: 'STANDARD',
+      name: 'Standard',
+      description: 'A full school with admissions, finance and reporting.',
+      priceMinor: 120_000_00,
+      maxStudents: 1_500,
+      maxStaff: 150,
+      trialDays: 30,
+      position: 1,
+      features: { library: true, forums: true, timetable: true, admissions: true },
+    },
+    {
+      code: 'INSTITUTION',
+      name: 'Institution',
+      description: 'A university or multi-campus group. No seat ceiling.',
+      priceMinor: 480_000_00,
+      maxStudents: null,
+      maxStaff: null,
+      trialDays: 14,
+      position: 2,
+      features: { library: true, forums: true, timetable: true, admissions: true },
+    },
+  ];
+
+  const created: Record<string, string> = {};
+  for (const spec of specs) {
+    const plan = await db.plan.create({
+      data: {
+        code: spec.code,
+        name: spec.name,
+        description: spec.description,
+        priceMinor: spec.priceMinor,
+        currencyCode: 'NGN',
+        billingPeriod: 'ANNUAL',
+        maxStudents: spec.maxStudents,
+        maxStaff: spec.maxStaff,
+        featuresJson: JSON.stringify(spec.features),
+        trialDays: spec.trialDays,
+        position: spec.position,
+      },
+    });
+    created[spec.code] = plan.id;
+    console.log(`  · ${spec.name.padEnd(12)} ${spec.maxStudents ?? '∞'} students`);
+  }
+  return created;
+}
+
 async function seedSchool(spec: SchoolSpec, passwordHash: string) {
   console.log(`\n  ── ${spec.name} (${spec.code}) ──`);
 
@@ -959,11 +1027,18 @@ async function main() {
   await db.orgUnit.deleteMany();
   await db.identityProvider.deleteMany();
   await db.schoolConfig.deleteMany();
+  await db.subscriptionInvoiceLine.deleteMany();
+  await db.subscriptionInvoice.deleteMany();
+  await db.subscription.deleteMany();
+  await db.plan.deleteMany();
   await db.platformAdmin.deleteMany();
   await db.school.deleteMany();
   await db.user.deleteMany();
 
   const passwordHash = await bcrypt.hash(PASSWORD, 12);
+
+  console.log('Seeding subscription plans…');
+  const plans = await seedPlans();
 
   console.log('Seeding schools…');
   const geu = await seedSchool(GEU, passwordHash);
@@ -1157,13 +1232,80 @@ async function main() {
     console.log(`  sweep ${s.school.code}: examined ${sweep.examined}, escalated ${sweep.escalated}, reminded ${sweep.reminded}`);
   }
 
+  // --- subscriptions ---------------------------------------------------------
+  // Each demo school gets the plan it would plausibly have bought. GEU and MIT
+  // are live customers; the K-12 school is left on trial so the trial banner and
+  // the countdown are visible somewhere without having to create a school first.
+  console.log('\nAttaching subscriptions…');
+  const subscriptions: { schoolId: string; planId: string; status: string; trialDays: number }[] = [
+    { schoolId: geu.schoolId, planId: plans.INSTITUTION, status: 'ACTIVE', trialDays: 0 },
+    { schoolId: mit.schoolId, planId: plans.INSTITUTION, status: 'ACTIVE', trialDays: 0 },
+    { schoolId: gis.schoolId, planId: plans.STANDARD, status: 'TRIALING', trialDays: 21 },
+  ];
+  for (const spec of subscriptions) {
+    await db.subscription.create({
+      data: {
+        schoolId: spec.schoolId,
+        planId: spec.planId,
+        status: spec.status,
+        trialEndsAt:
+          spec.trialDays > 0 ? new Date(day(0).getTime() + spec.trialDays * 86_400_000) : null,
+        renewsAt: spec.status === 'ACTIVE' ? day(-1) : null,
+      },
+    });
+  }
+  // The trialing school's own status must agree with its subscription, or the
+  // list page would show a school as ACTIVE while its subscription says trial.
+  await db.school.update({ where: { id: gis.schoolId }, data: { status: 'TRIAL' } });
+
+  // Raised and paid through the real service rather than written directly, so
+  // the seeded invoice cannot be in a shape the product would never produce —
+  // the reference format, the line copy and the status transitions are all the
+  // ones an operator would get.
+  const { raiseSubscriptionInvoice, recordSubscriptionPayment } = await import(
+    '../src/server/services/platform.service'
+  );
+  const raised = await raiseSubscriptionInvoice({
+    schoolId: geu.schoolId,
+    periodStart: day(-365),
+    periodEnd: day(0),
+    dueInDays: 14,
+    actorUserId: null,
+  });
+  if (raised.ok && raised.invoiceId) {
+    await recordSubscriptionPayment({
+      invoiceId: raised.invoiceId,
+      amountMajor: 480_000,
+      method: 'BANK_TRANSFER',
+      reference: 'FT25091200871',
+      actorUserId: null,
+    });
+  }
+  // MIT's is raised and left unpaid, so the receivable and the "due" figure on
+  // the school page are exercised by something other than a zero.
+  await raiseSubscriptionInvoice({
+    schoolId: mit.schoolId,
+    periodStart: day(-30),
+    periodEnd: day(335),
+    dueInDays: 14,
+    actorUserId: null,
+  });
+
   // --- platform operator -----------------------------------------------------
-  // Holds an ADMIN membership at GEU as their home school, plus the platform
-  // grant. A session always needs a school; the platform grant is what unlocks
-  // the cross-tenant routes on top of it.
+  // Holds a membership at GEU as their home school, plus the platform grant. A
+  // session always needs a school; the platform grant is what unlocks the
+  // cross-tenant routes on top of it.
+  //
+  // Promoted to OWNER as well, so the demo actually exercises the role that
+  // sits above ADMIN rather than leaving it reachable only by provisioning a
+  // brand-new school.
   const operator = await db.user.findUnique({ where: { email: 'admin@geu.edu' } });
   if (operator) {
     await db.platformAdmin.create({ data: { userId: operator.id } });
+    await db.membership.updateMany({
+      where: { userId: operator.id, schoolId: geu.schoolId },
+      data: { role: 'OWNER', title: 'Vice-Chancellor' },
+    });
   }
 
   // --- recompute derived academics ------------------------------------------

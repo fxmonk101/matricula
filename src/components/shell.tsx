@@ -1,7 +1,9 @@
 import Link from 'next/link';
 
 import { initials } from '@/lib/utils';
-import { ROLE_LABELS, type AcademicModel, type Role } from '@/lib/domain/enums';
+import { ROLE_LABELS } from '@/lib/domain/enums';
+import { visibleSections, type NavIcon } from '@/lib/domain/navigation';
+import { roleSatisfies } from '@/lib/auth/rbac';
 import type { SessionClaims } from '@/lib/auth/jwt';
 import type { School } from '@/server/tenant-context';
 import { NavLink } from './nav-link';
@@ -20,24 +22,13 @@ import { SidebarToggle } from './sidebar-toggle';
  * reads. The groupings are the mental model a member of staff already has: the
  * people, the academic work, the money, their own work, the school itself.
  */
-type NavItem = {
-  href: string;
-  label: string;
-  roles: Role[];
-  /** Omit to show for every academic model. */
-  models?: AcademicModel[];
-  icon: React.ReactNode;
-};
-
-type NavSection = { heading: string; items: NavItem[] };
-
-const icon = (d: string) => (
-  <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 shrink-0" aria-hidden>
-    <path d={d} />
-  </svg>
-);
-
-const I = {
+/**
+ * Glyph for each `NavIcon` key. The navigation table itself lives in
+ * `@/lib/domain/navigation` — it is a permission table, and keeping it free of
+ * JSX is what lets a test read it without pulling React and the server-only
+ * modules this file imports.
+ */
+const GLYPHS: Record<NavIcon, string> = {
   home: 'M10 2 2 8v10h5v-6h6v6h5V8Z',
   people: 'M7 9a3 3 0 1 0 0-6 3 3 0 0 0 0 6Zm7 0a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM2 17a5 5 0 0 1 10 0Zm11.5-6.5A5 5 0 0 1 18 17h-4a6.5 6.5 0 0 0-1.6-4.3Z',
   book: 'M3 3h5a3 3 0 0 1 2 .8A3 3 0 0 1 12 3h5v13h-5a2 2 0 0 0-2 1.5A2 2 0 0 0 8 16H3Z',
@@ -50,62 +41,16 @@ const I = {
   library: 'M3 2h3v16H3Zm4.5 0h3v16h-3ZM12 2.6l2.9-.8 3.6 15.4-2.9.8Z',
   cog: 'M10 6.5A3.5 3.5 0 1 0 10 13.5 3.5 3.5 0 0 0 10 6.5Zm7.4 3-1.5-.5a6 6 0 0 0-.5-1.2l.7-1.4-1.5-1.5-1.4.7a6 6 0 0 0-1.2-.5L11.5 3.6h-3l-.5 1.5a6 6 0 0 0-1.2.5l-1.4-.7-1.5 1.5.7 1.4a6 6 0 0 0-.5 1.2l-1.5.5v3l1.5.5a6 6 0 0 0 .5 1.2l-.7 1.4 1.5 1.5 1.4-.7a6 6 0 0 0 1.2.5l.5 1.5h3l.5-1.5a6 6 0 0 0 1.2-.5l1.4.7 1.5-1.5-.7-1.4a6 6 0 0 0 .5-1.2l1.5-.5Z',
   doc: 'M5 2h6l4 4v12H5Zm6 1.5V7h3.5Z',
+  building: 'M3 18V4l7-2v16H3Zm2-11h3v2H5Zm0 4h3v2H5Zm7-4h5v11h-5Zm1.5 2v2h2v-2Zm0 4v2h2v-2Z',
 };
 
-const SECTIONS: NavSection[] = [
-  {
-    heading: 'Overview',
-    items: [
-      { href: '/dashboard', label: 'Dashboard', roles: ['ADMIN', 'REGISTRAR'], icon: icon(I.home) },
-      { href: '/me', label: 'My Record', roles: ['STUDENT'], icon: icon(I.home) },
-      { href: '/portal', label: 'My Application', roles: ['APPLICANT'], icon: icon(I.doc) },
-      { href: '/family', label: 'My Children', roles: ['GUARDIAN'], icon: icon(I.people) },
-    ],
-  },
-  {
-    heading: 'Academic',
-    items: [
-      { href: '/students', label: 'Students', roles: ['ADMIN', 'REGISTRAR', 'ADMISSIONS', 'FINANCE', 'INSTRUCTOR'], icon: icon(I.people) },
-      { href: '/instructors', label: 'Faculty', roles: ['ADMIN', 'REGISTRAR'], icon: icon(I.people) },
-      { href: '/courses', label: 'Courses', roles: ['ADMIN', 'REGISTRAR', 'INSTRUCTOR', 'STUDENT', 'ADMISSIONS'], models: ['HIGHER_ED'], icon: icon(I.book) },
-      { href: '/offerings', label: 'Sections', roles: ['ADMIN', 'REGISTRAR', 'INSTRUCTOR', 'STUDENT'], models: ['HIGHER_ED'], icon: icon(I.grid) },
-      { href: '/classes', label: 'Classes', roles: ['ADMIN', 'REGISTRAR', 'INSTRUCTOR'], models: ['K12'], icon: icon(I.grid) },
-      { href: '/reports', label: 'Report Cards', roles: ['ADMIN', 'REGISTRAR', 'INSTRUCTOR'], models: ['K12'], icon: icon(I.doc) },
-      { href: '/teaching', label: 'My Teaching', roles: ['INSTRUCTOR', 'ADMIN'], icon: icon(I.book) },
-      { href: '/me/registration', label: 'Registration', roles: ['STUDENT'], icon: icon(I.check) },
-      { href: '/admissions', label: 'Admissions', roles: ['ADMIN', 'ADMISSIONS', 'REGISTRAR'], icon: icon(I.doc) },
-    ],
-  },
-  {
-    heading: 'Finance',
-    items: [
-      { href: '/finance', label: 'Bursary', roles: ['ADMIN', 'FINANCE', 'REGISTRAR'], icon: icon(I.money) },
-      { href: '/me/finance', label: 'My Fees', roles: ['STUDENT'], icon: icon(I.money) },
-    ],
-  },
-  {
-    heading: 'Work',
-    items: [
-      { href: '/tasks', label: 'Tasks', roles: ['ADMIN', 'REGISTRAR', 'FINANCE', 'ADMISSIONS', 'INSTRUCTOR', 'LIBRARIAN', 'STAFF'], icon: icon(I.check) },
-      { href: '/team', label: 'My Team', roles: ['ADMIN', 'REGISTRAR', 'INSTRUCTOR'], icon: icon(I.team) },
-      { href: '/org', label: 'Organisation', roles: ['ADMIN', 'REGISTRAR', 'INSTRUCTOR'], icon: icon(I.org) },
-    ],
-  },
-  {
-    heading: 'Community',
-    items: [
-      { href: '/library', label: 'Library', roles: ['ADMIN', 'REGISTRAR', 'FINANCE', 'ADMISSIONS', 'INSTRUCTOR', 'LIBRARIAN', 'STAFF', 'STUDENT'], icon: icon(I.library) },
-      { href: '/forums', label: 'Forums', roles: ['ADMIN', 'REGISTRAR', 'FINANCE', 'ADMISSIONS', 'INSTRUCTOR', 'LIBRARIAN', 'STAFF', 'STUDENT'], icon: icon(I.chat) },
-    ],
-  },
-  {
-    heading: 'School',
-    items: [
-      { href: '/settings/school', label: 'Setup', roles: ['ADMIN'], icon: icon(I.cog) },
-      { href: '/admin/audit', label: 'Audit Log', roles: ['ADMIN'], icon: icon(I.doc) },
-    ],
-  },
-];
+function glyph(name: NavIcon) {
+  return (
+    <svg viewBox="0 0 20 20" fill="currentColor" className="h-4 w-4 shrink-0" aria-hidden>
+      <path d={GLYPHS[name]} />
+    </svg>
+  );
+}
 
 export function AppShell({
   session,
@@ -123,18 +68,14 @@ export function AppShell({
   // Filtered by BOTH role and academic model: a K-12 school should never see
   // "Sections", and a university should never see "Classes". Rendering the
   // wrong vocabulary is the fastest way to make a product feel like it was
-  // built for somebody else.
-  //
-  // Empty sections are dropped rather than rendered as a bare heading — an
-  // applicant would otherwise see "Finance" with nothing under it.
-  const model = school.academicModel;
-  const sections = SECTIONS.map((s) => ({
-    ...s,
-    items: s.items.filter(
-      (item) =>
-        item.roles.includes(session.role) && (!item.models || item.models.includes(model)),
-    ),
-  })).filter((s) => s.items.length > 0);
+  // built for somebody else. The filter itself is pure and lives with the
+  // table, so `tests/navigation.test.ts` exercises this exact call.
+  const sections = visibleSections({
+    role: session.role,
+    academicModel: school.academicModel,
+    isPlatformAdmin: Boolean(session.pa),
+    satisfies: roleSatisfies,
+  });
 
   const [firstName = '', lastName = ''] = session.name.split(' ');
 
@@ -169,7 +110,7 @@ export function AppShell({
                 {school.shortName}
               </span>
               <span className="block truncate text-[11px] text-slate-500">
-                {model === 'K12' ? 'Primary & secondary' : 'Higher education'}
+                {school.academicModel === 'K12' ? 'Primary & secondary' : 'Higher education'}
               </span>
             </span>
           </Link>
@@ -186,7 +127,7 @@ export function AppShell({
               <ul className="space-y-0.5">
                 {section.items.map((item) => (
                   <li key={item.href}>
-                    <NavLink href={item.href} icon={item.icon}>
+                    <NavLink href={item.href} icon={glyph(item.icon)}>
                       {item.label}
                     </NavLink>
                   </li>
