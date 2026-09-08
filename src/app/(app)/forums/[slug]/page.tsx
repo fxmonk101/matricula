@@ -86,7 +86,7 @@ export default async function ForumPage({
             href={query({ sort: s.key, page: undefined })}
             className={
               s.key === sort
-                ? 'rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-medium text-white'
+                ? 'rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-medium text-onAccent'
                 : 'rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-slate-700 ring-1 ring-inset ring-slate-300 hover:bg-slate-50'
             }
           >
@@ -100,7 +100,7 @@ export default async function ForumPage({
           href={query({ category: undefined, page: undefined })}
           className={
             !category
-              ? 'rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-medium text-white'
+              ? 'rounded-lg bg-ink px-3 py-1.5 text-xs font-medium text-onInk'
               : 'rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-slate-700 ring-1 ring-inset ring-slate-300 hover:bg-slate-50'
           }
         >
@@ -112,7 +112,7 @@ export default async function ForumPage({
             href={query({ category: c.slug, page: undefined })}
             className={
               category?.id === c.id
-                ? 'rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-medium text-white'
+                ? 'rounded-lg bg-ink px-3 py-1.5 text-xs font-medium text-onInk'
                 : 'rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-slate-700 ring-1 ring-inset ring-slate-300 hover:bg-slate-50'
             }
           >

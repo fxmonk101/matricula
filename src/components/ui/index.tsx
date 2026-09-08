@@ -16,11 +16,11 @@ import { cn } from '@/lib/utils';
 
 const buttonVariants = {
   primary:
-    'bg-brand-600 text-white hover:bg-brand-700 focus-visible:outline-brand-600 disabled:bg-brand-300',
+    'bg-brand-600 text-onAccent hover:bg-brand-700 focus-visible:outline-brand-600 disabled:bg-brand-300',
   secondary:
     'bg-white text-slate-800 ring-1 ring-inset ring-slate-300 hover:bg-slate-50 focus-visible:outline-slate-500',
-  danger: 'bg-rose-600 text-white hover:bg-rose-700 focus-visible:outline-rose-600',
-  success: 'bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:outline-emerald-600',
+  danger: 'bg-rose-600 text-onAccent hover:bg-rose-700 focus-visible:outline-rose-600',
+  success: 'bg-emerald-600 text-onAccent hover:bg-emerald-700 focus-visible:outline-emerald-600',
   ghost: 'bg-transparent text-slate-700 hover:bg-slate-100 focus-visible:outline-slate-400',
 } as const;
 
@@ -435,6 +435,156 @@ export function Meter({ value, tone = 'brand' }: { value: number; tone?: BadgeTo
       aria-valuemax={100}
     >
       <div className={cn('h-full rounded-full transition-all', fills[tone])} style={{ width: `${clamped}%` }} />
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Avatar
+// -----------------------------------------------------------------------------
+
+const avatarSizes = {
+  sm: 'h-6 w-6 text-[10px]',
+  md: 'h-8 w-8 text-xs',
+  lg: 'h-11 w-11 text-sm',
+} as const;
+
+/**
+ * Initials on a tinted ground, with the tint derived from the name.
+ *
+ * Deterministic rather than random: the same person is the same colour on
+ * every page and in every session, which is what makes an avatar scannable in
+ * a list. A random tint per render would be decoration, not information.
+ */
+export function Avatar({
+  name,
+  size = 'md',
+  className,
+}: {
+  name: string;
+  size?: keyof typeof avatarSizes;
+  className?: string;
+}) {
+  const parts = name.trim().split(/\s+/);
+  const text =
+    parts.length >= 2
+      ? `${parts[0][0] ?? ''}${parts[parts.length - 1][0] ?? ''}`
+      : (name.slice(0, 2) || '?');
+
+  const tints = [
+    'bg-brand-100 text-brand-700',
+    'bg-emerald-50 text-emerald-700',
+    'bg-amber-50 text-amber-800',
+    'bg-rose-50 text-rose-700',
+    'bg-sky-50 text-sky-700',
+    'bg-slate-200 text-slate-700',
+  ];
+  let hash = 0;
+  for (let i = 0; i < name.length; i += 1) hash = (hash * 31 + name.charCodeAt(i)) >>> 0;
+
+  return (
+    <span
+      className={cn(
+        'grid shrink-0 place-items-center rounded-full font-semibold uppercase',
+        avatarSizes[size],
+        tints[hash % tints.length],
+        className,
+      )}
+      title={name}
+      aria-hidden
+    >
+      {text}
+    </span>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Tabs
+// -----------------------------------------------------------------------------
+
+/**
+ * Link-driven tabs.
+ *
+ * Deliberately NOT stateful: each tab is a real URL, so a tab is bookmarkable,
+ * shareable, survives a refresh, and works with the back button. A stateful
+ * tab strip looks identical and does none of that.
+ */
+export function Tabs({
+  tabs,
+  className,
+}: {
+  tabs: { href: string; label: string; active: boolean; count?: number }[];
+  className?: string;
+}) {
+  return (
+    <div className={cn('flex flex-wrap items-center gap-1 border-b border-slate-200', className)} role="tablist">
+      {tabs.map((t) => (
+        <Link
+          key={t.href}
+          href={t.href}
+          role="tab"
+          aria-selected={t.active}
+          className={cn(
+            '-mb-px flex items-center gap-1.5 border-b-2 px-3 py-2 text-sm font-medium transition-colors',
+            t.active
+              ? 'border-brand-600 text-brand-700'
+              : 'border-transparent text-slate-500 hover:border-slate-300 hover:text-slate-800',
+          )}
+        >
+          {t.label}
+          {t.count !== undefined ? (
+            <span
+              className={cn(
+                'rounded px-1.5 py-0.5 text-[10px] tabular-nums',
+                t.active ? 'bg-brand-50 text-brand-700' : 'bg-slate-100 text-slate-500',
+              )}
+            >
+              {t.count}
+            </span>
+          ) : null}
+        </Link>
+      ))}
+    </div>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Skeleton
+// -----------------------------------------------------------------------------
+
+/**
+ * A loading placeholder.
+ *
+ * `aria-hidden` and no live region: a screen reader should be told the page is
+ * busy once, by the container, not read a description of grey rectangles. The
+ * shimmer is suppressed entirely under `prefers-reduced-motion` by the global
+ * rule in `globals.css`.
+ */
+export function Skeleton({ className }: { className?: string }) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        'relative block overflow-hidden rounded bg-slate-200',
+        'after:absolute after:inset-0 after:-translate-x-full after:animate-shimmer',
+        'after:bg-gradient-to-r after:from-transparent after:via-white/40 after:to-transparent',
+        className,
+      )}
+    />
+  );
+}
+
+/** A skeleton shaped like a table, for a list page that is still loading. */
+export function TableSkeleton({ rows = 5, columns = 4 }: { rows?: number; columns?: number }) {
+  return (
+    <div className="space-y-2 px-5 py-4" role="status" aria-label="Loading">
+      {Array.from({ length: rows }).map((_, r) => (
+        <div key={r} className="flex gap-4">
+          {Array.from({ length: columns }).map((__, c) => (
+            <Skeleton key={c} className={cn('h-4', c === 0 ? 'w-1/3' : 'flex-1')} />
+          ))}
+        </div>
+      ))}
     </div>
   );
 }

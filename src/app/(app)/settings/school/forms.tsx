@@ -457,7 +457,7 @@ export function BrandingForm({ config }: { config: BrandingConfig }) {
         <p className="mb-2 text-xs font-medium text-slate-700">Preview</p>
         <div className="flex items-center gap-2.5">
           <span
-            className="grid h-8 w-8 place-items-center rounded-lg text-xs font-bold text-white"
+            className="grid h-8 w-8 place-items-center rounded-lg text-xs font-bold text-onAccent"
             style={{ backgroundColor: /^#[0-9a-fA-F]{6}$/.test(color) ? color : '#1b5df5' }}
           >
             {short.slice(0, 3).toUpperCase()}

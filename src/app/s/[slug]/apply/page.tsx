@@ -48,7 +48,7 @@ export default async function SchoolApplyPage({
         <div className="mx-auto flex h-14 max-w-4xl items-center justify-between px-4 sm:px-6">
           <Link href={`/s/${slug}/apply`} className="flex items-center gap-2.5">
             <span
-              className="grid h-8 w-8 place-items-center rounded-lg text-xs font-bold text-white"
+              className="grid h-8 w-8 place-items-center rounded-lg text-xs font-bold text-onAccent"
               style={{ backgroundColor: school.brandColor }}
             >
               {school.code.slice(0, 3)}

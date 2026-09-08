@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
+import { THEME_BOOT_SCRIPT } from '@/components/theme-toggle';
 
 /**
  * Root metadata is PLATFORM-level and deliberately names no school: this layout
@@ -23,7 +24,22 @@ export const viewport: Viewport = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        {/*
+         * The theme is applied BEFORE first paint, not after hydration.
+         *
+         * A deferred script runs too late: the page would render light, then
+         * flip to dark, so every navigation flashes white for anyone using the
+         * dark theme. That is the one case where a blocking inline script is
+         * the right answer.
+         *
+         * `suppressHydrationWarning` on <html> is required because this script
+         * mutates the element's class list before React reconciles it, and
+         * React would otherwise report the mismatch it caused itself.
+         */}
+        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+      </head>
       <body className="min-h-screen">{children}</body>
     </html>
   );

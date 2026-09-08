@@ -1,3 +1,5 @@
+@import './theme.css';
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -5,6 +7,12 @@
 @layer base {
   :root {
     color-scheme: light;
+  }
+
+  /* Tells the browser to render form controls, scrollbars and the caret in the
+     matching scheme. Without it a dark page keeps white scrollbars. */
+  .dark {
+    color-scheme: dark;
   }
 
   html {
@@ -18,6 +26,19 @@
   /* Keyboard focus should always be obvious; never remove it wholesale. */
   :focus-visible {
     @apply outline-2 outline-offset-2 outline-brand-600;
+  }
+
+  /* Respect a reader who has asked the system for less motion. Skeletons and
+     transitions are decoration; nobody should be made unwell by them. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
   }
 
   /* Numeric columns line up only with tabular figures. */

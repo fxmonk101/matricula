@@ -31,7 +31,7 @@ export default async function LoginPage({
     <div className="grid min-h-screen lg:grid-cols-2">
       {/* Platform panel — hidden on small screens where it would only push the
           form below the fold. */}
-      <div className="hidden flex-col justify-between bg-slate-900 p-10 text-white lg:flex">
+      <div className="hidden flex-col justify-between bg-ink p-10 text-onInk lg:flex">
         <div className="flex items-center gap-3">
           <span className="grid h-10 w-10 place-items-center rounded-xl bg-white/10 text-sm font-bold">
             SP
@@ -99,7 +99,7 @@ export default async function LoginPage({
                       className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
                     >
                       <span
-                        className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-[10px] font-bold text-white"
+                        className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-[10px] font-bold text-onAccent"
                         style={{ backgroundColor: s.brandColor }}
                       >
                         {s.code.slice(0, 3)}

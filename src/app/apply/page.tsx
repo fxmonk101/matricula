@@ -69,7 +69,7 @@ export default async function ApplyChooserPage() {
               >
                 <div className="flex items-center gap-3">
                   <span
-                    className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-sm font-bold text-white"
+                    className="grid h-11 w-11 shrink-0 place-items-center rounded-xl text-sm font-bold text-onAccent"
                     style={{ backgroundColor: s.brandColor }}
                   >
                     {s.code.slice(0, 3)}

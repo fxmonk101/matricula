@@ -60,7 +60,7 @@ export function NotificationBell({
           <path d="M10 2a6 6 0 0 0-6 6v3.6l-1.3 2.2A.75.75 0 0 0 3.4 15h13.2a.75.75 0 0 0 .65-1.13L16 11.6V8a6 6 0 0 0-6-6Zm0 16a2.5 2.5 0 0 0 2.45-2h-4.9A2.5 2.5 0 0 0 10 18Z" />
         </svg>
         {unread > 0 ? (
-          <span className="absolute -right-0.5 -top-0.5 grid min-w-4 place-items-center rounded-full bg-rose-600 px-1 text-[10px] font-semibold leading-4 text-white">
+          <span className="absolute -right-0.5 -top-0.5 grid min-w-4 place-items-center rounded-full bg-rose-600 px-1 text-[10px] font-semibold leading-4 text-onAccent">
             {unread > 9 ? '9+' : unread}
           </span>
         ) : null}

@@ -58,7 +58,7 @@ export function ApplyForm({
           </p>
           <Link
             href={`/s/${schoolSlug}/login`}
-            className="mt-6 inline-flex items-center justify-center rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-medium text-white hover:bg-brand-700"
+            className="mt-6 inline-flex items-center justify-center rounded-lg bg-brand-600 px-5 py-2.5 text-sm font-medium text-onAccent hover:bg-brand-700"
           >
             Sign in to the applicant portal
           </Link>

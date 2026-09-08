@@ -107,7 +107,7 @@ export default async function ThreadPage({
               <Card key={post.id} className={post.isOpeningPost ? 'ring-1 ring-brand-100' : undefined}>
                 <div className="flex items-start gap-3 px-5 py-4">
                   <span
-                    className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-slate-800 text-[11px] font-semibold text-white"
+                    className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-brand-600 text-[11px] font-semibold text-onAccent"
                     aria-hidden
                   >
                     {post.author

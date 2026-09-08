@@ -131,7 +131,7 @@ export default async function AdmissionsPage({
                 </select>
                 <button
                   type="submit"
-                  className="rounded-lg bg-slate-800 px-2.5 py-1.5 text-xs font-medium text-white"
+                  className="rounded-lg bg-ink px-2.5 py-1.5 text-xs font-medium text-onInk"
                 >
                   Filter
                 </button>

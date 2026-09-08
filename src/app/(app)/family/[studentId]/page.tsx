@@ -66,7 +66,7 @@ export default async function FamilyChildPage({
                     href={`/family/${studentId}?term=${c.termId}`}
                     className={
                       active
-                        ? 'rounded-md bg-brand-600 px-2.5 py-1 text-xs font-medium text-white'
+                        ? 'rounded-md bg-brand-600 px-2.5 py-1 text-xs font-medium text-onAccent'
                         : 'rounded-md bg-white px-2.5 py-1 text-xs font-medium text-slate-700 ring-1 ring-inset ring-slate-300 hover:bg-slate-50'
                     }
                   >

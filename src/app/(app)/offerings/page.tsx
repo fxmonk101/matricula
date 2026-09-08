@@ -80,7 +80,7 @@ export default async function OfferingsPage({
             </select>
             <button
               type="submit"
-              className="ml-2 rounded-lg bg-slate-800 px-3 py-2 text-sm font-medium text-white hover:bg-slate-900"
+              className="ml-2 rounded-lg bg-ink px-3 py-2 text-sm font-medium text-onInk hover:opacity-90"
             >
               Go
             </button>

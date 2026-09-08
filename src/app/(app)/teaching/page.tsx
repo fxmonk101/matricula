@@ -137,7 +137,7 @@ export default async function TeachingPage() {
 
                   <Link
                     href={`/teaching/${o.id}`}
-                    className="inline-flex w-full items-center justify-center rounded-lg bg-brand-600 px-3.5 py-2 text-sm font-medium text-white transition-colors hover:bg-brand-700"
+                    className="inline-flex w-full items-center justify-center rounded-lg bg-brand-600 px-3.5 py-2 text-sm font-medium text-onAccent transition-colors hover:bg-brand-700"
                   >
                     {graded === total && total > 0 ? 'Review grades' : 'Enter grades'}
                   </Link>

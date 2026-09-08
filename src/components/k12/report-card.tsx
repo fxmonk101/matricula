@@ -105,7 +105,7 @@ export function ReportCardDocument({
     <Card className="overflow-hidden print:border-0 print:shadow-none">
       {/* --- masthead --------------------------------------------------------- */}
       <div
-        className="flex flex-wrap items-center justify-between gap-4 px-6 py-5 text-white"
+        className="flex flex-wrap items-center justify-between gap-4 px-6 py-5 text-onAccent"
         style={{ backgroundColor: school.brandColor }}
       >
         <div className="flex items-center gap-3">
@@ -119,12 +119,12 @@ export function ReportCardDocument({
           )}
           <div>
             <p className="text-base font-semibold leading-tight">{school.name}</p>
-            <p className="text-xs text-white/80">
+            <p className="text-xs text-onAccent/80">
               Termly report · {term.name} · {term.academicYear}
             </p>
           </div>
         </div>
-        <div className="text-right text-xs text-white/85">
+        <div className="text-right text-xs text-onAccent/85">
           <p className="font-mono">{card.referenceNo}</p>
           <p>
             {card.publishedAt

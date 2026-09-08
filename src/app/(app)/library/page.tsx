@@ -78,7 +78,7 @@ export default async function LibraryPage({
           canManageLibrary(role) ? (
             <Link
               href="/library/manage"
-              className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-brand-700"
+              className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-medium text-onAccent hover:bg-brand-700"
             >
               Manage catalogue
             </Link>
@@ -114,7 +114,7 @@ export default async function LibraryPage({
         />
         <button
           type="submit"
-          className="rounded-lg bg-slate-800 px-4 py-2 text-sm font-medium text-white hover:bg-slate-900"
+          className="rounded-lg bg-ink px-4 py-2 text-sm font-medium text-onInk hover:opacity-90"
         >
           Search
         </button>
@@ -133,7 +133,7 @@ export default async function LibraryPage({
           href={link({ kind: undefined, page: undefined })}
           className={
             !kindFilter
-              ? 'rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-medium text-white'
+              ? 'rounded-lg bg-ink px-3 py-1.5 text-xs font-medium text-onInk'
               : 'rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-slate-700 ring-1 ring-inset ring-slate-300 hover:bg-slate-50'
           }
         >
@@ -145,7 +145,7 @@ export default async function LibraryPage({
             href={link({ kind: k, page: undefined })}
             className={
               kindFilter === k
-                ? 'rounded-lg bg-slate-800 px-3 py-1.5 text-xs font-medium text-white'
+                ? 'rounded-lg bg-ink px-3 py-1.5 text-xs font-medium text-onInk'
                 : 'rounded-lg bg-white px-3 py-1.5 text-xs font-medium text-slate-700 ring-1 ring-inset ring-slate-300 hover:bg-slate-50'
             }
           >
