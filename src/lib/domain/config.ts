@@ -145,6 +145,51 @@ export interface LocaleConfig {
   dateFormat: string;
 }
 
+/**
+ * K-12 policy. Nullable in storage because a higher-education school never
+ * reads it; `parseSchoolConfig` supplies the defaults when it is absent so
+ * a school that later switches academic model is immediately usable.
+ */
+export interface K12Config {
+  /** Termly average at or above which a pupil is promoted. */
+  promotionMinAverage: number;
+  /** Attendance rate (0-1) below which promotion is referred for review. */
+  promotionMinAttendance: number;
+  /** Average below which a pupil repeats the year outright. */
+  repeatBelowAverage: number;
+  /** Behaviour and skills assessed on the report card, rated 1-5. */
+  traits: string[];
+  /** Subjects a pupil must pass regardless of their overall average. */
+  compulsorySubjectCodes: string[];
+  showClassPosition: boolean;
+}
+
+export const DEFAULT_K12_CONFIG: K12Config = {
+  promotionMinAverage: 50,
+  promotionMinAttendance: 0.75,
+  repeatBelowAverage: 40,
+  traits: ['Punctuality', 'Neatness', 'Cooperation', 'Participation', 'Handwriting'],
+  compulsorySubjectCodes: [],
+  showClassPosition: true,
+};
+
+export const K12ConfigZ = z.object({
+  promotionMinAverage: z.number().min(0).max(100),
+  promotionMinAttendance: z.number().min(0).max(1),
+  repeatBelowAverage: z.number().min(0).max(100),
+  traits: z.array(z.string().min(1).max(40)).max(12),
+  compulsorySubjectCodes: z.array(z.string().max(32)),
+  showClassPosition: z.boolean(),
+});
+
+export function assertK12ConfigWellFormed(config: K12Config): void {
+  if (config.repeatBelowAverage > config.promotionMinAverage) {
+    throw new ConfigError(
+      'The repeat floor cannot be above the promotion mark — a pupil would fall into both.',
+    );
+  }
+}
+
 export interface RegistrationPortalConfig {
   collectPriorGpa: boolean;
   collectEntranceExam: boolean;
@@ -163,6 +208,7 @@ export interface SchoolConfigBundle {
   branding: BrandingConfig;
   locale: LocaleConfig;
   registrationPortal: RegistrationPortalConfig;
+  k12: K12Config;
 }
 
 // -----------------------------------------------------------------------------
@@ -529,6 +575,7 @@ function parseColumn<T>(raw: string | null | undefined, schema: z.ZodType<T>, fa
 }
 
 export interface RawSchoolConfig {
+  k12Json?: string | null;
   gradingJson?: string | null;
   enrollmentJson?: string | null;
   admissionsJson?: string | null;
@@ -556,6 +603,7 @@ export function parseSchoolConfig(
       DEFAULT_REGISTRATION_PORTAL_CONFIG,
       'registrationPortal',
     ),
+    k12: parseColumn(raw?.k12Json, K12ConfigZ, DEFAULT_K12_CONFIG, 'k12'),
   };
 }
 
@@ -574,5 +622,6 @@ export function defaultConfigBundle(defaults: {
     branding: defaults,
     locale: DEFAULT_LOCALE_CONFIG,
     registrationPortal: DEFAULT_REGISTRATION_PORTAL_CONFIG,
+    k12: DEFAULT_K12_CONFIG,
   };
 }

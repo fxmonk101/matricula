@@ -36,6 +36,8 @@ export const PERMISSIONS = [
   'fee:configure',
   // Administration
   'hold:manage', 'user:manage', 'audit:read', 'announcement:write',
+  // K-12
+  'class:read', 'class:manage', 'marks:enter', 'report:generate', 'report:read:own', 'attendance:record',
   // School configuration & organisation (tenant-scoped)
   'school:config:read', 'school:config:write',
   'org:read', 'org:manage',
@@ -64,9 +66,11 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     'invoice:read:any', 'invoice:write', 'payment:record', 'payment:read:any', 'fee:configure',
     'hold:manage', 'user:manage', 'audit:read', 'announcement:write',
     'school:config:read', 'school:config:write', 'org:read', 'org:manage', 'directory:read',
+    'class:read', 'class:manage', 'report:generate', 'attendance:record',
   ],
 
   REGISTRAR: [
+    'class:read', 'class:manage', 'report:generate', 'attendance:record',
     'student:read', 'student:write',
     'instructor:read',
     'course:read', 'course:write',
@@ -95,6 +99,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
   ],
 
   INSTRUCTOR: [
+    'class:read', 'marks:enter', 'attendance:record',
     'student:read',
     'course:read', 'offering:read',
     'enrollment:read:any',
@@ -129,9 +134,14 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     'directory:read',
   ],
 
-  /** Reads their own children's records. Scoped in the K-12 phase. */
+  /**
+   * Reads their own children's records only. Every guardian route resolves the
+   * child list from the signed-in guardian and then checks the requested pupil
+   * is on it — the role grants the SHAPE of the access, the link grants the
+   * subject.
+   */
   GUARDIAN: [
-    'grade:read:own', 'invoice:read:own', 'payment:read:own',
+    'grade:read:own', 'invoice:read:own', 'payment:read:own', 'report:read:own',
   ],
 };
 
@@ -190,6 +200,9 @@ export const ROUTE_GUARDS: RouteGuard[] = [
   { prefix: '/teaching', roles: ['INSTRUCTOR', 'ADMIN'] },
   { prefix: '/me', roles: ['STUDENT'] },
   { prefix: '/portal', roles: ['APPLICANT'] },
+  { prefix: '/classes', roles: ['ADMIN', 'REGISTRAR', 'INSTRUCTOR'] },
+  { prefix: '/reports', roles: ['ADMIN', 'REGISTRAR', 'INSTRUCTOR'] },
+  { prefix: '/family', roles: ['GUARDIAN'] },
   { prefix: '/settings/school', roles: ['ADMIN'] },
   // Longest-prefix wins, so this stays reachable by a school ADMIN while
   // /admin/platform below is platform-only.

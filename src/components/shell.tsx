@@ -1,7 +1,7 @@
 import Link from 'next/link';
 
 import { initials } from '@/lib/utils';
-import { ROLE_LABELS, type Role } from '@/lib/domain/enums';
+import { ROLE_LABELS, type AcademicModel, type Role } from '@/lib/domain/enums';
 import type { SessionClaims } from '@/lib/auth/jwt';
 import type { School } from '@/server/tenant-context';
 import { NavLink } from './nav-link';
@@ -12,12 +12,23 @@ import { SignOutButton } from './sign-out-button';
  * A link the user cannot follow should not exist in their DOM at all — hiding
  * it with CSS leaks the shape of the system to anyone who opens dev tools.
  */
-const NAV: { href: string; label: string; roles: Role[] }[] = [
+type NavItem = {
+  href: string;
+  label: string;
+  roles: Role[];
+  /** Omit to show for every academic model. */
+  models?: AcademicModel[];
+};
+
+const NAV: NavItem[] = [
   { href: '/dashboard', label: 'Overview', roles: ['ADMIN', 'REGISTRAR'] },
   { href: '/students', label: 'Students', roles: ['ADMIN', 'REGISTRAR', 'ADMISSIONS', 'FINANCE', 'INSTRUCTOR'] },
   { href: '/instructors', label: 'Faculty', roles: ['ADMIN', 'REGISTRAR'] },
-  { href: '/courses', label: 'Courses', roles: ['ADMIN', 'REGISTRAR', 'INSTRUCTOR', 'STUDENT', 'ADMISSIONS'] },
-  { href: '/offerings', label: 'Sections', roles: ['ADMIN', 'REGISTRAR', 'INSTRUCTOR', 'STUDENT'] },
+  { href: '/courses', label: 'Courses', roles: ['ADMIN', 'REGISTRAR', 'INSTRUCTOR', 'STUDENT', 'ADMISSIONS'], models: ['HIGHER_ED'] },
+  { href: '/offerings', label: 'Sections', roles: ['ADMIN', 'REGISTRAR', 'INSTRUCTOR', 'STUDENT'], models: ['HIGHER_ED'] },
+  { href: '/classes', label: 'Classes', roles: ['ADMIN', 'REGISTRAR', 'INSTRUCTOR'], models: ['K12'] },
+  { href: '/reports', label: 'Report Cards', roles: ['ADMIN', 'REGISTRAR', 'INSTRUCTOR'], models: ['K12'] },
+  { href: '/family', label: 'My Children', roles: ['GUARDIAN'] },
   { href: '/admissions', label: 'Admissions', roles: ['ADMIN', 'ADMISSIONS', 'REGISTRAR'] },
   { href: '/finance', label: 'Finance', roles: ['ADMIN', 'FINANCE', 'REGISTRAR'] },
   { href: '/teaching', label: 'My Teaching', roles: ['INSTRUCTOR', 'ADMIN'] },
@@ -38,7 +49,15 @@ export function AppShell({
   school: School;
   children: React.ReactNode;
 }) {
-  const links = NAV.filter((item) => item.roles.includes(session.role));
+  // Filtered by BOTH role and academic model: a K-12 school should never see
+  // "Sections", and a university should never see "Classes". Rendering the
+  // wrong vocabulary is the fastest way to make a product feel like it was
+  // built for somebody else.
+  const model = school.academicModel;
+  const links = NAV.filter(
+    (item) =>
+      item.roles.includes(session.role) && (!item.models || item.models.includes(model)),
+  );
   const [firstName = '', lastName = ''] = session.name.split(' ');
 
   return (

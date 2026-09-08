@@ -1,4 +1,13 @@
-import 'server-only';
+/**
+ * No `server-only` guard, for the same reason as `@/server/academics` and
+ * `@/server/k12-reports`: maintenance scripts and the seed run recomputations
+ * and report-card generation that MUST be auditable, and `server-only` throws
+ * when resolved outside a React Server Component graph.
+ *
+ * The guard would add little here anyway — this module imports the Prisma
+ * client, which cannot run in a browser regardless. What keeps audit writes off
+ * the client is that nothing client-side imports it, not a marker package.
+ */
 
 import { platformDb } from '@/lib/tenant';
 

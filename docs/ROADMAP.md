@@ -1,13 +1,13 @@
 # Platform Roadmap
 ## From single-university SIS → multi-tenant school platform
 
-**Status:** Phases 0 and 1 **complete**. Phase 2 next. Phases ship independently; each ends with a green build, green tests, and a demoable app.
+**Status:** Phases 0, 1 and 2 **complete**. Phase 3 next. Phases ship independently; each ends with a green build, green tests, and a demoable app.
 
 | Phase | State |
 |---|---|
 | 0 — Tenancy & identity foundation | ✅ Done — 20 isolation tests, verified end-to-end in the running app |
 | 1 — Per-school configuration & setup console | ✅ Done — config drives grading, currency and rules; 24 new tests |
-| 2 — K-12 academic model & guardians | Next |
+| 2 — K-12 academic model & guardians | ✅ Done — 38 K-12 tests; report cards, mark sheets and guardian portal verified live |
 | 3 — Org hierarchy, tasks, notifications, shell | Planned |
 | 4 — Forums | Planned |
 | 5 — Digital resource library | Planned |
@@ -149,7 +149,7 @@ Stays global — platform logic, not tenant policy: the application state machin
 
 ---
 
-## Phase 2 — K-12 academic model and guardian accounts
+## Phase 2 — K-12 academic model and guardian accounts ✅
 
 The university model does not fit a primary or secondary school. `School.academicModel` (`HIGHER_ED` | `K12`) selects which engines and vocabulary apply.
 
@@ -168,6 +168,39 @@ The university model does not fit a primary or secondary school. `School.academi
 **New pure module** `src/lib/domain/k12.ts`: subject grading against the school's scale, class-position ranking with correct tie handling, term average, promotion/retention rules, attendance-rate computation.
 
 **Guardian experience**: `GUARDIAN` role, linked to one or more students possibly across schools — which is exactly why Phase 0 models `Membership` rather than putting a school on the user.
+
+### What shipped, and what was verified
+
+**Pure engine** — `src/lib/domain/k12.ts`, 38 tests. The pieces that needed a decision rather than a formula:
+
+- **Competition ranking (1224)** for class position. Tied pupils share a position and the next one skips; dense ranking (1223) would understate how many pupils are ahead, and ordinal ranking (1234) would break a genuine tie by row order, which is arbitrary and indefensible to a parent.
+- **A blank mark is not a zero.** A subject with either component missing is "not assessed" and is excluded from *both* the numerator and the denominator of the average — the same treatment a withdrawal gets in a GPA. Scoring it zero puts a fail on a report card for a paper the pupil never sat.
+- **The term average is a plain mean, not credit-weighted.** K-12 subjects carry no credits; weighting them would invent a hierarchy the school never declared.
+- **Attendance:** `LATE` counts as present, `EXCUSED` leaves the denominator, and no records at all means fully present rather than 0%.
+- **Promotion is a cascade with a fixed order** — repeat floor → compulsory-subject failure → attendance → promotion mark → terminal year → promoted. `REPEAT` always sets `requiresReview`: no child repeats a year because an algorithm said so and nobody looked.
+
+**Report cards are generated for the CLASS, never one pupil at a time.** Position-in-class and the class average are properties *of the class*; generating card by card would either recompute the cohort on every card or report a position derived from whoever happened to be generated so far. Same reason mark sheets save whole-class.
+
+**Publication is a separate act from generation**, and a published card is frozen — a re-run skips it. A draft is the office's working document; a published card is a document a parent holds, and it must not change underneath them.
+
+**Defect found and fixed:** the first generator trusted the stored `totalScore`, which the seed had never computed, so every report card came out with null totals. Fixed by re-deriving each mark from the raw CA and exam scores through the school's *current* scale — the same principle Phase 1 applied to GPA. **The raw score is the fact; the letter, the point and the total are an interpretation of it, and the interpretation belongs to whichever scale the school publishes today.**
+
+**Verified live in the running app** (production build, four minted sessions against the seeded `gis` school):
+
+| Check | Result |
+|---|---|
+| Report card arithmetic | Every card's subject lines sum exactly to its stated total (Amara Nwosu 742 → 74.2 average, grade A) |
+| Tie handling | Two pupils at 742 both hold 3rd; the next holds 5th — the skip is real, not cosmetic |
+| Compulsory-subject rule | Chinedu Eze → `REVIEW`, reason "Did not pass compulsory subjects: ENG, MTH." |
+| Same document both sides | `/reports/[id]` (registrar) and `/family/[id]` (that pupil's guardian) render identical figures and reference number |
+| Guardian authorisation by **link**, not role | A guardian requesting another family's child gets **404**, not 403 — the response does not confirm the pupil exists |
+| Role gating | Guardian → `/classes` and `/reports` redirect to `/forbidden`; registrar → `/family` likewise |
+| Subject-teacher ownership | A teacher sees their own subject editable and another teacher's read-only, on the same route |
+| Academic-model gating | A `HIGHER_ED` school reaching `/classes` gets an explanatory panel, not a 404 — an administrator needs to know the page exists and what would fill it |
+
+**Not exercised end-to-end:** the mark-sheet and report-generation *write* paths were driven through their services (the seed calls the real `saveSubjectMarks` and `generateClassReportCards`) but not submitted through the rendered HTML form, because every seeded card is already published and therefore correctly refuses regeneration.
+
+210 tests green · `tsc --noEmit` clean · production build clean.
 
 ---
 
