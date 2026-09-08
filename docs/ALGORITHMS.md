@@ -954,6 +954,48 @@ the list beside it cannot drift apart.
 **Top resources rank by distinct readers before raw views**, so one obsessive reader does not
 outrank genuine breadth of use.
 
+## 31. Rate limiting (two-key sliding log)
+
+```
+INPUT   attempts by address[], attempts by identifier[], policy, now
+OUTPUT  allowed, which budget was spent, when a slot frees
+
+  for each budget:
+      recent  = timestamps within the window
+      allowed = recent.length < limit
+      retryAfter = (oldest recent + window) - now
+  refuse if EITHER budget is spent
+```
+
+**O(n) over the attempts in the window.**
+
+**Two keys, because one is always wrong.** Limiting by address alone locks out a campus, a
+computer lab, or a country behind one NAT — a whole cohort applying on results day looks exactly
+like a script. Limiting by identity alone is defeated by varying the email. So each attempt is
+checked against both, with a generous address budget and a tight identifier budget: the first
+catches volume, the second catches a targeted attack that rotates addresses.
+
+**A sliding log, not a fixed window.** A fixed window resets on the hour, so an attacker can spend
+the whole budget at 10:59 and the whole budget again at 11:00 — twice the intended rate, at exactly
+the moment somebody is probing for the boundary. A log has no boundary to find. The cost is one row
+per attempt, affordable because this guards two endpoints rather than every request.
+
+**Only failures count.** A correct sign-in is not recorded and clears that identifier's history, so
+somebody working normally never approaches the limit and a bad morning of typos is forgiven.
+
+**`retryAfter` is measured from the oldest attempt still in the window** — the moment a slot
+actually frees. Quoting the full window to somebody one second away from a slot is punitive.
+
+**The refusal message never says which budget was spent**, because distinguishing "too many
+attempts on this account" from "too many from your network" would confirm the account exists — the
+same enumeration leak the generic sign-in error exists to prevent.
+
+**It fails OPEN**, which is the opposite of the tenant layer. The difference is what each protects:
+tenant scoping is an authorisation boundary and must fail closed, whereas rate limiting is spam
+control. A broken limiter that failed closed would lock every user out of sign-in at every school
+because one table was unavailable. Availability wins precisely because nothing confidential sits
+behind it.
+
 ## Appendix A — Why money is never a float
 
 ```js

@@ -12,6 +12,13 @@ import {
 } from '@/lib/auth/session';
 import { ROLE_HOME, isRole } from '@/lib/domain/enums';
 import { recordAudit } from '@/server/services/audit.service';
+import { SIGN_IN_POLICY } from '@/lib/domain/rate-limit';
+import {
+  callerAddress,
+  checkLimit,
+  clearAttempts,
+  recordAttempt,
+} from '@/server/services/rate-limit.service';
 
 const credentialsSchema = z.object({
   email: z.string().trim().toLowerCase().email('Enter a valid email address.'),
@@ -68,6 +75,35 @@ export async function signInAction(
   const { email, password, schoolSlug, next } = parsed.data;
   const GENERIC_ERROR = 'Email or password is incorrect.';
 
+  /*
+   * Rate limiting comes BEFORE the user lookup, deliberately.
+   *
+   * Checking afterwards would still do a database read and a bcrypt comparison
+   * per attempt, which is the expensive part and therefore the part worth
+   * denying to a script. It also means a refused attempt costs the same
+   * whether or not the account exists, so the limiter cannot become the
+   * enumeration oracle the generic error message exists to prevent.
+   *
+   * Resolved once and threaded through, so the check and the record that
+   * follows it cannot disagree about which address they concern.
+   */
+  const address = await callerAddress();
+  const limit = await checkLimit({
+    action: 'signin',
+    identifier: email,
+    policy: SIGN_IN_POLICY,
+    address,
+  });
+  if (!limit.allowed) {
+    return { error: limit.message };
+  }
+
+  /** Records the attempt, then returns the same message every failure gives. */
+  const fail = async (): Promise<SignInState> => {
+    await recordAttempt({ action: 'signin', identifier: email, address });
+    return { error: GENERIC_ERROR };
+  };
+
   const user = await platformDb.user.findUnique({
     where: { email },
     include: {
@@ -86,12 +122,12 @@ export async function signInAction(
 
   if (!user) {
     await equaliseTiming();
-    return { error: GENERIC_ERROR };
+    return fail();
   }
 
   const passwordOk = await verifyPassword(password, user.passwordHash);
   if (!passwordOk || !user.isActive) {
-    return { error: GENERIC_ERROR };
+    return fail();
   }
 
   // A suspended school cannot be signed into, even with a valid password.
@@ -103,8 +139,15 @@ export async function signInAction(
 
   // No membership of the requested school (or of any school) is reported as a
   // credential failure, not as "you don't belong here".
+  //
+  // It counts against the rate limit like any other failure. This path is
+  // reached with a CORRECT password, so it is not brute force — but it is the
+  // way somebody with one valid credential would enumerate which schools that
+  // account belongs to, by walking the slugs. Leaving it unlimited would make
+  // the generic error message pointless: an attacker could simply retry until
+  // the redirect behaviour differed.
   if (!membership || !isRole(membership.role)) {
-    return { error: GENERIC_ERROR };
+    return fail();
   }
 
   // The profile row for this role AT THIS SCHOOL. A person can be a student at
@@ -123,6 +166,12 @@ export async function signInAction(
       select: { id: true },
     }),
   ]);
+
+  // Correct credentials clear this identifier's history, so somebody who
+  // mistyped their password three times and then got it right starts clean.
+  // The ADDRESS history is deliberately left alone: one user signing in
+  // successfully must not wipe the evidence of an attack from the same network.
+  await clearAttempts('signin', email);
 
   await createSession({
     sub: user.id,

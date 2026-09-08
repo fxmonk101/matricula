@@ -507,8 +507,8 @@ both themes.
 | **File storage** (local disk dev / S3-compatible prod) | 1 | School logos; then resources, avatars, attachments, imports |
 | **Per-school timezone helper** | 0 | `Meeting` minutes are institution-local; `Term` dates are UTC; services call server-local `new Date()`. Multi-tenant makes this load-bearing |
 | **Bulk CSV import/export** | 1 | Onboarding a real school by hand is impractical |
-| **Content-Security-Policy** | 4 | Forum markdown |
-| **Rate limiting** | 4 | Public apply endpoint and forum posting |
+| ~~**Content-Security-Policy**~~ | 4 | ✅ Done in Phase 4 (`script-src` nonces still owed) |
+| ~~**Rate limiting**~~ | 4 | ✅ Done — forum posting in Phase 4; sign-in and the public apply endpoint now, with a durable two-key sliding log |
 | **Email/SMS channel** | 3 | Task escalation is meaningless if it is in-app only |
 | **Saved/scheduled reports** | 3 | "Dean generates reports" implies export and scheduling |
 | **i18n / locale formatting** | 6 | National vs international schools |

@@ -6,6 +6,8 @@ import { dbFor, platformDb } from '@/lib/tenant';
 import { createApplicantAccount } from '@/server/services/admissions.service';
 import { nextApplicationReference } from '@/server/services/sequence.service';
 import { recordAudit } from '@/server/services/audit.service';
+import { APPLY_POLICY } from '@/lib/domain/rate-limit';
+import { callerAddress, checkLimit, recordAttempt } from '@/server/services/rate-limit.service';
 
 export interface ApplyState {
   ok?: boolean;
@@ -70,6 +72,31 @@ export async function submitApplicationAction(
 
   const d = parsed.data;
 
+  /*
+   * Rate limiting BEFORE any write.
+   *
+   * This endpoint is the only one in the system where an anonymous caller can
+   * create rows — a User account and an Application — so the cost of abuse is
+   * durable data rather than wasted cycles. Worse, the account is created
+   * first, so a failure partway leaves an orphaned account behind: without a
+   * limit, a script could fill the user table with addresses it controls.
+   *
+   * The identifier is the applicant's email rather than the school slug. A
+   * school is a legitimate shared target — a whole cohort applies to it on the
+   * same afternoon — whereas one email address submitting three applications
+   * in an hour is not a person filling in a form.
+   */
+  const address = await callerAddress();
+  const limit = await checkLimit({
+    action: 'apply',
+    identifier: d.email,
+    policy: APPLY_POLICY,
+    address,
+  });
+  if (!limit.allowed) {
+    return { ok: false, message: limit.message };
+  }
+
   const school = await platformDb.school.findUnique({
     where: { slug: d.schoolSlug },
     select: { id: true, code: true, name: true, status: true },
@@ -121,6 +148,13 @@ export async function submitApplicationAction(
           submittedAt: new Date(),
         },
       });
+    });
+
+    void recordAttempt({
+      action: 'apply',
+      identifier: d.email,
+      schoolId: school.id,
+      address,
     });
 
     void recordAudit({

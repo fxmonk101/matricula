@@ -1749,3 +1749,33 @@ model ResourceView {
   @@index([schoolId, membershipId, viewedAt])
   @@map("resource_views")
 }
+
+/// Attempts against the two endpoints reachable without an account.
+///
+/// PLATFORM-owned with a nullable `schoolId`: sign-in happens before a school
+/// is known, and an attacker probing several schools should accumulate against
+/// one address budget rather than getting a fresh one per tenant.
+///
+/// Durable rather than in-memory. An in-process counter resets on every deploy
+/// and is per-instance, so it would be defeated by a restart and useless behind
+/// more than one server — which is precisely when rate limiting starts to
+/// matter.
+model RateLimitHit {
+  id       String  @id @default(cuid())
+  schoolId String?
+
+  /// What is being limited: "signin" | "apply".
+  action String
+  /// Normalised client address. Spoofable, so a spam-control key only —
+  /// never identity. See normaliseAddress().
+  address String
+  /// The email or slug being acted on. Lower-cased.
+  identifier String
+
+  createdAt DateTime @default(now())
+
+  @@index([action, identifier, createdAt])
+  @@index([action, address, createdAt])
+  @@index([createdAt])
+  @@map("rate_limit_hits")
+}
