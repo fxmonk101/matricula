@@ -1,7 +1,7 @@
 # Platform Roadmap
 ## From single-university SIS → multi-tenant school platform
 
-**Status:** Phases 0-3 **complete**. Phase 4 next. Phases ship independently; each ends with a green build, green tests, and a demoable app.
+**Status:** Phases 0-4 **complete**. Phase 5 next. Phases ship independently; each ends with a green build, green tests, and a demoable app.
 
 | Phase | State |
 |---|---|
@@ -9,7 +9,7 @@
 | 1 — Per-school configuration & setup console | ✅ Done — config drives grading, currency and rules; 24 new tests |
 | 2 — K-12 academic model & guardians | ✅ Done — 38 K-12 tests; report cards, mark sheets and guardian portal verified live |
 | 3 — Org hierarchy, tasks, notifications, shell | ✅ Done — 72 new tests; dean workflow verified live at both universities |
-| 4 — Forums | Planned |
+| 4 — Forums | ✅ Done — 97 new tests incl. 12 XSS payloads; CSP shipped; verified live |
 | 5 — Digital resource library | Planned |
 | 6 — UI system pass | Planned |
 
@@ -294,7 +294,7 @@ live Next.js server-action handshake.
 
 ---
 
-## Phase 4 — Forums
+## Phase 4 — Forums ✅
 
 `Forum` (audience: STAFF | STUDENT), `ForumCategory`, `Thread`, `Post`, `PostReaction`, `PostReport`.
 
@@ -303,6 +303,74 @@ Pure `src/lib/domain/forum.ts`: thread ranking (hot/new/top, pinned always float
 Service concerns: permission checks, denormalised `postCount`/`lastPostAt` maintained inside the write transaction (the existing `seatsTaken` pattern), report-a-post creating a moderator **task**, replies and mentions creating **notifications**.
 
 **Security** — markdown is an XSS surface. Sanitise, disallow raw HTML, and add a real Content-Security-Policy to `next.config.mjs`, which currently sets only the basic headers.
+
+### What shipped, and what was verified
+
+**The security work came first**, because forums are the first place in this system where one
+user's text renders in another user's browser.
+
+**`src/lib/domain/markdown.ts` — escape-first, not parse-then-sanitise.** Every `& < > " '` in
+the source becomes an entity BEFORE any transform runs, so after that step the string is inert
+and every tag in the output is one this codebase wrote. A bug here produces ugly output, not
+script execution. The alternative — a full parser plus a sanitiser — is only as good as the
+sanitiser's next CVE.
+
+The one vector escaping does not close is the link, since `javascript:alert(1)` contains no
+markup. Schemes are allowlisted; `data:` is refused alongside `javascript:` (a
+`data:text/html` URL executes in the document's origin and is the more often forgotten of the
+two); internal whitespace is refused outright, because a browser strips the tab out of
+`java<TAB>script:` before resolving the scheme.
+
+**Content-Security-Policy shipped** in `next.config.mjs` — the item this phase owed.
+`object-src 'none'`, `base-uri 'self'`, `form-action 'self'`, `frame-ancestors 'none'`,
+and `connect-src 'self'` so injected script could not exfiltrate even if it ran. Dev gets
+`'unsafe-eval'` and a websocket for Fast Refresh; production does not.
+
+> **Owed, and stated rather than papered over:** `script-src` still carries
+> `'unsafe-inline'`, because Next.js App Router streams RSC payloads through inline
+> `<script>` tags and hydration breaks without it. The fix is per-request nonces generated in
+> middleware and threaded through the document — a change to every rendered page, not a config
+> line. Recorded as a known gap.
+
+**Two pure modules, 97 tests:**
+
+- `markdown.ts` (50 tests) — 12 XSS payloads asserted against a **tag allowlist** rather than a
+  string blocklist, plus scheme validation and the block/inline grammar.
+- `forum.ts` (47 tests) — hot ranking, rate limiting, the moderation reducer, audience
+  visibility, the edit window, pagination.
+
+**Decisions worth recording** (ALGORITHMS.md §23-26):
+
+| Decision | Why |
+|---|---|
+| Store markdown **source**, never rendered HTML | Storing HTML freezes today's renderer into the database: a sanitiser fix would not reach a single existing post. Rendering on read means one code change protects the whole archive |
+| Auto-hide at 5 reports, never auto-delete | Automatic deletion on a report count is how a coordinated group silences someone; a unique (post, reporter) constraint stops one objector reaching the threshold alone |
+| DELETED is terminal | Restoring lets one moderator silently undo another's decision |
+| Hiding does not clear the report count | It is evidence about how content was received, not a queue counter |
+| Hot decays as `engagement / (age+2)^1.5` | Without decay the front page ossifies around whatever went viral in first term |
+| Mentions render as markers, never links | A link built from unverified text advertises whether an account exists |
+| 30-minute author edit window | Silently rewriting a post people already replied to misrepresents them |
+| Reports raise a **task**, not a separate inbox | One queue a moderator watches, not two |
+
+**Verified live**, production build, five sessions across both universities:
+
+| Check | Result |
+|---|---|
+| **XSS, end to end** | Six payloads written straight into the database and served through the real page: **0 disallowed tags, 0 event-handler attributes**, and the single anchor emitted was the legitimate `https` link with `rel="noopener noreferrer nofollow"`. The `javascript:` link rendered as literal text |
+| Audience isolation | A student reaching `/forums/staff-room` gets **404**, and the Staff Room does not appear on their index at all — the filter runs in the service, so it never reaches their process |
+| Cross-school | A Meridian student sees only Meridian forums and threads |
+| Moderator view | The registrar sees the reported essay-mill thread and its report count; the report raised a MODERATION task automatically |
+| Mention fan-out | Prof. Okafor received a **GEU** notification for the GEU thread and a **separate MIT** notification for the MIT thread — per-membership, not per-user |
+| Markdown grammar | Bullets, numbered lists, bold, fenced code and mentions all render; `###` maps to `<h4>` and **no author-emitted `<h1>`/`<h2>`** reaches the page, so the heading outline survives for screen readers |
+| CSP | Present on every response; production policy carries no `unsafe-eval` |
+
+**Defect found and fixed during the phase:** my first XSS assertions searched the whole output
+for `onerror=`, which fails on `&lt;img onerror=…&gt;` — inert paragraph text. The
+assertion was wrong, not the renderer. Replaced with a tag-allowlist check over the actual
+emitted markup, which is both correct and strictly stronger.
+
+379 tests green · `tsc --noEmit` clean · production build clean.
+
 
 ---
 

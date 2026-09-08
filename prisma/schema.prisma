@@ -84,6 +84,7 @@ model School {
   identityProviders IdentityProvider[]
   tasks             Task[]
   notifications     Notification[]
+  forums            Forum[]
 
   @@index([status])
   @@map("schools")
@@ -161,6 +162,13 @@ model Membership {
   taskEvents    TaskEvent[]
   taskWatching  TaskWatcher[]
   notifications Notification[]
+
+  // --- forums (Phase 4) ---
+  threads         Thread[]       @relation("ThreadAuthor")
+  posts           Post[]         @relation("PostAuthor")
+  reactions       PostReaction[]
+  reportsMade     PostReport[]   @relation("ReportReporter")
+  reportsResolved PostReport[]   @relation("ReportResolver")
 
   @@unique([userId, schoolId])
   @@index([schoolId, role])
@@ -1411,4 +1419,188 @@ model Notification {
   @@index([membershipId, readAt, createdAt])
   @@index([schoolId, createdAt])
   @@map("notifications")
+}
+
+// =============================================================================
+// SECTION 5 — FORUMS (Phase 4)
+// =============================================================================
+
+/// A discussion space.
+///
+/// `audience` is the load-bearing field: staff discuss a pupil's progress, a
+/// disciplinary matter or a colleague's workload, and none of that may reach a
+/// student-visible space. Every read path filters on it.
+model Forum {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  slug        String
+  name        String
+  description String?
+  /// ForumAudience: STAFF | STUDENT | ALL
+  audience    String  @default("STUDENT")
+  /// Display order on the index; lower first.
+  position    Int     @default(0)
+  isArchived  Boolean @default(false)
+
+  createdAt DateTime @default(now())
+
+  categories ForumCategory[]
+  threads    Thread[]
+
+  @@unique([schoolId, slug])
+  @@index([schoolId, audience])
+  @@map("forums")
+}
+
+model ForumCategory {
+  id       String @id @default(cuid())
+  schoolId String
+  forumId  String
+  forum    Forum  @relation(fields: [forumId], references: [id], onDelete: Cascade)
+
+  slug        String
+  name        String
+  description String?
+  position    Int     @default(0)
+
+  threads Thread[]
+
+  @@unique([forumId, slug])
+  @@index([schoolId])
+  @@map("forum_categories")
+}
+
+model Thread {
+  id         String         @id @default(cuid())
+  schoolId   String
+  forumId    String
+  forum      Forum          @relation(fields: [forumId], references: [id], onDelete: Cascade)
+  categoryId String?
+  category   ForumCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+
+  title String
+  /// ThreadStatus: OPEN | LOCKED | HIDDEN | DELETED
+  status String @default("OPEN")
+  isPinned Boolean @default(false)
+
+  /// Nullable so a thread survives the author's membership being removed.
+  /// Deleting the discussion because somebody left would erase the answers
+  /// everyone else contributed to it.
+  authorId String?
+  author   Membership? @relation("ThreadAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+
+  /// Denormalised counters, maintained INSIDE the posting transaction — the
+  /// same pattern as CourseOffering.seatsTaken. Source of truth remains the
+  /// COUNT over posts; these exist so a forum index is one query, not N+1.
+  postCount     Int       @default(0)
+  reactionCount Int       @default(0)
+  reportCount   Int       @default(0)
+  viewCount     Int       @default(0)
+  lastPostAt    DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  posts   Post[]
+  reports PostReport[]
+
+  @@index([schoolId, forumId, status])
+  @@index([forumId, isPinned, lastPostAt])
+  @@map("threads")
+}
+
+model Post {
+  id       String @id @default(cuid())
+  schoolId String
+  threadId String
+  thread   Thread @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  authorId String?
+  author   Membership? @relation("PostAuthor", fields: [authorId], references: [id], onDelete: SetNull)
+
+  /// The MARKDOWN SOURCE, never rendered HTML.
+  ///
+  /// Storing HTML would freeze today's renderer into the database: a fix to the
+  /// sanitiser would not reach a single existing post, and every stored row
+  /// would have to be trusted forever. Rendering on read means one code change
+  /// protects the whole archive.
+  body String
+
+  /// The first post of a thread — the question itself, not a reply.
+  isOpeningPost Boolean @default(false)
+
+  reactionCount Int @default(0)
+  reportCount   Int @default(0)
+
+  /// Soft delete. A removed post leaves a tombstone so the replies quoting it
+  /// still make sense to a reader.
+  deletedAt DateTime?
+  editedAt  DateTime?
+
+  createdAt DateTime @default(now())
+
+  reactions PostReaction[]
+  reports   PostReport[]
+
+  @@index([threadId, createdAt])
+  @@index([schoolId, authorId, createdAt])
+  @@map("posts")
+}
+
+model PostReaction {
+  id       String @id @default(cuid())
+  schoolId String
+  postId   String
+  post     Post   @relation(fields: [postId], references: [id], onDelete: Cascade)
+
+  membershipId String
+  membership   Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+
+  /// ReactionKind: LIKE | HELPFUL | AGREE
+  kind String @default("LIKE")
+
+  createdAt DateTime @default(now())
+
+  /// One reaction per person per post — the database enforces it, so a
+  /// double-clicked button cannot inflate a count.
+  @@unique([postId, membershipId])
+  @@index([schoolId])
+  @@map("post_reactions")
+}
+
+model PostReport {
+  id       String  @id @default(cuid())
+  schoolId String
+  postId   String?
+  post     Post?   @relation(fields: [postId], references: [id], onDelete: Cascade)
+  threadId String?
+  thread   Thread? @relation(fields: [threadId], references: [id], onDelete: Cascade)
+
+  reporterId String?
+  reporter   Membership? @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: SetNull)
+
+  /// ReportReason: SPAM | ABUSE | OFF_TOPIC | PERSONAL_DATA | ACADEMIC_DISHONESTY | OTHER
+  reason  String
+  detail  String?
+  /// ReportStatus: PENDING | UPHELD | DISMISSED
+  status  String  @default("PENDING")
+
+  /// The moderation task raised for this report, so the queue and the task
+  /// system are the same queue rather than two places to look.
+  taskId String?
+
+  resolvedById String?
+  resolvedBy   Membership? @relation("ReportResolver", fields: [resolvedById], references: [id], onDelete: SetNull)
+  resolvedAt   DateTime?
+  resolution   String?
+
+  createdAt DateTime @default(now())
+
+  /// One report per person per post: a single objector cannot drive the
+  /// auto-hide threshold on their own.
+  @@unique([postId, reporterId])
+  @@index([schoolId, status])
+  @@map("post_reports")
 }

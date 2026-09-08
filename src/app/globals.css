@@ -34,6 +34,61 @@
   .table-hover tbody tr:hover {
     @apply bg-brand-50/50;
   }
+
+  /*
+   * Forum post bodies.
+   *
+   * Styled here rather than with utility classes because the HTML is produced
+   * by `renderMarkdown`, which emits plain tags with no className. Restricting
+   * the selectors to `.post-body` keeps these rules off the rest of the app.
+   */
+  .post-body > * + * {
+    @apply mt-3;
+  }
+
+  .post-body h3 {
+    @apply text-sm font-semibold text-slate-900;
+  }
+
+  .post-body h4 {
+    @apply text-xs font-semibold uppercase tracking-wide text-slate-500;
+  }
+
+  .post-body ul {
+    @apply list-disc space-y-1 pl-5;
+  }
+
+  .post-body ol {
+    @apply list-decimal space-y-1 pl-5;
+  }
+
+  .post-body blockquote {
+    @apply border-l-2 border-slate-300 pl-3 italic text-slate-600;
+  }
+
+  .post-body code {
+    @apply rounded bg-slate-100 px-1 py-0.5 font-mono text-[0.85em] text-slate-800;
+  }
+
+  .post-body pre {
+    @apply overflow-x-auto rounded-lg bg-slate-900 p-3;
+  }
+
+  .post-body pre code {
+    @apply bg-transparent p-0 text-xs text-slate-100;
+  }
+
+  .post-body a {
+    @apply font-medium text-brand-700 underline underline-offset-2 hover:text-brand-800;
+  }
+
+  .post-body strong {
+    @apply font-semibold text-slate-900;
+  }
+
+  .post-body .mention {
+    @apply rounded bg-brand-50 px-1 font-medium text-brand-700;
+  }
 }
 
 @media print {

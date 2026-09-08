@@ -1113,6 +1113,24 @@ async function main() {
   });
   console.log(`  MIT  allocations ${mitAlloc.allocated} (skipped ${mitAlloc.skipped}) · task moves ${mitMoved.moved} · ad-hoc ${mitAdHoc}`);
 
+  // --- forums (Phase 4) ------------------------------------------------------
+  console.log('\nSeeding forums…');
+  const {
+    seedForums, GEU_FORUMS, GEU_THREADS, MIT_FORUMS, MIT_THREADS,
+  } = await import('./seed-forums');
+
+  const geuForums = await seedForums(
+    { db, schoolId: geu.schoolId },
+    { forums: GEU_FORUMS, threads: GEU_THREADS },
+  );
+  console.log(`  GEU  ${geuForums.forums} forums · ${geuForums.threads} threads · ${geuForums.posts} posts`);
+
+  const mitForums = await seedForums(
+    { db, schoolId: mit.schoolId },
+    { forums: MIT_FORUMS, threads: MIT_THREADS },
+  );
+  console.log(`  MIT  ${mitForums.forums} forums · ${mitForums.threads} threads · ${mitForums.posts} posts`);
+
   // An escalation sweep, so overdue work has actually escalated and the bell
   // has something in it on first sign-in.
   const { runEscalationSweep } = await import('../src/server/services/task.service');

@@ -772,6 +772,101 @@ acts is one everyone filters out of their inbox, and the signal becomes worth le
 Reminders are deliberately allowed to repeat; escalations are not.
 
 
+## 23. Escape-first markdown rendering
+
+```
+INPUT   author's markdown source
+OUTPUT  HTML safe to inject
+
+  1. strip control characters
+  2. escape & < > " '        <- string is now INERT
+  3. apply block grammar     <- introduces only tags we write
+  4. apply inline grammar    <- validates every URL against a scheme allowlist
+```
+
+**O(n) over the source.**
+
+**The order is the security property.** The usual approach is parse-then-sanitise: run a full
+markdown parser, let it emit whatever raw HTML the author wrote, then strip the dangerous parts.
+That is sound only if the sanitiser is perfect, and sanitisers are perfect only until the next
+mutation-XSS bug. It is a denylist wearing an allowlist's clothes.
+
+Escaping first inverts it. After step 2 there is not a single `<` left in the string, so no
+input character can become a tag delimiter. Every tag in the output is one this code wrote. The
+failure mode of a bug becomes ugly output rather than script execution.
+
+**The one vector escaping does not close is the link.** `javascript:alert(1)` contains no
+markup, and it lands in an `href`. So schemes are allowlisted (`http`, `https`, `mailto`,
+plus app-relative `/…`) and everything else renders as literal text. `data:` is refused
+alongside `javascript:` — `data:text/html` executes in the document's origin and is the more
+frequently forgotten of the two. Internal whitespace is refused outright, because a browser
+strips the tab out of `java<TAB>script:` before resolving the scheme, and a naive prefix check
+would see something harmless.
+
+**Verified by injecting six live payloads** through the database into a rendered thread: zero
+disallowed tags, zero event-handler attributes, and the only anchor emitted was the legitimate
+`https` link.
+
+---
+
+## 24. Hot ranking (gravity decay)
+
+```
+score = (postCount + reactionCount) / (ageHours + 2) ^ 1.5
+```
+
+**O(n log n) to sort.**
+
+**Why decay.** Without it "hot" means "most replies ever", and the front page ossifies around
+whatever thread went viral in first term. A student arriving in March should see March.
+
+**Why +2.** A thread minutes old would otherwise divide by near-zero and rocket to the top on one
+reply. The offset flattens the first couple of hours so a thread earns its place.
+
+**Why 1.5.** At 1.0 old popular threads linger for days; at 2.0 anything over a day is invisible,
+which is wrong when a question may take a week to attract its best answer. 1.5 puts the half-life
+near a day and a half. These are judgement calls, not physics — recorded so the next person
+changes them knowingly.
+
+**Pinned threads float in every mode**, and every comparison ends in an id tie-break so the order
+is TOTAL — a list that reshuffles between identical page loads makes pagination skip and repeat
+items, which reads as data loss.
+
+---
+
+## 25. Forum moderation reducer
+
+A pure state transition over `{status, isPinned, reportCount}`.
+
+**DELETED is terminal.** Nothing transitions out of it. Restoring deleted content would let one
+moderator silently undo another's decision; if something must come back it is reposted, and the
+record shows that.
+
+**Hiding does not clear reports.** The count is evidence about how content was received, not a
+queue counter to be zeroed — a moderator reviewing a repeat offender needs the history.
+
+**Auto-hide is a threshold, never a verdict.** Five reports hide content *pending review*. It is
+deliberately not deletion: automatic deletion on a report count is how a coordinated group
+silences someone they disagree with. A unique constraint on (post, reporter) stops one objector
+reaching the threshold alone.
+
+---
+
+## 26. Forum rate limiting
+
+Three limits, because they catch different failures:
+
+| Limit | Catches |
+|---|---|
+| 20s minimum gap | a double-submitted form, an angry back-and-forth |
+| 30 posts/hour | a script |
+| 10 new threads/day | thread spraying, which is worse than replies — each takes a front-page slot |
+
+**Refusals say WHEN, not just no.** "Try again in 14 seconds" is actionable; "rate limited" makes
+a person hammer the button. Timestamps come from the caller, which is what makes the policy
+testable without waiting.
+
+
 ## Appendix A — Why money is never a float
 
 ```js

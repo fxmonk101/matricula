@@ -331,3 +331,46 @@ export const NOTIFICATION_KINDS = [
   'ANNOUNCEMENT',
 ] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
+
+// -----------------------------------------------------------------------------
+// Forums (Phase 4)
+// -----------------------------------------------------------------------------
+
+/**
+ * Who a forum is for.
+ *
+ * This is the load-bearing distinction of the whole feature: staff discuss a
+ * pupil's progress, a disciplinary matter or a colleague's workload, and none
+ * of it may leak into a student-visible space.
+ */
+export const FORUM_AUDIENCES = ['STAFF', 'STUDENT', 'ALL'] as const;
+export type ForumAudience = (typeof FORUM_AUDIENCES)[number];
+
+export const THREAD_STATUSES = ['OPEN', 'LOCKED', 'HIDDEN', 'DELETED'] as const;
+export type ThreadStatus = (typeof THREAD_STATUSES)[number];
+
+export const REPORT_REASONS = [
+  'SPAM',
+  'ABUSE',
+  'OFF_TOPIC',
+  'PERSONAL_DATA',
+  'ACADEMIC_DISHONESTY',
+  'OTHER',
+] as const;
+export type ReportReason = (typeof REPORT_REASONS)[number];
+
+export const REPORT_STATUSES = ['PENDING', 'UPHELD', 'DISMISSED'] as const;
+export type ReportStatus = (typeof REPORT_STATUSES)[number];
+
+/** Reactions are a fixed, small set — not free-form emoji. */
+export const REACTION_KINDS = ['LIKE', 'HELPFUL', 'AGREE'] as const;
+export type ReactionKind = (typeof REACTION_KINDS)[number];
+
+export const REPORT_REASON_LABELS: Record<ReportReason, string> = {
+  SPAM: 'Spam or advertising',
+  ABUSE: 'Abusive or harassing',
+  OFF_TOPIC: 'Off topic',
+  PERSONAL_DATA: 'Contains personal data',
+  ACADEMIC_DISHONESTY: 'Academic dishonesty',
+  OTHER: 'Something else',
+};

@@ -41,6 +41,8 @@ export const PERMISSIONS = [
   // Collaboration (Phase 3)
   'task:read:own', 'task:create', 'task:assign', 'task:admin',
   'team:read', 'notification:read',
+  // Forums (Phase 4)
+  'forum:read', 'forum:post', 'forum:moderate',
   // School configuration & organisation (tenant-scoped)
   'school:config:read', 'school:config:write',
   'org:read', 'org:manage',
@@ -71,6 +73,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     'school:config:read', 'school:config:write', 'org:read', 'org:manage', 'directory:read',
     'class:read', 'class:manage', 'report:generate', 'attendance:record',
     'task:read:own', 'task:create', 'task:assign', 'task:admin', 'team:read', 'notification:read',
+    'forum:read', 'forum:post', 'forum:moderate',
   ],
 
   REGISTRAR: [
@@ -86,6 +89,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     'invoice:read:any',
     'hold:manage', 'audit:read', 'announcement:write',
     'task:read:own', 'task:create', 'task:assign', 'task:admin', 'team:read', 'notification:read',
+    'forum:read', 'forum:post', 'forum:moderate',
   ],
 
   FINANCE: [
@@ -95,6 +99,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     'fee:configure',
     'hold:manage', 'audit:read',
     'task:read:own', 'task:create', 'notification:read',
+    'forum:read', 'forum:post',
   ],
 
   ADMISSIONS: [
@@ -103,6 +108,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     'application:read:any', 'application:review', 'application:decide', 'application:convert',
     'announcement:write',
     'task:read:own', 'task:create', 'notification:read',
+    'forum:read', 'forum:post',
   ],
 
   INSTRUCTOR: [
@@ -112,6 +118,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     'enrollment:read:any',
     'grade:submit', 'grade:read:any',
     'task:read:own', 'task:create', 'task:assign', 'team:read', 'notification:read',
+    'forum:read', 'forum:post',
   ],
 
   STUDENT: [
@@ -120,6 +127,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     'grade:read:own', 'transcript:read:own',
     'invoice:read:own', 'payment:read:own',
     'task:read:own', 'notification:read',
+    'forum:read', 'forum:post',
   ],
 
   APPLICANT: [
@@ -136,6 +144,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     'course:read', 'offering:read',
     'directory:read',
     'task:read:own', 'task:create', 'notification:read',
+    'forum:read', 'forum:post',
   ],
 
   /** Generic non-teaching staff: office holders, technicians, support. */
@@ -143,6 +152,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     'course:read', 'offering:read',
     'directory:read',
     'task:read:own', 'task:create', 'notification:read',
+    'forum:read', 'forum:post',
   ],
 
   /**
@@ -223,6 +233,11 @@ export const ROUTE_GUARDS: RouteGuard[] = [
   // about most staff, not a permission failure.
   { prefix: '/team', roles: ['ADMIN', 'REGISTRAR', 'INSTRUCTOR'] },
   { prefix: '/org', roles: ['ADMIN', 'REGISTRAR', 'INSTRUCTOR'] },
+  // Guardians and applicants are absent on purpose: a parent in the staff
+  // room is obviously wrong, and a parent in the student common room is
+  // subtler but no better. Which forums a member then sees is decided per
+  // forum by `canReadAudience`, not here.
+  { prefix: '/forums', roles: ['ADMIN', 'REGISTRAR', 'FINANCE', 'ADMISSIONS', 'INSTRUCTOR', 'LIBRARIAN', 'STAFF', 'STUDENT'] },
   { prefix: '/settings/school', roles: ['ADMIN'] },
   // Longest-prefix wins, so this stays reachable by a school ADMIN while
   // /admin/platform below is platform-only.
