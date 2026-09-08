@@ -39,6 +39,16 @@ export const ROLE_LABELS: Record<Role, string> = {
 };
 
 /** Landing page per role after sign-in. */
+/**
+ * Where each role lands after signing in.
+ *
+ * EVERY destination here must be reachable by that role under `ROUTE_GUARDS`,
+ * or signing in bounces the user straight to /forbidden. `tests/routing.test.ts`
+ * pins that invariant, because the two tables live in different files and it is
+ * otherwise very easy to add a role to one and forget the other — which is
+ * exactly how LIBRARIAN, STAFF and GUARDIAN ended up pointed at /dashboard, a
+ * page all three are forbidden from.
+ */
 export const ROLE_HOME: Record<Role, string> = {
   ADMIN: '/dashboard',
   REGISTRAR: '/dashboard',
@@ -47,9 +57,9 @@ export const ROLE_HOME: Record<Role, string> = {
   INSTRUCTOR: '/teaching',
   STUDENT: '/me',
   APPLICANT: '/portal',
-  LIBRARIAN: '/dashboard',
-  STAFF: '/dashboard',
-  GUARDIAN: '/dashboard',
+  LIBRARIAN: '/forums',
+  STAFF: '/tasks',
+  GUARDIAN: '/family',
 };
 
 // -----------------------------------------------------------------------------

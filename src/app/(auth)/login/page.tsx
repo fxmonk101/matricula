@@ -17,9 +17,9 @@ export const metadata: Metadata = { title: 'Sign in' };
 export default async function LoginPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string }>;
+  searchParams: Promise<{ next?: string; reason?: string }>;
 }) {
-  const { next } = await searchParams;
+  const { next, reason } = await searchParams;
 
   const schools = await platformDb.school.findMany({
     where: { status: { in: ['ACTIVE', 'TRIAL'] } },
@@ -73,6 +73,18 @@ export default async function LoginPage({
           </p>
 
           <div className="mt-6">
+            {reason === 'expired' ? (
+              // Set by /session/end when a signature-valid token names a school
+              // or membership that no longer exists. Saying so beats presenting
+              // an empty form to somebody who believed they were signed in.
+              <div className="mb-4 rounded-lg bg-amber-50 px-4 py-3 text-xs leading-relaxed text-amber-900 ring-1 ring-inset ring-amber-200">
+                <p className="font-semibold">Your session has ended</p>
+                <p className="mt-0.5">
+                  It referred to an account or school that is no longer available. Please sign in
+                  again.
+                </p>
+              </div>
+            ) : null}
             <LoginForm next={next} />
           </div>
 

@@ -108,10 +108,27 @@ export const getTenantContext = cache(async (): Promise<TenantContext | null> =>
   };
 });
 
-/** Tenant context, or redirect to sign-in. */
+/**
+ * Tenant context, or send the user to sign in.
+ *
+ * Redirects to `/session/end`, NOT to `/login`, and the difference matters.
+ *
+ * Middleware runs at the edge and can only check that the token's signature and
+ * expiry are good. This function additionally checks that the school still
+ * exists and is not suspended. When those two disagree — a token that is
+ * cryptographically fine but names a school that has been deleted, or a
+ * membership that has been revoked — redirecting to `/login` produces an
+ * INFINITE LOOP: middleware sees a valid cookie on the login page and bounces
+ * the user back to their role's home, which rejects them again.
+ *
+ * `/session/end` clears the cookie first, so the next request arrives anonymous
+ * and the two layers agree. A React Server Component cannot delete a cookie
+ * during render, which is why this has to be a redirect to a route handler
+ * rather than a call made here.
+ */
 export async function requireTenantContext(): Promise<TenantContext> {
   const ctx = await getTenantContext();
-  if (!ctx) redirect('/login');
+  if (!ctx) redirect('/session/end?reason=expired');
   return ctx;
 }
 
