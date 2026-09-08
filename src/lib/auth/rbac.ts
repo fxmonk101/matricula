@@ -38,6 +38,9 @@ export const PERMISSIONS = [
   'hold:manage', 'user:manage', 'audit:read', 'announcement:write',
   // K-12
   'class:read', 'class:manage', 'marks:enter', 'report:generate', 'report:read:own', 'attendance:record',
+  // Collaboration (Phase 3)
+  'task:read:own', 'task:create', 'task:assign', 'task:admin',
+  'team:read', 'notification:read',
   // School configuration & organisation (tenant-scoped)
   'school:config:read', 'school:config:write',
   'org:read', 'org:manage',
@@ -67,6 +70,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     'hold:manage', 'user:manage', 'audit:read', 'announcement:write',
     'school:config:read', 'school:config:write', 'org:read', 'org:manage', 'directory:read',
     'class:read', 'class:manage', 'report:generate', 'attendance:record',
+    'task:read:own', 'task:create', 'task:assign', 'task:admin', 'team:read', 'notification:read',
   ],
 
   REGISTRAR: [
@@ -81,6 +85,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     'application:read:any', 'application:convert',
     'invoice:read:any',
     'hold:manage', 'audit:read', 'announcement:write',
+    'task:read:own', 'task:create', 'task:assign', 'task:admin', 'team:read', 'notification:read',
   ],
 
   FINANCE: [
@@ -89,6 +94,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     'payment:record', 'payment:read:any',
     'fee:configure',
     'hold:manage', 'audit:read',
+    'task:read:own', 'task:create', 'notification:read',
   ],
 
   ADMISSIONS: [
@@ -96,6 +102,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     'course:read', 'offering:read',
     'application:read:any', 'application:review', 'application:decide', 'application:convert',
     'announcement:write',
+    'task:read:own', 'task:create', 'notification:read',
   ],
 
   INSTRUCTOR: [
@@ -104,6 +111,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     'course:read', 'offering:read',
     'enrollment:read:any',
     'grade:submit', 'grade:read:any',
+    'task:read:own', 'task:create', 'task:assign', 'team:read', 'notification:read',
   ],
 
   STUDENT: [
@@ -111,6 +119,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     'enrollment:read:own', 'enrollment:write:own',
     'grade:read:own', 'transcript:read:own',
     'invoice:read:own', 'payment:read:own',
+    'task:read:own', 'notification:read',
   ],
 
   APPLICANT: [
@@ -126,12 +135,14 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     'student:read',
     'course:read', 'offering:read',
     'directory:read',
+    'task:read:own', 'task:create', 'notification:read',
   ],
 
   /** Generic non-teaching staff: office holders, technicians, support. */
   STAFF: [
     'course:read', 'offering:read',
     'directory:read',
+    'task:read:own', 'task:create', 'notification:read',
   ],
 
   /**
@@ -203,6 +214,15 @@ export const ROUTE_GUARDS: RouteGuard[] = [
   { prefix: '/classes', roles: ['ADMIN', 'REGISTRAR', 'INSTRUCTOR'] },
   { prefix: '/reports', roles: ['ADMIN', 'REGISTRAR', 'INSTRUCTOR'] },
   { prefix: '/family', roles: ['GUARDIAN'] },
+  // Tasks are open to every staff role. Which tasks a person actually sees is
+  // a RELATIONSHIP question answered per record by `canViewTask`, not a role
+  // question — the guard here only says "may use the task system at all".
+  { prefix: '/tasks', roles: ['ADMIN', 'REGISTRAR', 'FINANCE', 'ADMISSIONS', 'INSTRUCTOR', 'LIBRARIAN', 'STAFF'] },
+  // Reachable by any instructor; a lecturer with no reports sees an empty team
+  // rather than a 403, because having no subordinates is an ordinary fact
+  // about most staff, not a permission failure.
+  { prefix: '/team', roles: ['ADMIN', 'REGISTRAR', 'INSTRUCTOR'] },
+  { prefix: '/org', roles: ['ADMIN', 'REGISTRAR', 'INSTRUCTOR'] },
   { prefix: '/settings/school', roles: ['ADMIN'] },
   // Longest-prefix wins, so this stays reachable by a school ADMIN while
   // /admin/platform below is platform-only.

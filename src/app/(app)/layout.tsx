@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 
 import { getTenantContext, requireTenantContext } from '@/server/tenant-context';
 import { AppShell } from '@/components/shell';
+import { listNotifications, unreadCount } from '@/server/services/notification.service';
 
 /**
  * The signed-in title template, resolved per tenant. Without this the browser
@@ -28,9 +29,24 @@ export async function generateMetadata(): Promise<Metadata> {
  * `generateMetadata` above — cost nothing extra.
  */
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const { session, school } = await requireTenantContext();
+  const { session, school, schoolId, membershipId } = await requireTenantContext();
+
+  // Both queries are scoped to the signed-in membership, so the bell is
+  // per-person AND per-school by construction: the professor who holds a post
+  // at two institutions sees only the notifications for the one they are
+  // currently signed in to.
+  const [notifications, unread] = await Promise.all([
+    listNotifications(schoolId, membershipId, 8),
+    unreadCount(schoolId, membershipId),
+  ]);
+
   return (
-    <AppShell session={session} school={school}>
+    <AppShell
+      session={session}
+      school={school}
+      notifications={notifications}
+      unreadCount={unread}
+    >
       {children}
     </AppShell>
   );

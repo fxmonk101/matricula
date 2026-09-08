@@ -1,14 +1,14 @@
 # Platform Roadmap
 ## From single-university SIS → multi-tenant school platform
 
-**Status:** Phases 0, 1 and 2 **complete**. Phase 3 next. Phases ship independently; each ends with a green build, green tests, and a demoable app.
+**Status:** Phases 0-3 **complete**. Phase 4 next. Phases ship independently; each ends with a green build, green tests, and a demoable app.
 
 | Phase | State |
 |---|---|
 | 0 — Tenancy & identity foundation | ✅ Done — 20 isolation tests, verified end-to-end in the running app |
 | 1 — Per-school configuration & setup console | ✅ Done — config drives grading, currency and rules; 24 new tests |
 | 2 — K-12 academic model & guardians | ✅ Done — 38 K-12 tests; report cards, mark sheets and guardian portal verified live |
-| 3 — Org hierarchy, tasks, notifications, shell | Planned |
+| 3 — Org hierarchy, tasks, notifications, shell | ✅ Done — 72 new tests; dean workflow verified live at both universities |
 | 4 — Forums | Planned |
 | 5 — Digital resource library | Planned |
 | 6 — UI system pass | Planned |
@@ -204,7 +204,7 @@ The university model does not fit a primary or secondary school. `School.academi
 
 ---
 
-## Phase 3 — Org hierarchy, task system, notifications, new shell
+## Phase 3 — Org hierarchy, task system, notifications, new shell ✅
 
 The SharePoint-like layer.
 
@@ -219,6 +219,78 @@ The SharePoint-like layer.
 **Notifications** — `Notification` model, fan-out on task assigned/due/escalated, grade posted, forum reply, application decision. Bell in the top bar. Channel abstraction stubbed for email later.
 
 **Shell MVP** — sidebar navigation, top bar, notification bell, role-aware `/home` start page. New modules land in the new shell; legacy pages migrate in Phase 6.
+
+### What shipped, and what was verified
+
+**Scoped to the two universities** at your request. The K-12 school has the schema and the
+services but no seeded tasks — nothing about the design is higher-education-specific, so
+turning it on there later is seed data, not code.
+
+**Two pure modules**, 72 tests:
+
+- `src/lib/domain/org.ts` — subordinate resolution, manager chain, cycle prevention, org-unit
+  forest. Every traversal is iterative and cycle-guarded, because `managerId` is editable
+  through a form and two individually-reasonable edits produce a loop.
+- `src/lib/domain/tasks.ts` — lateness, escalation, completion statistics, workload balance,
+  visibility predicates, ordering.
+
+**The decisions worth recording** (all in [ALGORITHMS.md](ALGORITHMS.md) §18-22):
+
+| Decision | Why the obvious alternative is wrong |
+|---|---|
+| SUBMITTED is a distinct state from COMPLETED | Otherwise "the lecturer says they submitted grades" and "grades are in" are the same fact, and a dean's dashboard reports intentions |
+| Only the **assigner** may accept | An assignee accepting their own work makes SUBMITTED decorative |
+| "is overdue" ≠ "was late" | Listing finished-but-late work as overdue sends someone to chase a completed task |
+| Cancelled work leaves the completion denominator | Otherwise a manager can depress a subordinate's numbers by raising and dropping tasks |
+| Empty denominators return `null`, not `0` | 0% is a finding; null is the absence of one. Rendering an empty record as 0% puts a new lecturer on a watch list in their first week |
+| Fair allocation ranks by **utilisation**, not raw load | A half-time lecturer at 6/9 hours is fuller than a professor at 9/18 |
+| Escalation grace varies by priority, and fires **once** | One threshold for everything trains people to ignore the notification |
+| Visibility is a **relationship** predicate, not a role | "A dean may see a lecturer's task" is a fact about the reporting line; it cannot live in `rbac.ts` |
+
+**Managers can see but not edit.** A dean who can follow a lecturer's whole queue should not be
+silently editing items in it — the visible act of reassigning is what makes the hierarchy
+legible to the person being managed.
+
+**Allocating a section raises TWO tasks**, not one: teaching (due at term start) and grade
+submission (due a fortnight after term ends). They have different deadlines and get chased at
+different points; collapsing them means the teaching task sits open for four months telling
+nobody anything.
+
+**Reallocating supersedes rather than deletes.** The previous holder's open tasks are cancelled
+so they leave that person's queue, but the history stays — a dean investigating a section that
+went wrong needs to know it was once asked of someone else.
+
+**Verified live**, production build, seven minted sessions across both universities:
+
+| Check | Result |
+|---|---|
+| Transitive team resolution | Dean sees 3 (1 direct + 2 marked *indirect*); the HOD between them sees 2; Meridian's HOD sees 1 |
+| A lecturer with no reports | Gets an explanation panel, not a 403 — having no subordinates is ordinary |
+| Record-level visibility | Assignee ✓, their manager ✓, dean two levels up ✓, unrelated peer **404**, registrar (blanket grant) ✓ |
+| Cross-school isolation | Prof. Okafor's Golden Eagles queue holds CSC/MTH/EEE sections; her Meridian queue holds only DAT201-A. Her GEU session **404s** on a Meridian task |
+| Accept permission | The assignee sees no "Accept as complete" and is told why; the dean who raised it does; the manager in between can see the task but not change it |
+| Escalation fan-out | 12 escalations → 22 notifications: assignee plus manager, except the 2 tasks belonging to the Dean, who has nobody above them |
+| Workload imbalance | Correctly flags "Balogun is carrying 67% while Eze is at 22%", spread 44 points, against per-rank ceilings |
+
+**Defect found and fixed — in the seed, not the code.** Two of the four dashboard figures read
+0% and 0d. Both were arithmetically correct: every seeded task was created and completed in the
+same instant, so turnaround was genuinely zero and every past deadline was genuinely missed. The
+seed now backdates completed work so both branches of the lateness rule are exercised — on-time
+delivery reads 75%, turnaround 20.3 days. A seed that makes correct software look broken is
+worse than no seed.
+
+**Known modelling wrinkle, deliberately left:** a "Teach CSC201-B" task due at term start shows
+as overdue two weeks into term for a lecturer who is plainly teaching it. That is the rule
+working — the task means *confirm you have picked this up by term start* — but the wording
+invites the wrong reading. Worth revisiting when the task templates are made configurable.
+
+**Not exercised end-to-end:** the form submissions (raise, transition, comment, reassign,
+allocate) run through their services — the seed calls `createTask`, `transitionTask` and
+`allocateSection` directly — but were not posted through the rendered HTML forms, which need a
+live Next.js server-action handshake.
+
+282 tests green · `tsc --noEmit` clean · production build clean.
+
 
 ---
 

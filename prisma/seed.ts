@@ -994,21 +994,131 @@ async function main() {
   });
   console.log(`    report cards: ${run.message} (${run.promoted} promoted, ${run.repeating} repeating, ${run.underReview} under review)`);
 
-  // --- reporting lines -------------------------------------------------------
-  // The Dean's direct reports, so the hierarchy has something real in it before
-  // the task system arrives.
-  const dean = await db.membership.findFirst({
-    where: { schoolId: geu.schoolId, user: { email: 'a.okafor@geu.edu' } },
+  // --- collaboration layer (Phase 3) -----------------------------------------
+  // Hierarchy, teaching allocation, tasks and notifications, for the two
+  // universities. Everything is created through the real services so a seeded
+  // task cannot disagree with one the application would have raised.
+  console.log('\nSeeding hierarchy, allocations and tasks…');
+  const {
+    seedHierarchy,
+    seedAllocations,
+    seedTaskActivity,
+    seedAdHocTasks,
+  } = await import('./seed-collaboration');
+
+  // --- Golden Eagles: a three-level line under the Dean ----------------------
+  // Dean → two heads of department → the lecturers under each. Three levels is
+  // the minimum that makes transitive resolution mean anything: with only two,
+  // "my team" and "my direct reports" are the same set and a bug between them
+  // is invisible.
+  const geuCtx = { db, schoolId: geu.schoolId, day };
+  await seedHierarchy(geuCtx, {
+    lines: {
+      'a.okafor@geu.edu':   { manager: null,               unit: 'SCI', title: 'Dean, Faculty of Science' },
+      'f.dauda@geu.edu':    { manager: 'a.okafor@geu.edu', unit: 'MTH', title: 'Head of Department, Mathematics' },
+      'e.balogun@geu.edu':  { manager: 'f.dauda@geu.edu',  unit: 'CSC', title: 'Senior Lecturer' },
+      'o.eze@geu.edu':      { manager: 'f.dauda@geu.edu',  unit: 'EEE', title: 'Lecturer' },
+      'registrar@geu.edu':  { manager: null,               unit: null,  title: 'Registrar' },
+      'library@geu.edu':    { manager: 'registrar@geu.edu', unit: null, title: 'University Librarian' },
+      'bursary@geu.edu':    { manager: null,               unit: null,  title: 'Bursar' },
+      'admissions@geu.edu': { manager: 'registrar@geu.edu', unit: null, title: 'Head of Admissions' },
+    },
+    heads: { SCI: 'a.okafor@geu.edu', MTH: 'f.dauda@geu.edu' },
   });
-  if (dean) {
-    await db.membership.updateMany({
-      where: {
-        schoolId: geu.schoolId,
-        role: 'INSTRUCTOR',
-        id: { not: dean.id },
+
+  const geuAlloc = await seedAllocations(geuCtx, {
+    deanEmail: 'a.okafor@geu.edu',
+    termIds: [geu.termIds.t2, geu.termIds.t3],
+  });
+  const geuMoved = await seedTaskActivity(geuCtx, {
+    deanEmail: 'a.okafor@geu.edu',
+    staffEmails: ['e.balogun@geu.edu', 'f.dauda@geu.edu', 'o.eze@geu.edu'],
+  });
+  const geuAdHoc = await seedAdHocTasks(geuCtx, {
+    deanEmail: 'a.okafor@geu.edu',
+    items: [
+      {
+        to: 'e.balogun@geu.edu',
+        title: 'Revise CSC201 syllabus for accreditation',
+        description: 'The accreditation panel flagged the data-structures outline as thin on complexity analysis. Revise and return for faculty review.',
+        priority: 'HIGH',
+        dueInDays: -9,
       },
-      data: { managerId: dean.id },
-    });
+      {
+        to: 'o.eze@geu.edu',
+        title: 'Submit laboratory equipment inventory',
+        description: 'Annual return for the electrical engineering teaching laboratory.',
+        priority: 'URGENT',
+        dueInDays: -2,
+      },
+      {
+        to: 'f.dauda@geu.edu',
+        title: 'Nominate external examiner for MTH301',
+        description: 'Two names with affiliations and a short justification for each.',
+        priority: 'NORMAL',
+        dueInDays: 5,
+      },
+      {
+        to: 'e.balogun@geu.edu',
+        title: 'Faculty board paper: intake projections',
+        description: 'One page on projected computer science intake for the coming session.',
+        priority: 'LOW',
+        dueInDays: 21,
+      },
+    ],
+  });
+  console.log(`  GEU  allocations ${geuAlloc.allocated} (skipped ${geuAlloc.skipped}) · task moves ${geuMoved.moved} · ad-hoc ${geuAdHoc}`);
+
+  // --- Meridian: a smaller, flatter department -------------------------------
+  // Two academics, one of whom is the GEU Dean wearing a different hat. That
+  // person's Meridian tasks must never appear in their Golden Eagles queue,
+  // which is the property tasks-keyed-on-membership exists to guarantee.
+  const mitCtx = { db, schoolId: mit.schoolId, day };
+  await seedHierarchy(mitCtx, {
+    lines: {
+      'n.owusu@meridian.edu.gh':   { manager: null,                     unit: 'TECH', title: 'Head of Department, Software Engineering' },
+      'a.okafor@geu.edu':          { manager: 'n.owusu@meridian.edu.gh', unit: 'DAT', title: 'Visiting Professor' },
+      'registrar@meridian.edu.gh': { manager: null,                     unit: null,  title: 'Registrar' },
+      'finance@meridian.edu.gh':   { manager: null,                     unit: null,  title: 'Finance Officer' },
+    },
+    heads: { TECH: 'n.owusu@meridian.edu.gh' },
+  });
+
+  const mitAlloc = await seedAllocations(mitCtx, {
+    deanEmail: 'n.owusu@meridian.edu.gh',
+    termIds: [mit.termIds.t2, mit.termIds.t3],
+  });
+  const mitMoved = await seedTaskActivity(mitCtx, {
+    deanEmail: 'n.owusu@meridian.edu.gh',
+    staffEmails: ['a.okafor@geu.edu'],
+  });
+  const mitAdHoc = await seedAdHocTasks(mitCtx, {
+    deanEmail: 'n.owusu@meridian.edu.gh',
+    items: [
+      {
+        to: 'a.okafor@geu.edu',
+        title: 'Design the DAT201 capstone brief',
+        description: 'A machine-learning capstone the second-year cohort can complete in eight weeks.',
+        priority: 'HIGH',
+        dueInDays: 10,
+      },
+      {
+        to: 'a.okafor@geu.edu',
+        title: 'Confirm visiting-teaching dates for next semester',
+        description: 'Meridian needs your availability before the timetable is published.',
+        priority: 'NORMAL',
+        dueInDays: -1,
+      },
+    ],
+  });
+  console.log(`  MIT  allocations ${mitAlloc.allocated} (skipped ${mitAlloc.skipped}) · task moves ${mitMoved.moved} · ad-hoc ${mitAdHoc}`);
+
+  // An escalation sweep, so overdue work has actually escalated and the bell
+  // has something in it on first sign-in.
+  const { runEscalationSweep } = await import('../src/server/services/task.service');
+  for (const s of [geu, mit]) {
+    const sweep = await runEscalationSweep(s.schoolId);
+    console.log(`  sweep ${s.school.code}: examined ${sweep.examined}, escalated ${sweep.escalated}, reminded ${sweep.reminded}`);
   }
 
   // --- platform operator -----------------------------------------------------

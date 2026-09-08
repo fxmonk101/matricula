@@ -632,6 +632,146 @@ allocation algorithm for instalment plans.
 
 ---
 
+## 18. Subordinate resolution (iterative BFS)
+
+```
+INPUT   reporting edges[], rootMembershipId
+OUTPUT  every membership below root, transitively
+
+  childrenOf ← index edges by managerId
+  visited    ← {}
+  queue      ← childrenOf[root]
+
+  while queue not empty:
+      node ← queue.shift()
+      skip if node ∈ visited        // diamond, or a cycle on its second lap
+      skip if node = root           // a cycle through the root
+      visited += node
+      queue += childrenOf[node]
+```
+
+**O(V + E), one index build.** The recursive alternative costs a database round trip per level
+of hierarchy and cannot detect a cycle without extra bookkeeping.
+
+**`visited` is both the result and the cycle guard.** `Membership.managerId` is editable through
+a form, so two individually-reasonable edits ("A reports to B", "B reports to A") produce a cycle.
+An unguarded traversal of one hangs the request thread that finds it, turning a data-entry
+mistake into an outage. Iterative rather than recursive for the same reason: a cycle would blow
+the stack before any depth guard ran.
+
+**The root is excluded from its own subordinate set**, or "show my team's tasks" would include
+the manager's own queue.
+
+---
+
+## 19. Task lateness
+
+```
+INPUT   { status, dueAt, completedAt }, now
+OUTPUT  { isOverdue, wasLate, daysLate, daysRemaining }
+
+  if dueAt = null            -> neither         // an open-ended request cannot be missed
+  if status = CANCELLED      -> neither         // withdrawn work was never owed
+  if status is closed:
+      at        ← completedAt ?? dueAt
+      wasLate   ← at > dueAt
+      isOverdue ← false
+  else:
+      isOverdue ← now > dueAt
+      wasLate   ← false
+```
+
+**O(1).**
+
+**"Is overdue" and "was late" are different facts.** A task completed two days after its deadline
+is not overdue — there is nothing left to chase, and listing it under "overdue" sends someone to
+ask about finished work. But it *was* late, and a term-end report that forgets that is flattering
+rather than useful. So lateness is measured against `completedAt` once closed and against `now`
+while open.
+
+**A missing `completedAt` counts as on time.** Inferring "it must have been late" from a null
+would put a mark against a person on the strength of absent data.
+
+---
+
+## 20. Completion statistics
+
+```
+completionRate = completed / (total − cancelled)
+onTimeRate     = onTime    / (completed tasks that HAD a deadline)
+```
+
+**Both denominators are chosen against the obvious one.**
+
+Cancelled tasks leave the completion denominator. Counting work against the person you withdrew
+it from is indefensible, and it would let a manager depress a subordinate's numbers by raising
+and dropping tasks.
+
+Tasks with no deadline leave the on-time denominator. They cannot be late, so including them
+inflates every rate towards 100% in proportion to how vague the assigner was.
+
+**Both return `null`, not `0`, on an empty denominator.** Zero is a finding — "this person
+delivers nothing on time". Null is the absence of one. Rendering an empty record as 0% puts a
+new lecturer on a dean's watch list in their first week.
+
+---
+
+## 21. Fair teaching allocation (least-utilised-first)
+
+```
+INPUT   staff[] with { assignedUnits, capacityUnits, assignedItems, name }, units
+OUTPUT  the staff member who should take the work, or null
+
+  eligible ← staff where (capacityUnits − assignedUnits) ≥ units
+  return null if eligible empty
+  sort by utilisation asc, then assignedItems asc, then name asc
+  return first
+```
+
+**O(n log n).**
+
+**Ranks by utilisation, not raw load.** Raw load hands the next section to whoever teaches fewest
+hours, which is wrong whenever contracts differ: a half-time lecturer at 6 of 9 hours is fuller
+than a professor at 9 of 18, and the professor is the fair answer despite teaching more.
+
+**Zero capacity means unavailable, not infinitely available** — utilisation is forced to 1 so
+someone on leave is never proposed.
+
+**Candidates without headroom are excluded, not sorted last.** This is a proposal, and proposing
+work that breaks a contractual ceiling is worse than proposing nobody. An empty result means
+"everyone is full", which is a real and actionable answer.
+
+**Ties break deterministically** (fewer sections, then name). A suggestion that reshuffles between
+two identical page loads is not one a dean will trust twice.
+
+**It suggests; it never assigns.** Specialism, research leave and departmental politics are
+invisible to the calculation, so the human stays in the loop by construction.
+
+---
+
+## 22. Escalation
+
+```
+INPUT   task, now, policy { graceDays per priority, remindBeforeDays }
+OUTPUT  NONE | REMIND | ESCALATE
+
+  closed or no deadline                    -> NONE
+  overdue and alreadyEscalated             -> NONE
+  overdue by ≥ graceDays[priority]         -> ESCALATE   (tell the manager)
+  due within remindBeforeDays              -> REMIND     (tell the assignee)
+  otherwise                                -> NONE
+```
+
+**O(1) per task; the sweep is O(n) over open tasks with a deadline.**
+
+**The grace gradient is the point** — URGENT 0 days, HIGH 1, NORMAL 3, LOW 7. Escalating
+everything at one threshold trains a dean to ignore the notification entirely.
+
+**`escalatedAt` makes the sweep idempotent.** A task that escalates once an hour until someone
+acts is one everyone filters out of their inbox, and the signal becomes worth less than silence.
+Reminders are deliberately allowed to repeat; escalations are not.
+
+
 ## Appendix A — Why money is never a float
 
 ```js

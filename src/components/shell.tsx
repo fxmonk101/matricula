@@ -6,6 +6,7 @@ import type { SessionClaims } from '@/lib/auth/jwt';
 import type { School } from '@/server/tenant-context';
 import { NavLink } from './nav-link';
 import { SignOutButton } from './sign-out-button';
+import { NotificationBell, type BellItem } from './notification-bell';
 
 /**
  * Navigation is derived from the session role rather than rendered-then-hidden.
@@ -32,6 +33,9 @@ const NAV: NavItem[] = [
   { href: '/admissions', label: 'Admissions', roles: ['ADMIN', 'ADMISSIONS', 'REGISTRAR'] },
   { href: '/finance', label: 'Finance', roles: ['ADMIN', 'FINANCE', 'REGISTRAR'] },
   { href: '/teaching', label: 'My Teaching', roles: ['INSTRUCTOR', 'ADMIN'] },
+  { href: '/tasks', label: 'Tasks', roles: ['ADMIN', 'REGISTRAR', 'FINANCE', 'ADMISSIONS', 'INSTRUCTOR', 'LIBRARIAN', 'STAFF'] },
+  { href: '/team', label: 'My Team', roles: ['ADMIN', 'REGISTRAR', 'INSTRUCTOR'] },
+  { href: '/org', label: 'Organisation', roles: ['ADMIN', 'REGISTRAR', 'INSTRUCTOR'] },
   { href: '/me', label: 'My Record', roles: ['STUDENT'] },
   { href: '/me/registration', label: 'Registration', roles: ['STUDENT'] },
   { href: '/me/finance', label: 'My Fees', roles: ['STUDENT'] },
@@ -43,10 +47,14 @@ const NAV: NavItem[] = [
 export function AppShell({
   session,
   school,
+  notifications,
+  unreadCount,
   children,
 }: {
   session: SessionClaims;
   school: School;
+  notifications: BellItem[];
+  unreadCount: number;
   children: React.ReactNode;
 }) {
   // Filtered by BOTH role and academic model: a K-12 school should never see
@@ -77,6 +85,7 @@ export function AppShell({
           </Link>
 
           <div className="ml-auto flex items-center gap-3">
+            <NotificationBell items={notifications} unread={unreadCount} />
             <div className="hidden text-right sm:block">
               <p className="text-xs font-medium leading-tight text-slate-900">{session.name}</p>
               <p className="text-[11px] leading-tight text-slate-500">

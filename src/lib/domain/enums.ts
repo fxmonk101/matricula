@@ -233,3 +233,101 @@ export function assertApplicationTransition(
     throw new Error(`Illegal application transition: ${from} -> ${to}`);
   }
 }
+
+// -----------------------------------------------------------------------------
+// Tasks (Phase 3)
+// -----------------------------------------------------------------------------
+
+export const TASK_STATUSES = [
+  'OPEN',
+  'IN_PROGRESS',
+  'BLOCKED',
+  'SUBMITTED',
+  'COMPLETED',
+  'CANCELLED',
+] as const;
+export type TaskStatus = (typeof TASK_STATUSES)[number];
+
+/**
+ * Legal transitions of the task state machine.
+ *
+ * Three properties are deliberate:
+ *
+ * 1. **SUBMITTED is not COMPLETED.** Work an assignee declares finished is not
+ *    the same as work the assigner has accepted. Collapsing the two would make
+ *    "the teacher says they submitted grades" and "grades are in" the same
+ *    fact, and a dean's dashboard would then be a report of intentions.
+ * 2. **COMPLETED can reopen.** Acceptance is reversible for as long as the
+ *    thing itself is — a gradesheet accepted in error must be re-openable
+ *    without fabricating a second task.
+ * 3. **CANCELLED is terminal.** A task withdrawn by the assigner is not
+ *    resurrected; a new one is raised. That keeps the audit trail honest about
+ *    what was asked and when.
+ */
+export const TASK_TRANSITIONS: Record<TaskStatus, TaskStatus[]> = {
+  OPEN: ['IN_PROGRESS', 'BLOCKED', 'SUBMITTED', 'CANCELLED'],
+  IN_PROGRESS: ['BLOCKED', 'SUBMITTED', 'OPEN', 'CANCELLED'],
+  BLOCKED: ['IN_PROGRESS', 'OPEN', 'CANCELLED'],
+  SUBMITTED: ['COMPLETED', 'IN_PROGRESS', 'CANCELLED'],
+  COMPLETED: ['IN_PROGRESS'],
+  CANCELLED: [],
+};
+
+/** Statuses that stop the clock — an overdue calculation ignores these. */
+export const TASK_CLOSED_STATUSES: readonly TaskStatus[] = ['COMPLETED', 'CANCELLED'];
+
+export const TASK_PRIORITIES = ['LOW', 'NORMAL', 'HIGH', 'URGENT'] as const;
+export type TaskPriority = (typeof TASK_PRIORITIES)[number];
+
+export const TASK_KINDS = [
+  /** Teach this section this term. Raised automatically on assignment. */
+  'COURSE_ASSIGNMENT',
+  /** Submit and post the gradesheet for a section. */
+  'GRADE_SUBMISSION',
+  /** Produce or supply a document. */
+  'DOCUMENT_REQUEST',
+  /** New staff or student onboarding step. */
+  'ONBOARDING',
+  /** Review reported content. */
+  'MODERATION',
+  /** Review a batch of applications. */
+  'ADMISSIONS_REVIEW',
+  /** Anything a manager types themselves. */
+  'GENERAL',
+] as const;
+export type TaskKind = (typeof TASK_KINDS)[number];
+
+export const TASK_EVENT_KINDS = [
+  'CREATED',
+  'STATUS_CHANGED',
+  'REASSIGNED',
+  'DUE_DATE_CHANGED',
+  'PRIORITY_CHANGED',
+  'COMMENTED',
+  'ESCALATED',
+] as const;
+export type TaskEventKind = (typeof TASK_EVENT_KINDS)[number];
+
+export function assertTaskTransition(from: TaskStatus, to: TaskStatus): void {
+  if (!TASK_TRANSITIONS[from]?.includes(to)) {
+    throw new Error(`Illegal task transition: ${from} -> ${to}`);
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Notifications (Phase 3)
+// -----------------------------------------------------------------------------
+
+export const NOTIFICATION_KINDS = [
+  'TASK_ASSIGNED',
+  'TASK_DUE_SOON',
+  'TASK_OVERDUE',
+  'TASK_ESCALATED',
+  'TASK_COMMENTED',
+  'TASK_COMPLETED',
+  'GRADES_POSTED',
+  'APPLICATION_DECIDED',
+  'INVOICE_ISSUED',
+  'ANNOUNCEMENT',
+] as const;
+export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];

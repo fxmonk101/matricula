@@ -82,6 +82,8 @@ model School {
   memberships       Membership[]
   orgUnits          OrgUnit[]
   identityProviders IdentityProvider[]
+  tasks             Task[]
+  notifications     Notification[]
 
   @@index([status])
   @@map("schools")
@@ -152,6 +154,14 @@ model Membership {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  // --- collaboration (Phase 3) ---
+  assignedTasks Task[]         @relation("TaskAssignee")
+  raisedTasks   Task[]         @relation("TaskAssigner")
+  taskComments  TaskComment[]
+  taskEvents    TaskEvent[]
+  taskWatching  TaskWatcher[]
+  notifications Notification[]
+
   @@unique([userId, schoolId])
   @@index([schoolId, role])
   @@index([managerId])
@@ -192,6 +202,7 @@ model OrgUnit {
   createdAt DateTime @default(now())
 
   memberships Membership[]
+  tasks       Task[]
 
   @@unique([schoolId, code])
   @@index([schoolId, parentId])
@@ -1245,4 +1256,159 @@ model GuardianStudent {
   @@unique([guardianId, studentId])
   @@index([schoolId, studentId])
   @@map("guardian_students")
+}
+
+// =============================================================================
+// SECTION 4 — COLLABORATION: TASKS AND NOTIFICATIONS (Phase 3)
+// =============================================================================
+
+/// A unit of assigned work.
+///
+/// Assignee and assigner are MEMBERSHIPS, not users. A task belongs to someone
+/// in their capacity at one school: the professor who is a Dean at Golden
+/// Eagles and a visiting lecturer at Meridian must not see one institution's
+/// work in the other's queue, and keying on the user would do exactly that.
+model Task {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  title       String
+  description String?
+
+  /// TaskKind: COURSE_ASSIGNMENT | GRADE_SUBMISSION | DOCUMENT_REQUEST | ONBOARDING | MODERATION | ADMISSIONS_REVIEW | GENERAL
+  kind String @default("GENERAL")
+  /// TaskStatus: OPEN | IN_PROGRESS | BLOCKED | SUBMITTED | COMPLETED | CANCELLED
+  status String @default("OPEN")
+  /// TaskPriority: LOW | NORMAL | HIGH | URGENT
+  priority String @default("NORMAL")
+
+  /// Nullable so a task can outlive the membership it was assigned to — an
+  /// unassigned task is a real state ("nobody is on this"), and cascading it
+  /// away would erase the record that the work was ever asked for.
+  assigneeId String?
+  assignee   Membership? @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  assignerId String?
+  assigner   Membership? @relation("TaskAssigner", fields: [assignerId], references: [id], onDelete: SetNull)
+
+  /// Optional scoping to a faculty, department or team.
+  orgUnitId String?
+  orgUnit   OrgUnit? @relation(fields: [orgUnitId], references: [id], onDelete: SetNull)
+
+  /// What the task is ABOUT, as a loose reference rather than a foreign key:
+  /// the subject may be a course offering, an application, an invoice or a
+  /// forum post, and a nullable FK per kind would add a column per feature.
+  /// The trade-off is explicit — no referential integrity on this pair, so
+  /// readers must tolerate a dangling reference.
+  subjectType String?
+  subjectId   String?
+
+  dueAt       DateTime?
+  startedAt   DateTime?
+  submittedAt DateTime?
+  completedAt DateTime?
+  /// Set once when the manager is notified, so escalation cannot repeat daily.
+  escalatedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  comments TaskComment[]
+  events   TaskEvent[]
+  watchers TaskWatcher[]
+
+  @@index([schoolId, assigneeId, status])
+  @@index([schoolId, status, dueAt])
+  @@index([schoolId, subjectType, subjectId])
+  @@map("tasks")
+}
+
+model TaskComment {
+  id       String @id @default(cuid())
+  schoolId String
+  taskId   String
+  task     Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  authorId String
+  author   Membership @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  body     String
+
+  createdAt DateTime @default(now())
+
+  @@index([taskId, createdAt])
+  @@map("task_comments")
+}
+
+/// Append-only history. Never updated, never deleted while the task lives —
+/// "who changed the due date, and when" is the question that gets asked when a
+/// deadline is disputed, and it cannot be answered from current state.
+model TaskEvent {
+  id       String @id @default(cuid())
+  schoolId String
+  taskId   String
+  task     Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  /// TaskEventKind: CREATED | STATUS_CHANGED | REASSIGNED | DUE_DATE_CHANGED | PRIORITY_CHANGED | COMMENTED | ESCALATED
+  kind String
+  /// Null for a system-initiated event such as an automatic escalation.
+  actorId String?
+  actor   Membership? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  fromValue String?
+  toValue   String?
+  summary   String
+
+  createdAt DateTime @default(now())
+
+  @@index([taskId, createdAt])
+  @@map("task_events")
+}
+
+/// Someone following a task they neither own nor assigned.
+model TaskWatcher {
+  id       String @id @default(cuid())
+  schoolId String
+  taskId   String
+  task     Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  membershipId String
+  membership   Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+
+  @@unique([taskId, membershipId])
+  @@index([membershipId])
+  @@map("task_watchers")
+}
+
+/// An in-app notification for one membership.
+///
+/// Denormalised on purpose: `title`, `body` and `href` are copied at fan-out
+/// rather than resolved at read time. A notification is a record of what was
+/// said WHEN IT WAS SENT — re-deriving it later would silently rewrite history
+/// as the underlying task changed, and would make the bell a fan of joins.
+model Notification {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  membershipId String
+  membership   Membership @relation(fields: [membershipId], references: [id], onDelete: Cascade)
+
+  /// NotificationKind: TASK_ASSIGNED | TASK_DUE_SOON | TASK_OVERDUE | TASK_ESCALATED | TASK_COMMENTED | TASK_COMPLETED | GRADES_POSTED | APPLICATION_DECIDED | INVOICE_ISSUED | ANNOUNCEMENT
+  kind  String
+  title String
+  body  String?
+  /// Where the bell sends them. Relative to the app root.
+  href  String?
+
+  subjectType String?
+  subjectId   String?
+
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([membershipId, readAt, createdAt])
+  @@index([schoolId, createdAt])
+  @@map("notifications")
 }
