@@ -31,3 +31,8 @@ coverage/
 
 next-env.d.ts
 tsconfig.tsbuildinfo
+
+# Scratch files from interactive sessions.
+*.tmp.mts
+*.tmp.cjs
+*.tmp.html
