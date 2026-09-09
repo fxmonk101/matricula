@@ -102,7 +102,9 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     heading: 'School',
     items: [
-      { href: '/settings/school', label: 'Setup', roles: ['ADMIN'], icon: 'cog' },
+      { href: '/setup', label: 'Get Started', roles: ['ADMIN'], icon: 'check' },
+      { href: '/people', label: 'People', roles: ['ADMIN', 'REGISTRAR'], icon: 'team' },
+      { href: '/settings/school', label: 'Settings', roles: ['ADMIN'], icon: 'cog' },
       { href: '/admin/audit', label: 'Audit Log', roles: ['ADMIN'], icon: 'doc' },
     ],
   },

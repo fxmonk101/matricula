@@ -57,6 +57,44 @@ export const PERMISSIONS = [
 export type Permission = (typeof PERMISSIONS)[number];
 
 /**
+ * Everything a school administrator holds. Named because OWNER is built from
+ * it — see below.
+ */
+const ADMIN_PERMISSIONS: readonly Permission[] = [
+  'student:read', 'student:write',
+  'instructor:read', 'instructor:write',
+  'course:read', 'course:write',
+  'offering:read', 'offering:write', 'term:write',
+  'enrollment:read:any', 'enrollment:write:any',
+  'grade:read:any', 'grade:override',
+  'transcript:read:any',
+  'application:read:any', 'application:decide', 'application:convert',
+  'invoice:read:any', 'invoice:write', 'payment:record', 'payment:read:any', 'fee:configure',
+  'hold:manage', 'user:manage', 'audit:read', 'announcement:write',
+  'school:config:read', 'school:config:write', 'org:read', 'org:manage', 'directory:read',
+  'class:read', 'class:manage', 'report:generate', 'attendance:record',
+  'task:read:own', 'task:create', 'task:assign', 'task:admin', 'team:read', 'notification:read',
+  'forum:read', 'forum:post', 'forum:moderate',
+  'library:read', 'library:manage', 'library:analytics',
+  // Running a school means adding and removing the people in it. These are
+  // held by ADMIN as well as OWNER: an administrator who cannot enrol a
+  // teacher is not an administrator. What an admin cannot do is act on the
+  // OWNER's own record, and that is enforced per-ROW in the people service,
+  // because it is a fact about the row and not about the actor's role.
+  'user:create', 'user:role:set', 'user:suspend', 'user:password:reset',
+];
+
+/**
+ * What an OWNER holds that an ADMIN does not.
+ *
+ * Two things, and they are the two an administrator must not be able to do
+ * unilaterally: end the school's relationship with the vendor, and see what it
+ * is being charged. Everything else an owner can do, an admin can do — with the
+ * single per-record exception that only an owner may act on the owner.
+ */
+const OWNER_ONLY_PERMISSIONS: readonly Permission[] = ['school:delete', 'subscription:read'];
+
+/**
  * The authorisation matrix.
  *
  * Note that ADMIN is NOT granted `grade:submit`. An administrator can override
@@ -65,50 +103,13 @@ export type Permission = (typeof PERMISSIONS)[number];
  */
 export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
   /**
-   * The school's super administrator. Everything ADMIN has, plus the four
-   * user-management grants, destructive deletes and subscription visibility.
-   *
-   * The asymmetry that matters is not in this table: an ADMIN holds no
-   * `user:role:set`, so an admin cannot demote the owner. That an OWNER also
-   * cannot be removed by an admin is enforced per-record in the people
-   * service, because it is a fact about a ROW, not about a role.
+   * The school's super administrator. Composed from ADMIN rather than restating
+   * it: the two lists were duplicated line for line, which is a guarantee that
+   * a permission added to one will one day be missing from the other.
    */
-  OWNER: [
-    'student:read', 'student:write',
-    'instructor:read', 'instructor:write',
-    'course:read', 'course:write',
-    'offering:read', 'offering:write', 'term:write',
-    'enrollment:read:any', 'enrollment:write:any',
-    'grade:read:any', 'grade:override',
-    'transcript:read:any',
-    'application:read:any', 'application:decide', 'application:convert',
-    'invoice:read:any', 'invoice:write', 'payment:record', 'payment:read:any', 'fee:configure',
-    'hold:manage', 'user:manage', 'audit:read', 'announcement:write',
-    'school:config:read', 'school:config:write', 'org:read', 'org:manage', 'directory:read',
-    'class:read', 'class:manage', 'report:generate', 'attendance:record',
-    'task:read:own', 'task:create', 'task:assign', 'task:admin', 'team:read', 'notification:read',
-    'forum:read', 'forum:post', 'forum:moderate',
-    'library:read', 'library:manage', 'library:analytics',    'user:create', 'user:role:set', 'user:suspend', 'user:password:reset',
-    'school:delete', 'subscription:read',
-  ],
+  OWNER: [...ADMIN_PERMISSIONS, ...OWNER_ONLY_PERMISSIONS],
 
-  ADMIN: [
-    'student:read', 'student:write',
-    'instructor:read', 'instructor:write',
-    'course:read', 'course:write',
-    'offering:read', 'offering:write', 'term:write',
-    'enrollment:read:any', 'enrollment:write:any',
-    'grade:read:any', 'grade:override',
-    'transcript:read:any',
-    'application:read:any', 'application:decide', 'application:convert',
-    'invoice:read:any', 'invoice:write', 'payment:record', 'payment:read:any', 'fee:configure',
-    'hold:manage', 'user:manage', 'audit:read', 'announcement:write',
-    'school:config:read', 'school:config:write', 'org:read', 'org:manage', 'directory:read',
-    'class:read', 'class:manage', 'report:generate', 'attendance:record',
-    'task:read:own', 'task:create', 'task:assign', 'task:admin', 'team:read', 'notification:read',
-    'forum:read', 'forum:post', 'forum:moderate',
-    'library:read', 'library:manage', 'library:analytics',
-  ],
+  ADMIN: ADMIN_PERMISSIONS,
 
   REGISTRAR: [
     'class:read', 'class:manage', 'report:generate', 'attendance:record',
@@ -302,6 +303,8 @@ export const ROUTE_GUARDS: RouteGuard[] = [
   { prefix: '/library', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'FINANCE', 'ADMISSIONS', 'INSTRUCTOR', 'LIBRARIAN', 'STAFF', 'STUDENT'] },
   { prefix: '/library/manage', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'LIBRARIAN'] },
   { prefix: '/forums', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'FINANCE', 'ADMISSIONS', 'INSTRUCTOR', 'LIBRARIAN', 'STAFF', 'STUDENT'] },
+  { prefix: '/people', roles: ['OWNER', 'ADMIN', 'REGISTRAR'] },
+  { prefix: '/setup', roles: ['OWNER', 'ADMIN'] },
   { prefix: '/settings/school', roles: ['OWNER', 'ADMIN'] },
   // Longest-prefix wins, so this stays reachable by a school ADMIN while
   // /admin/platform below is platform-only.

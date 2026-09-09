@@ -10,6 +10,7 @@ import {
   type Role,
 } from '@/lib/domain/enums';
 import { can, roleSatisfies, ROLE_PERMISSIONS } from '@/lib/auth/rbac';
+import { canAssignRole } from '@/lib/domain/people';
 
 describe('public traffic gate', () => {
   it('admits only a live school', () => {
@@ -81,31 +82,59 @@ describe('the OWNER role', () => {
   });
 
   it('holds every permission an ADMIN holds', () => {
-    // The matrix is built by copying ADMIN's, so this pins that it stays a
-    // superset rather than drifting into a different set of grants.
+    // OWNER is composed as [...ADMIN_PERMISSIONS, ...OWNER_ONLY], so this pins
+    // that it stays a superset rather than drifting into a different set.
     for (const permission of ROLE_PERMISSIONS.ADMIN) {
       expect(can('OWNER', permission), `OWNER is missing ${permission}`).toBe(true);
     }
   });
 
-  it('holds the owner-only grants that ADMIN does not', () => {
+  it('holds exactly two grants an ADMIN does not', () => {
+    /*
+     * These two, and only these two.
+     *
+     * The user-management grants were owner-only when OWNER was first added,
+     * and that was wrong: an administrator who cannot enrol a teacher or reset
+     * a pupil's password is not an administrator, and every school would have
+     * ended up running day-to-day on the owner's account — which is exactly
+     * the outcome the role was introduced to prevent.
+     *
+     * What an admin must not be able to do unilaterally is end the school's
+     * relationship with the vendor or see what it is being charged. The other
+     * protection — that only an owner may act on the OWNER's own record — is
+     * per-ROW and lives in `canActOn`, because a permission matrix cannot
+     * express a fact about the row being acted on.
+     */
+    const ownerOnly = ROLE_PERMISSIONS.OWNER.filter((p) => !can('ADMIN', p));
+    expect([...ownerOnly].sort()).toEqual(['school:delete', 'subscription:read']);
+  });
+
+  it('shares the user-management grants with ADMIN', () => {
     for (const permission of [
       'user:create',
       'user:role:set',
       'user:suspend',
       'user:password:reset',
-      'school:delete',
-      'subscription:read',
     ] as const) {
       expect(can('OWNER', permission), `OWNER should hold ${permission}`).toBe(true);
-      expect(can('ADMIN', permission), `ADMIN should not hold ${permission}`).toBe(false);
+      expect(can('ADMIN', permission), `ADMIN should hold ${permission}`).toBe(true);
     }
   });
 
-  it('is the only role that can set another user’s role', () => {
-    // This is what stops an ADMIN demoting the owner and taking the school.
-    const holders = ROLES.filter((r) => can(r as Role, 'user:role:set'));
-    expect(holders).toEqual(['OWNER']);
+  it('keeps billing and deletion to the owner alone', () => {
+    for (const permission of ['school:delete', 'subscription:read'] as const) {
+      const holders = ROLES.filter((r) => can(r as Role, permission));
+      expect(holders, permission).toEqual(['OWNER']);
+    }
+  });
+
+  it('does not let any role hand out OWNER', () => {
+    // The escalation that would matter: an admin promoting themselves, or a
+    // colleague, to owner. `canAssignRole` refuses it for everybody, so there
+    // is no actor for whom it is permitted.
+    for (const role of ROLES) {
+      expect(canAssignRole(role as Role, 'OWNER').allowed, role).toBe(false);
+    }
   });
 });
 

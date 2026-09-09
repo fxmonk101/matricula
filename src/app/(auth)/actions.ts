@@ -183,6 +183,7 @@ export async function signInAction(
     slug: membership.school.slug,
     pid: student?.id ?? instructor?.id ?? applicant?.id ?? undefined,
     pa: user.platformAdmin ? true : undefined,
+    mcp: user.mustChangePassword ? true : undefined,
   });
 
   await platformDb.user.update({
@@ -198,6 +199,12 @@ export async function signInAction(
     entityId: user.id,
     summary: `${user.email} signed in to ${membership.school.name} as ${membership.role}.`,
   });
+
+  // An account on a one-time password goes nowhere else, `next` included. That
+  // password was read aloud or written on a slip; until it is replaced it is a
+  // shared secret, and honouring a deep link here would be a way around the
+  // gate rather than a convenience.
+  if (user.mustChangePassword) redirect('/account/password');
 
   // Only accept a relative path — an absolute URL here would be an open
   // redirect straight out of the login form.

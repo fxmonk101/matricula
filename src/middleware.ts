@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 import { SESSION_COOKIE, verifySession } from '@/lib/auth/jwt';
 import { guardForPath, roleSatisfies } from '@/lib/auth/rbac';
+import { FORCED_PASSWORD_PATH, requiresPasswordChange } from '@/lib/auth/password-gate';
 import { ROLE_HOME } from '@/lib/domain/enums';
 
 /**
@@ -67,10 +68,29 @@ export async function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
+  const session = await verifySession(request.cookies.get(SESSION_COOKIE)?.value);
+
+  /*
+   * FORCED PASSWORD CHANGE
+   *
+   * Checked before the route guard, and therefore on EVERY authenticated path
+   * including unguarded ones and ones nobody has written yet. A gate that only
+   * covered the guarded routes would be a gate with a list of exceptions that
+   * grows every time somebody adds a page.
+   *
+   * An account is in this state because somebody read a one-time password aloud
+   * across an office, or wrote it on a slip and handed it over. Until it is
+   * replaced, that password is a shared secret, so the account does exactly one
+   * thing: replace it. Signing out stays reachable — a person who cannot change
+   * their password and cannot leave is stuck in a loop with no way out, which
+   * is how ERR_TOO_MANY_REDIRECTS happened here once already.
+   */
+  if (requiresPasswordChange(pathname, session)) {
+    return NextResponse.redirect(new URL(FORCED_PASSWORD_PATH, request.url));
+  }
+
   const guard = guardForPath(pathname);
   if (!guard) return NextResponse.next();
-
-  const session = await verifySession(request.cookies.get(SESSION_COOKIE)?.value);
 
   if (!session) {
     const loginUrl = new URL('/login', request.url);

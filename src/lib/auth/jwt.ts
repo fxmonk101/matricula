@@ -25,6 +25,20 @@ export interface SessionClaims extends JWTPayload {
   pid?: string;
   /** Platform operator. Deliberately not a Role. */
   pa?: boolean;
+  /**
+   * The account is on a one-time password and must set its own before doing
+   * anything else.
+   *
+   * A claim rather than a database read because middleware runs on the Edge
+   * runtime with no Prisma client, and this gate must apply to EVERY
+   * authenticated route — including ones nobody has written yet. The staleness
+   * that would matter runs the safe way: the claim can only be stale by saying
+   * "must change" after the password has been changed, and the one action that
+   * clears it re-issues the session in the same request. It can never be stale
+   * in the direction that lets somebody keep using a password read aloud to
+   * them across an office.
+   */
+  mcp?: boolean;
 }
 
 function secretKey(): Uint8Array {
