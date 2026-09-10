@@ -106,7 +106,10 @@ const config: Config = {
       },
     },
   },
-  plugins: [],
+  // Supplies the `animate-in` / `fade-out` / `slide-in-from-*` utilities the
+  // Radix overlays key off their `data-state` with. Without it those classes
+  // are silently inert — the dialogs still work, they just appear instantly.
+  plugins: [require('tailwindcss-animate')],
 };
 
 export default config;

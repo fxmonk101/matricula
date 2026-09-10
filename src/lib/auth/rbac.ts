@@ -404,6 +404,7 @@ export const ROUTE_GUARDS: RouteGuard[] = [
   { prefix: '/library/manage', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'DEAN', 'LIBRARIAN'] },
   { prefix: '/forums', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'FINANCE', 'ADMISSIONS', 'INSTRUCTOR', 'LIBRARIAN', 'STAFF', 'STUDENT'] },
   { prefix: '/people', roles: ['OWNER', 'ADMIN', 'REGISTRAR'] },
+  { prefix: '/structure', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'DEAN', 'HOD'] },
   { prefix: '/timetable', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'INSTRUCTOR', 'STUDENT'] },
   { prefix: '/setup', roles: ['OWNER', 'ADMIN'] },
   { prefix: '/settings/school', roles: ['OWNER', 'ADMIN'] },

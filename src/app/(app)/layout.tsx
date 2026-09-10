@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 
 import { getTenantContext, requireTenantContext } from '@/server/tenant-context';
 import { AppShell } from '@/components/shell';
+import { ToastProvider } from '@/components/ui/overlays';
 import { listNotifications, unreadCount } from '@/server/services/notification.service';
 
 /**
@@ -52,13 +53,18 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   ]);
 
   return (
-    <AppShell
-      session={session}
-      school={school}
-      notifications={notifications}
-      unreadCount={unread}
-    >
-      {children}
-    </AppShell>
+    // The toast viewport lives above the shell so a message survives navigating
+    // between pages — a confirmation that vanishes with the page that caused it
+    // is a confirmation nobody reads.
+    <ToastProvider>
+      <AppShell
+        session={session}
+        school={school}
+        notifications={notifications}
+        unreadCount={unread}
+      >
+        {children}
+      </AppShell>
+    </ToastProvider>
   );
 }
