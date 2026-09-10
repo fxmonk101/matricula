@@ -58,6 +58,23 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
          * React would otherwise report the mismatch it caused itself.
          */}
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+
+        {/*
+         * Scroll-reveal is a progressive enhancement, and this is what makes
+         * that true rather than merely claimed.
+         *
+         * Revealed elements render at `opacity: 0` and are brought in by an
+         * IntersectionObserver. With JavaScript disabled — or blocked, or
+         * simply broken — the observer never runs and the landing page would
+         * be a screen of invisible text. The copy IS in the HTML for search
+         * engines; this makes it visible to people too.
+         */}
+        <noscript
+          dangerouslySetInnerHTML={{
+            __html:
+              '<style>.js-reveal{opacity:1!important;transform:none!important;transition:none!important}</style>',
+          }}
+        />
       </head>
       <body className="min-h-screen font-sans">{children}</body>
     </html>
