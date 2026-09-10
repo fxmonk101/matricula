@@ -16,6 +16,7 @@ import {
 import type { Role } from '@/lib/domain/enums';
 import { assertSeatAvailable } from './platform.service';
 import { recordAudit } from './audit.service';
+import { like } from '@/lib/search-filter';
 
 /**
  * =============================================================================
@@ -540,10 +541,10 @@ export async function listPeople(
       ...(query
         ? {
             OR: [
-              { user: { firstName: { contains: query, mode: 'insensitive' as const } } },
-              { user: { lastName: { contains: query, mode: 'insensitive' as const } } },
-              { user: { email: { contains: query, mode: 'insensitive' as const } } },
-              { title: { contains: query, mode: 'insensitive' as const } },
+              { user: { firstName: like(query) } },
+              { user: { lastName: like(query) } },
+              { user: { email: like(query) } },
+              { title: like(query) },
             ],
           }
         : {}),

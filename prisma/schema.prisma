@@ -36,15 +36,20 @@ generator client {
   provider = "prisma-client-js"
 }
 
+// SQLite for local development; PostgreSQL for production.
+//
+// Prisma requires a literal here — `provider` cannot read an environment
+// variable — so moving to Supabase is a deliberate two-line edit rather than a
+// deployment flag. `docs/DEPLOYMENT.md` has the exact steps, and the generated
+// PostgreSQL baseline is kept at `prisma/postgres-baseline/init.sql` so the
+// switch does not have to be rediscovered.
+//
+//   provider  = "postgresql"
+//   url       = env("DATABASE_URL")   // pooled, pgbouncer, port 6543
+//   directUrl = env("DIRECT_URL")     // direct, port 5432, migrations only
 datasource db {
-  provider = "postgresql"
-  // The POOLED connection (pgbouncer, port 6543). Serverless opens a connection
-  // per invocation, and direct connections per invocation exhaust Postgres'
-  // limit within minutes of real traffic.
+  provider = "sqlite"
   url      = env("DATABASE_URL")
-  // The DIRECT connection (port 5432), used only by `prisma migrate`. DDL and
-  // advisory locks cannot travel through pgbouncer in transaction mode.
-  directUrl = env("DIRECT_URL")
 }
 
 // -----------------------------------------------------------------------------

@@ -6,6 +6,7 @@ import { canReadAudience } from '@/lib/domain/forum';
 import { canAccessResource } from '@/lib/domain/library';
 import { resolveViewer } from '@/server/services/library.service';
 import type { ForumAudience } from '@/lib/domain/enums';
+import { like } from '@/lib/search-filter';
 
 export interface SearchHit {
   id: string;
@@ -41,10 +42,10 @@ export async function globalSearch(query: string): Promise<SearchHit[]> {
     const students = await db.student.findMany({
       where: {
         OR: [
-          { matricNumber: { contains: q, mode: 'insensitive' as const } },
-          { user: { firstName: { contains: q, mode: 'insensitive' as const } } },
-          { user: { lastName: { contains: q, mode: 'insensitive' as const } } },
-          { user: { email: { contains: q, mode: 'insensitive' as const } } },
+          { matricNumber: like(q) },
+          { user: { firstName: like(q) } },
+          { user: { lastName: like(q) } },
+          { user: { email: like(q) } },
         ],
       },
       include: { user: true, program: { select: { code: true } } },
@@ -64,7 +65,7 @@ export async function globalSearch(query: string): Promise<SearchHit[]> {
   // --- curriculum -----------------------------------------------------------
   if (can(role, 'course:read')) {
     const courses = await db.course.findMany({
-      where: { OR: [{ code: { contains: q, mode: 'insensitive' as const } }, { title: { contains: q, mode: 'insensitive' as const } }] },
+      where: { OR: [{ code: like(q) }, { title: like(q) }] },
       take,
     });
     for (const c of courses) {
@@ -85,7 +86,7 @@ export async function globalSearch(query: string): Promise<SearchHit[]> {
   if (can(role, 'task:read:own')) {
     const tasks = await db.task.findMany({
       where: {
-        title: { contains: q, mode: 'insensitive' as const },
+        title: like(q),
         OR: [{ assigneeId: membershipId }, { assignerId: membershipId }],
       },
       take,
@@ -108,7 +109,7 @@ export async function globalSearch(query: string): Promise<SearchHit[]> {
       where: {
         isArchived: false,
         publishedAt: { not: null },
-        OR: [{ title: { contains: q, mode: 'insensitive' as const } }, { authors: { contains: q, mode: 'insensitive' as const } }, { tags: { contains: q, mode: 'insensitive' as const } }],
+        OR: [{ title: like(q) }, { authors: like(q) }, { tags: like(q) }],
       },
       take: take * 3,
     });
@@ -134,7 +135,7 @@ export async function globalSearch(query: string): Promise<SearchHit[]> {
   // --- forums ---------------------------------------------------------------
   if (can(role, 'forum:read')) {
     const threads = await db.thread.findMany({
-      where: { title: { contains: q, mode: 'insensitive' as const }, status: { in: ['OPEN', 'LOCKED'] } },
+      where: { title: like(q), status: { in: ['OPEN', 'LOCKED'] } },
       include: { forum: true },
       take: take * 3,
     });

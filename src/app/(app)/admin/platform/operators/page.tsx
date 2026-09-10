@@ -16,6 +16,7 @@ import {
   Th,
 } from '@/components/ui';
 import { OperatorControls } from './operator-controls';
+import { like } from '@/lib/search-filter';
 
 export const metadata: Metadata = { title: 'Platform — operators' };
 
@@ -56,9 +57,9 @@ export default async function OperatorsPage({
     ? await platformDb.user.findMany({
         where: {
           OR: [
-            { email: { contains: query, mode: 'insensitive' as const } },
-            { firstName: { contains: query, mode: 'insensitive' as const } },
-            { lastName: { contains: query, mode: 'insensitive' as const } },
+            { email: like(query) },
+            { firstName: like(query) },
+            { lastName: like(query) },
           ],
         },
         select: { id: true, email: true, firstName: true, lastName: true },

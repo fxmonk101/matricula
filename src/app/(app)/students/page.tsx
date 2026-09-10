@@ -3,6 +3,7 @@ import Link from 'next/link';
 
 import { requireTenantRole } from '@/server/tenant-context';
 import { titleCase } from '@/lib/utils';
+import { like } from '@/lib/search-filter';
 import {
   Badge,
   Card,
@@ -43,10 +44,10 @@ export default async function StudentsPage({
     ...(q
       ? {
           OR: [
-            { matricNumber: { contains: q, mode: 'insensitive' as const } },
-            { user: { firstName: { contains: q, mode: 'insensitive' as const } } },
-            { user: { lastName: { contains: q, mode: 'insensitive' as const } } },
-            { user: { email: { contains: q, mode: 'insensitive' as const } } },
+            { matricNumber: like(q) },
+            { user: { firstName: like(q) } },
+            { user: { lastName: like(q) } },
+            { user: { email: like(q) } },
           ],
         }
       : {}),
