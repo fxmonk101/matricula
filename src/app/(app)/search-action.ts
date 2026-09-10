@@ -41,10 +41,10 @@ export async function globalSearch(query: string): Promise<SearchHit[]> {
     const students = await db.student.findMany({
       where: {
         OR: [
-          { matricNumber: { contains: q } },
-          { user: { firstName: { contains: q } } },
-          { user: { lastName: { contains: q } } },
-          { user: { email: { contains: q } } },
+          { matricNumber: { contains: q, mode: 'insensitive' as const } },
+          { user: { firstName: { contains: q, mode: 'insensitive' as const } } },
+          { user: { lastName: { contains: q, mode: 'insensitive' as const } } },
+          { user: { email: { contains: q, mode: 'insensitive' as const } } },
         ],
       },
       include: { user: true, program: { select: { code: true } } },
@@ -64,7 +64,7 @@ export async function globalSearch(query: string): Promise<SearchHit[]> {
   // --- curriculum -----------------------------------------------------------
   if (can(role, 'course:read')) {
     const courses = await db.course.findMany({
-      where: { OR: [{ code: { contains: q } }, { title: { contains: q } }] },
+      where: { OR: [{ code: { contains: q, mode: 'insensitive' as const } }, { title: { contains: q, mode: 'insensitive' as const } }] },
       take,
     });
     for (const c of courses) {
@@ -85,7 +85,7 @@ export async function globalSearch(query: string): Promise<SearchHit[]> {
   if (can(role, 'task:read:own')) {
     const tasks = await db.task.findMany({
       where: {
-        title: { contains: q },
+        title: { contains: q, mode: 'insensitive' as const },
         OR: [{ assigneeId: membershipId }, { assignerId: membershipId }],
       },
       take,
@@ -108,7 +108,7 @@ export async function globalSearch(query: string): Promise<SearchHit[]> {
       where: {
         isArchived: false,
         publishedAt: { not: null },
-        OR: [{ title: { contains: q } }, { authors: { contains: q } }, { tags: { contains: q } }],
+        OR: [{ title: { contains: q, mode: 'insensitive' as const } }, { authors: { contains: q, mode: 'insensitive' as const } }, { tags: { contains: q, mode: 'insensitive' as const } }],
       },
       take: take * 3,
     });
@@ -134,7 +134,7 @@ export async function globalSearch(query: string): Promise<SearchHit[]> {
   // --- forums ---------------------------------------------------------------
   if (can(role, 'forum:read')) {
     const threads = await db.thread.findMany({
-      where: { title: { contains: q }, status: { in: ['OPEN', 'LOCKED'] } },
+      where: { title: { contains: q, mode: 'insensitive' as const }, status: { in: ['OPEN', 'LOCKED'] } },
       include: { forum: true },
       take: take * 3,
     });

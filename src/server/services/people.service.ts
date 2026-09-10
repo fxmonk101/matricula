@@ -540,10 +540,10 @@ export async function listPeople(
       ...(query
         ? {
             OR: [
-              { user: { firstName: { contains: query } } },
-              { user: { lastName: { contains: query } } },
-              { user: { email: { contains: query } } },
-              { title: { contains: query } },
+              { user: { firstName: { contains: query, mode: 'insensitive' as const } } },
+              { user: { lastName: { contains: query, mode: 'insensitive' as const } } },
+              { user: { email: { contains: query, mode: 'insensitive' as const } } },
+              { title: { contains: query, mode: 'insensitive' as const } },
             ],
           }
         : {}),

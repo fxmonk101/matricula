@@ -56,9 +56,9 @@ export default async function OperatorsPage({
     ? await platformDb.user.findMany({
         where: {
           OR: [
-            { email: { contains: query } },
-            { firstName: { contains: query } },
-            { lastName: { contains: query } },
+            { email: { contains: query, mode: 'insensitive' as const } },
+            { firstName: { contains: query, mode: 'insensitive' as const } },
+            { lastName: { contains: query, mode: 'insensitive' as const } },
           ],
         },
         select: { id: true, email: true, firstName: true, lastName: true },

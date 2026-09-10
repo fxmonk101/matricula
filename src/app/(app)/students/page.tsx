@@ -43,10 +43,10 @@ export default async function StudentsPage({
     ...(q
       ? {
           OR: [
-            { matricNumber: { contains: q } },
-            { user: { firstName: { contains: q } } },
-            { user: { lastName: { contains: q } } },
-            { user: { email: { contains: q } } },
+            { matricNumber: { contains: q, mode: 'insensitive' as const } },
+            { user: { firstName: { contains: q, mode: 'insensitive' as const } } },
+            { user: { lastName: { contains: q, mode: 'insensitive' as const } } },
+            { user: { email: { contains: q, mode: 'insensitive' as const } } },
           ],
         }
       : {}),

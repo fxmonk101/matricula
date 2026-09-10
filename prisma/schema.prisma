@@ -37,8 +37,14 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
+  // The POOLED connection (pgbouncer, port 6543). Serverless opens a connection
+  // per invocation, and direct connections per invocation exhaust Postgres'
+  // limit within minutes of real traffic.
   url      = env("DATABASE_URL")
+  // The DIRECT connection (port 5432), used only by `prisma migrate`. DDL and
+  // advisory locks cannot travel through pgbouncer in transaction mode.
+  directUrl = env("DIRECT_URL")
 }
 
 // -----------------------------------------------------------------------------
