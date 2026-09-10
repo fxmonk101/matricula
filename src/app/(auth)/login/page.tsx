@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import Image from 'next/image';
 import Link from 'next/link';
 
-import { platformDb } from '@/lib/tenant';
 import { LoginForm } from './login-form';
+import { FindSchool } from './find-school';
 
 export const metadata: Metadata = { title: 'Sign in' };
 
@@ -14,6 +14,11 @@ export const metadata: Metadata = { title: 'Sign in' };
  * school's colours here would be wrong for everyone else. Signing in through
  * this page lands the user in their primary school; `/s/<slug>/login` is the
  * branded, school-pinned entrance.
+ *
+ * It also deliberately lists NO schools. It used to render every active tenant
+ * with its name, code and colours, which amounted to publishing the customer
+ * list — and it broke the thing each institution is actually paying for, which
+ * is that their portal is theirs and does not advertise anybody else's.
  */
 export default async function LoginPage({
   searchParams,
@@ -21,12 +26,6 @@ export default async function LoginPage({
   searchParams: Promise<{ next?: string; reason?: string }>;
 }) {
   const { next, reason } = await searchParams;
-
-  const schools = await platformDb.school.findMany({
-    where: { status: { in: ['ACTIVE', 'TRIAL'] } },
-    select: { slug: true, name: true, code: true, brandColor: true },
-    orderBy: { name: 'asc' },
-  });
 
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
@@ -109,29 +108,13 @@ export default async function LoginPage({
             <LoginForm next={next} />
           </div>
 
-          {schools.length > 1 ? (
-            <div className="mt-6 border-t border-slate-200 pt-5">
-              <p className="text-xs font-medium text-slate-700">Or go straight to your institution</p>
-              <ul className="mt-2 space-y-1">
-                {schools.map((s) => (
-                  <li key={s.slug}>
-                    <Link
-                      href={`/s/${s.slug}/login`}
-                      className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 text-sm text-slate-700 hover:bg-slate-50"
-                    >
-                      <span
-                        className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-[10px] font-bold text-onAccent"
-                        style={{ backgroundColor: s.brandColor }}
-                      >
-                        {s.code.slice(0, 3)}
-                      </span>
-                      {s.name}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          ) : null}
+          <div className="mt-8 border-t border-slate-200 pt-6">
+            <p className="mb-3 text-xs leading-relaxed text-slate-500">
+              Your institution has its own sign-in page, with its own address. If you have it,
+              go there directly.
+            </p>
+            <FindSchool />
+          </div>
 
           <p className="mt-6 text-center text-xs text-slate-500">
             Applying for admission?{' '}

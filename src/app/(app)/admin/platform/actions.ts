@@ -2,7 +2,10 @@
 
 import { revalidatePath } from 'next/cache';
 
+import { headers } from 'next/headers';
+
 import { requirePlatformAdmin } from '@/lib/auth/session';
+import { schoolEntranceUrl } from '@/lib/domain/tenancy';
 import {
   activateSchool,
   provisionSchool,
@@ -29,6 +32,8 @@ export interface PlatformFormState {
   temporaryPassword?: string;
   ownerEmail?: string;
   slug?: string;
+  /** Absolute. This gets emailed to somebody who has never used the system. */
+  entranceUrl?: string;
 }
 
 function intOrNull(value: FormDataEntryValue | null): number | null {
@@ -70,12 +75,29 @@ export async function provisionSchoolAction(
   });
 
   revalidatePath('/admin/platform');
+
+  // Built server-side: only the server knows whether this deployment addresses
+  // schools by path or by subdomain, and a client guessing would hand the new
+  // owner a link that does not work.
+  let entranceUrl: string | undefined;
+  if (result.ok && result.slug) {
+    const h = await headers();
+    const host = h.get('host') ?? 'localhost:3000';
+    const proto = h.get('x-forwarded-proto') ?? (host.startsWith('localhost') ? 'http' : 'https');
+    entranceUrl = schoolEntranceUrl({
+      slug: result.slug,
+      origin: `${proto}://${host}`,
+      rootDomain: process.env.ROOT_DOMAIN ?? null,
+    });
+  }
+
   return {
     ok: result.ok,
     message: result.message,
     temporaryPassword: result.temporaryPassword,
     ownerEmail: result.ownerEmail,
     slug: result.slug,
+    entranceUrl,
   };
 }
 

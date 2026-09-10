@@ -93,10 +93,28 @@ export function ProvisionForm({
             </p>
             <p className="mt-2 text-xs text-slate-400">{state.ownerEmail}</p>
           </div>
-          <p className="text-xs text-slate-500">
-            The owner signs in at <code>/s/{state.slug}/login</code> and is required to set their own
-            password before they can do anything else. Until the school is opened, they are the only
-            person who can sign in to it.
+          {state.entranceUrl && (
+            <div className="rounded-xl bg-slate-50 px-4 py-3 ring-1 ring-inset ring-slate-200">
+              <p className="text-[11px] uppercase tracking-wide text-slate-500">
+                Their sign-in address
+              </p>
+              <p className="mt-1 break-all font-mono text-xs text-slate-900">
+                {state.entranceUrl}
+              </p>
+              <button
+                type="button"
+                onClick={() => navigator.clipboard?.writeText(state.entranceUrl!)}
+                className="mt-2 text-[11px] font-medium text-brand-700 hover:underline"
+              >
+                Copy address
+              </button>
+            </div>
+          )}
+
+          <p className="text-xs leading-relaxed text-slate-500">
+            This school has its own entrance and sees nothing of any other institution on the
+            platform. The owner is required to set their own password before reaching anything
+            else, and until you open the school they are the only person who can sign in to it.
           </p>
           <Button variant="secondary" onClick={() => window.location.reload()} className="w-full">
             Provision another

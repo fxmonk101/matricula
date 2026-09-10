@@ -4,6 +4,7 @@ import { SESSION_COOKIE, verifySession } from '@/lib/auth/jwt';
 import { guardForPath, roleSatisfies } from '@/lib/auth/rbac';
 import { FORCED_PASSWORD_PATH, requiresPasswordChange } from '@/lib/auth/password-gate';
 import { ROLE_HOME } from '@/lib/domain/enums';
+import { resolveTenantSlug, tenancyMode } from '@/lib/domain/tenancy';
 
 /**
  * Edge middleware: the outermost authentication and route-authorisation gate.
@@ -38,14 +39,26 @@ function isPublic(pathname: string): boolean {
   return PUBLIC_PREFIXES.some((p) => pathname.startsWith(p));
 }
 
-/** `/s/<slug>/login` -> `<slug>` */
-function slugFromPath(pathname: string): string | null {
-  const m = /^\/s\/([^/]+)(?:\/|$)/.exec(pathname);
-  return m ? m[1] : null;
+/**
+ * The school this request is addressed to.
+ *
+ * Path mode reads `/s/<slug>/…`; subdomain mode reads `<slug>.example.edu`
+ * and still accepts the path form, because links live forever in emails and
+ * printed prospectuses and an installation that moves to subdomains must not
+ * break every URL it has ever issued.
+ */
+function tenantSlug(pathname: string, host: string | null): string | null {
+  return resolveTenantSlug({
+    pathname,
+    host,
+    rootDomain: process.env.ROOT_DOMAIN ?? null,
+  });
 }
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  const host = request.headers.get('host');
 
   if (isPublic(pathname)) {
     // A signed-in user hitting a login page goes to their own home instead.
@@ -58,14 +71,29 @@ export async function middleware(request: NextRequest) {
     }
 
     // Hand the resolved slug to server components so a public page can load
-    // its school without re-parsing the URL.
-    const slug = slugFromPath(pathname);
+    // its school without re-parsing the URL — or re-deriving it from a host
+    // header, which a page has no business trusting on its own.
+    const slug = tenantSlug(pathname, host);
     if (slug) {
       const headers = new Headers(request.headers);
       headers.set('x-school-slug', slug);
       return NextResponse.next({ request: { headers } });
     }
     return NextResponse.next();
+  }
+
+  /*
+   * Subdomain mode: `golden-eagles.example.edu/login` is that school's own
+   * front door. Rewritten rather than redirected, so the address bar keeps the
+   * institution's own hostname — the whole point of giving them one.
+   */
+  if (tenancyMode() === 'subdomain') {
+    const hostSlug = tenantSlug('/', host);
+    if (hostSlug && (pathname === '/login' || pathname === '/apply')) {
+      const url = request.nextUrl.clone();
+      url.pathname = `/s/${hostSlug}${pathname}`;
+      return NextResponse.rewrite(url);
+    }
   }
 
   const session = await verifySession(request.cookies.get(SESSION_COOKIE)?.value);
