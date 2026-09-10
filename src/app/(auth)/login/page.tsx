@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Image from 'next/image';
 import Link from 'next/link';
 
 import { platformDb } from '@/lib/tenant';
@@ -30,16 +31,36 @@ export default async function LoginPage({
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
       {/* Platform panel — hidden on small screens where it would only push the
-          form below the fold. */}
-      <div className="hidden flex-col justify-between bg-ink p-10 text-onInk lg:flex">
-        <div className="flex items-center gap-3">
-          <span className="grid h-10 w-10 place-items-center rounded-xl bg-white/10 text-sm font-bold">
+          form below the fold.
+
+          The photograph is self-hosted rather than hotlinked. The CSP allows
+          `img-src 'self'` only, so a remote URL would silently render nothing;
+          serving it ourselves also means the sign-in page has no third-party
+          dependency and leaks no visitor to a CDN. */}
+      <div className="relative hidden flex-col justify-between overflow-hidden bg-ink p-10 text-onInk lg:flex">
+        <Image
+          src="/images/campus-hero.jpg"
+          alt=""
+          fill
+          sizes="50vw"
+          priority
+          className="absolute inset-0 object-cover"
+        />
+        {/* A scrim, not a tint: white text over an unknown photograph is only
+            legible if something guarantees the contrast underneath it. */}
+        <div
+          className="absolute inset-0 bg-gradient-to-br from-ink/95 via-ink/85 to-ink/70"
+          aria-hidden
+        />
+
+        <div className="relative flex items-center gap-3">
+          <span className="grid h-10 w-10 place-items-center rounded-xl bg-white/10 text-sm font-bold backdrop-blur-sm">
             SP
           </span>
           <span className="text-sm font-semibold">School Portal</span>
         </div>
 
-        <div className="max-w-md">
+        <div className="relative max-w-md">
           <h1 className="text-3xl font-semibold leading-tight tracking-tight">
             One record for every student, from application to graduation.
           </h1>
@@ -62,7 +83,7 @@ export default async function LoginPage({
           </dl>
         </div>
 
-        <p className="text-xs text-slate-400">Authorised users only. All access is logged.</p>
+        <p className="relative text-xs text-slate-300">Authorised users only. All access is logged.</p>
       </div>
 
       <div className="flex items-center justify-center px-4 py-12 sm:px-8">
@@ -118,51 +139,8 @@ export default async function LoginPage({
               Start an application
             </Link>
           </p>
-
-          <DemoCredentials />
         </div>
       </div>
-    </div>
-  );
-}
-
-/**
- * Seeded demo accounts. Rendered only outside production so a real deployment
- * never advertises working credentials on its own login page.
- */
-function DemoCredentials() {
-  if (process.env.NODE_ENV === 'production') return null;
-
-  const accounts = [
-    ['GEU · Administrator', 'admin@geu.edu'],
-    ['GEU · Registrar', 'registrar@geu.edu'],
-    ['GEU · Dean / Instructor', 'a.okafor@geu.edu'],
-    ['GEU · Student', 'chidi.eze@student.geu.edu'],
-    ['MIT · Administrator', 'admin@meridian.edu.gh'],
-    ['MIT · Student', 'ama.darko@student.meridian.edu.gh'],
-  ];
-
-  return (
-    <div className="mt-8 rounded-lg border border-dashed border-slate-300 bg-white p-3">
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-        Development accounts
-      </p>
-      <p className="mt-1 text-[11px] text-slate-500">
-        Password for all seeded accounts:{' '}
-        <code className="font-mono text-slate-700">Password123!</code>
-      </p>
-      <ul className="mt-2 space-y-0.5">
-        {accounts.map(([label, email]) => (
-          <li key={email} className="flex justify-between gap-3 text-[11px]">
-            <span className="text-slate-500">{label}</span>
-            <code className="font-mono text-slate-700">{email}</code>
-          </li>
-        ))}
-      </ul>
-      <p className="mt-2 text-[11px] text-slate-400">
-        a.okafor@geu.edu holds a membership at both schools — sign in via a school link above to
-        pick which.
-      </p>
     </div>
   );
 }

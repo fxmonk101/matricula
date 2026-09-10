@@ -57,7 +57,7 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     heading: 'Overview',
     items: [
-      { href: '/dashboard', label: 'Dashboard', roles: ['ADMIN', 'REGISTRAR'], icon: 'home' },
+      { href: '/dashboard', label: 'Dashboard', roles: ['ADMIN', 'REGISTRAR', 'DEAN'], icon: 'home' },
       { href: '/me', label: 'My Record', roles: ['STUDENT'], icon: 'home' },
       { href: '/portal', label: 'My Application', roles: ['APPLICANT'], icon: 'doc' },
       { href: '/family', label: 'My Children', roles: ['GUARDIAN'], icon: 'people' },
@@ -66,13 +66,13 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     heading: 'Academic',
     items: [
-      { href: '/students', label: 'Students', roles: ['ADMIN', 'REGISTRAR', 'ADMISSIONS', 'FINANCE', 'INSTRUCTOR'], icon: 'people' },
-      { href: '/instructors', label: 'Faculty', roles: ['ADMIN', 'REGISTRAR'], icon: 'people' },
-      { href: '/courses', label: 'Courses', roles: ['ADMIN', 'REGISTRAR', 'INSTRUCTOR', 'STUDENT', 'ADMISSIONS'], models: ['HIGHER_ED'], icon: 'book' },
-      { href: '/offerings', label: 'Sections', roles: ['ADMIN', 'REGISTRAR', 'INSTRUCTOR', 'STUDENT'], models: ['HIGHER_ED'], icon: 'grid' },
-      { href: '/classes', label: 'Classes', roles: ['ADMIN', 'REGISTRAR', 'INSTRUCTOR'], models: ['K12'], icon: 'grid' },
-      { href: '/reports', label: 'Report Cards', roles: ['ADMIN', 'REGISTRAR', 'INSTRUCTOR'], models: ['K12'], icon: 'doc' },
-      { href: '/teaching', label: 'My Teaching', roles: ['INSTRUCTOR', 'ADMIN'], icon: 'book' },
+      { href: '/students', label: 'Students', roles: ['ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'ADMISSIONS', 'FINANCE', 'INSTRUCTOR'], icon: 'people' },
+      { href: '/instructors', label: 'Lecturers', roles: ['ADMIN', 'REGISTRAR', 'DEAN', 'HOD'], icon: 'people' },
+      { href: '/courses', label: 'Courses', roles: ['ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'INSTRUCTOR', 'STUDENT', 'ADMISSIONS'], models: ['HIGHER_ED'], icon: 'book' },
+      { href: '/offerings', label: 'Sections', roles: ['ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'INSTRUCTOR', 'STUDENT'], models: ['HIGHER_ED'], icon: 'grid' },
+      { href: '/classes', label: 'Classes', roles: ['ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'INSTRUCTOR'], models: ['K12'], icon: 'grid' },
+      { href: '/reports', label: 'Report Cards', roles: ['ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'INSTRUCTOR'], models: ['K12'], icon: 'doc' },
+      { href: '/teaching', label: 'My Teaching', roles: ['INSTRUCTOR', 'HOD', 'ADMIN'], icon: 'book' },
       { href: '/me/registration', label: 'Registration', roles: ['STUDENT'], icon: 'check' },
       { href: '/admissions', label: 'Admissions', roles: ['ADMIN', 'ADMISSIONS', 'REGISTRAR'], icon: 'doc' },
     ],
@@ -87,16 +87,16 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     heading: 'Work',
     items: [
-      { href: '/tasks', label: 'Tasks', roles: ['ADMIN', 'REGISTRAR', 'FINANCE', 'ADMISSIONS', 'INSTRUCTOR', 'LIBRARIAN', 'STAFF'], icon: 'check' },
-      { href: '/team', label: 'My Team', roles: ['ADMIN', 'REGISTRAR', 'INSTRUCTOR'], icon: 'team' },
-      { href: '/org', label: 'Organisation', roles: ['ADMIN', 'REGISTRAR', 'INSTRUCTOR'], icon: 'org' },
+      { href: '/tasks', label: 'Tasks', roles: ['ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'FINANCE', 'ADMISSIONS', 'INSTRUCTOR', 'LIBRARIAN', 'STAFF'], icon: 'check' },
+      { href: '/team', label: 'My Team', roles: ['ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'INSTRUCTOR'], icon: 'team' },
+      { href: '/org', label: 'Organisation', roles: ['ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'INSTRUCTOR'], icon: 'org' },
     ],
   },
   {
     heading: 'Community',
     items: [
-      { href: '/library', label: 'Library', roles: ['ADMIN', 'REGISTRAR', 'FINANCE', 'ADMISSIONS', 'INSTRUCTOR', 'LIBRARIAN', 'STAFF', 'STUDENT'], icon: 'library' },
-      { href: '/forums', label: 'Forums', roles: ['ADMIN', 'REGISTRAR', 'FINANCE', 'ADMISSIONS', 'INSTRUCTOR', 'LIBRARIAN', 'STAFF', 'STUDENT'], icon: 'chat' },
+      { href: '/library', label: 'Library', roles: ['ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'FINANCE', 'ADMISSIONS', 'INSTRUCTOR', 'LIBRARIAN', 'STAFF', 'STUDENT'], icon: 'library' },
+      { href: '/forums', label: 'Forums', roles: ['ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'FINANCE', 'ADMISSIONS', 'INSTRUCTOR', 'LIBRARIAN', 'STAFF', 'STUDENT'], icon: 'chat' },
     ],
   },
   {

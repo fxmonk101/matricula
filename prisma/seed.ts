@@ -1308,6 +1308,65 @@ async function main() {
     });
   }
 
+  // --- the academic reporting line -------------------------------------------
+  // A university runs on Student → Lecturer → HOD → Dean → Registrar, so the
+  // demo has to contain one of each or the org chart and the timetable are
+  // exercised by nobody. These people already exist as instructors and keep
+  // their Instructor profile — a dean still lectures — so only the MEMBERSHIP
+  // role changes, which is where authorisation lives.
+  console.log('\nAppointing deans and heads of department…');
+  const appointments: { email: string; role: string; title: string }[] = [
+    { email: 'a.okafor@geu.edu', role: 'DEAN', title: 'Dean, Faculty of Science' },
+    { email: 'e.balogun@geu.edu', role: 'HOD', title: 'Head, Computer Science' },
+    { email: 'f.dauda@geu.edu', role: 'HOD', title: 'Head, Mathematics' },
+  ];
+  for (const appointment of appointments) {
+    const person = await db.user.findUnique({ where: { email: appointment.email } });
+    if (!person) continue;
+    await db.membership.updateMany({
+      where: { userId: person.id, schoolId: geu.schoolId },
+      data: { role: appointment.role, title: appointment.title },
+    });
+    console.log(`  · ${appointment.title.padEnd(28)} ${appointment.email}`);
+  }
+
+  // Wire the line itself, so /team and /org show a real chain rather than a
+  // flat list. Each link is validated by `canReportTo` in the app; here the
+  // shape is simply asserted by construction.
+  const membershipFor = async (email: string) => {
+    const person = await db.user.findUnique({ where: { email } });
+    if (!person) return null;
+    return db.membership.findFirst({ where: { userId: person.id, schoolId: geu.schoolId } });
+  };
+
+  const [dean, csHod, mathHod, registrar] = await Promise.all([
+    membershipFor('a.okafor@geu.edu'),
+    membershipFor('e.balogun@geu.edu'),
+    membershipFor('f.dauda@geu.edu'),
+    membershipFor('registrar@geu.edu'),
+  ]);
+
+  const line: [typeof dean, typeof dean][] = [
+    [dean, registrar],
+    [csHod, dean],
+    [mathHod, dean],
+  ];
+  for (const [subordinate, manager] of line) {
+    if (!subordinate || !manager) continue;
+    await db.membership.update({
+      where: { id: subordinate.id },
+      data: { managerId: manager.id },
+    });
+  }
+
+  // Remaining lecturers in Computer Science answer to its head.
+  if (csHod) {
+    const lecturer = await membershipFor('o.eze@geu.edu');
+    if (lecturer) {
+      await db.membership.update({ where: { id: lecturer.id }, data: { managerId: csHod.id } });
+    }
+  }
+
   // --- recompute derived academics ------------------------------------------
   console.log('\nComputing GPAs and academic standing…');
   const { recomputeStudentAcademics } = await import('../src/server/academics');

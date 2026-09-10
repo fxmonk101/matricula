@@ -17,11 +17,29 @@ import type { Role } from '@/lib/domain/enums';
 export const PERMISSIONS = [
   // People
   'student:read', 'student:write',
+  /**
+   * Admitting a person as a student of this university: matriculation number,
+   * programme, level. Separate from `student:write` (editing a record that
+   * already exists) because in a real university these are different desks —
+   * the bursary registers, everyone else amends.
+   */
+  'student:register',
   'instructor:read', 'instructor:write',
+  // Academic structure — the Registrar's office
+  'faculty:write', 'department:write', 'program:write',
   // Curriculum
   'course:read', 'course:write',
   'offering:read', 'offering:write',
+  /**
+   * Putting a named lecturer in front of a named section. Held by deans and
+   * heads of department rather than by the registry: who teaches what is a
+   * faculty decision, and the registry finding out afterwards is the normal
+   * order of things.
+   */
+  'offering:assign',
   'term:write',
+  // Timetable
+  'timetable:read', 'timetable:write',
   // Registration
   'enrollment:read:any', 'enrollment:read:own', 'enrollment:write:own', 'enrollment:write:any',
   // Assessment
@@ -46,6 +64,8 @@ export const PERMISSIONS = [
   'school:delete', 'subscription:read',
   // Forums (Phase 4)
   'forum:read', 'forum:post', 'forum:moderate',
+  /** Opening a new forum. The registry runs the university's noticeboards. */
+  'forum:create',
   // Library (Phase 5)
   'library:read', 'library:manage', 'library:analytics',
   // School configuration & organisation (tenant-scoped)
@@ -82,6 +102,13 @@ const ADMIN_PERMISSIONS: readonly Permission[] = [
   // OWNER's own record, and that is enforced per-ROW in the people service,
   // because it is a fact about the row and not about the actor's role.
   'user:create', 'user:role:set', 'user:suspend', 'user:password:reset',
+  // The structural grants added for the university role model. ADMIN keeps a
+  // superset of every school role, so a school with nobody in a given seat
+  // can still be operated by its administrator.
+  'faculty:write', 'department:write', 'program:write',
+  'offering:assign', 'student:register',
+  'timetable:read', 'timetable:write',
+  'forum:create',
 ];
 
 /**
@@ -111,29 +138,101 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
 
   ADMIN: ADMIN_PERMISSIONS,
 
+  /**
+   * In a university this is the senior academic office, and the app now
+   * reflects that: the Registrar builds the institution’s structure
+   * (faculties, departments, programmes, courses), appoints the deans and
+   * heads of department who run it, opens the forums the institution talks
+   * on, and sits at the top of the academic reporting line.
+   *
+   * Note what is NOT here: student:register. Admitting a student is the
+   * Bursary’s desk — see FINANCE below for why.
+   */
   REGISTRAR: [
     'class:read', 'class:manage', 'report:generate', 'attendance:record',
     'student:read', 'student:write',
-    'instructor:read',
+    'instructor:read', 'instructor:write',
+    'faculty:write', 'department:write', 'program:write',
     'course:read', 'course:write',
-    'offering:read', 'offering:write', 'term:write',
+    'offering:read', 'offering:write', 'offering:assign', 'term:write',
+    'timetable:read', 'timetable:write',
     'enrollment:read:any', 'enrollment:write:any',
     'grade:read:any', 'grade:override',
     'transcript:read:any',
     'application:read:any', 'application:convert',
     'invoice:read:any',
     'hold:manage', 'audit:read', 'announcement:write',
+    'org:read', 'org:manage', 'directory:read',
+    'user:create', 'user:role:set', 'user:suspend', 'user:password:reset', 'user:manage',
     'task:read:own', 'task:create', 'task:assign', 'task:admin', 'team:read', 'notification:read',
-    'forum:read', 'forum:post', 'forum:moderate',
+    'forum:read', 'forum:post', 'forum:moderate', 'forum:create',
     'library:read', 'library:manage', 'library:analytics',
   ],
 
-  FINANCE: [
+  /**
+   * Head of a faculty. Owns the TIMETABLE and decides who teaches what
+   * within it — the two things a dean is actually asked for. Reads across
+   * the faculty’s students and grades and manages the departments under
+   * them, but holds nothing reaching the fee ledger or another faculty.
+   */
+  DEAN: [
     'student:read',
+    'instructor:read',
+    'department:write',
+    'course:read', 'course:write',
+    'offering:read', 'offering:write', 'offering:assign',
+    'timetable:read', 'timetable:write',
+    'enrollment:read:any',
+    'grade:read:any',
+    'transcript:read:any',
+    'class:read', 'report:generate',
+    'announcement:write',
+    'org:read', 'directory:read',
+    'task:read:own', 'task:create', 'task:assign', 'task:admin', 'team:read', 'notification:read',
+    'forum:read', 'forum:post', 'forum:moderate',
+    'library:read',
+  ],
+
+  /**
+   * Head of a department, who in almost every university also lectures. So
+   * this is the INSTRUCTOR grant plus the departmental ones: assigning
+   * teaching, seeing the department’s grades, managing its staff.
+   */
+  HOD: [
+    'class:read', 'marks:enter', 'attendance:record',
+    'student:read',
+    'instructor:read',
+    'course:read', 'course:write',
+    'offering:read', 'offering:write', 'offering:assign',
+    'timetable:read',
+    'enrollment:read:any',
+    'grade:submit', 'grade:read:any',
+    'report:generate',
+    'org:read', 'directory:read',
+    'task:read:own', 'task:create', 'task:assign', 'task:admin', 'team:read', 'notification:read',
+    'forum:read', 'forum:post', 'forum:moderate',
+    'library:read',
+  ],
+
+  /**
+   * The Bursary. REGISTERS STUDENTS as well as running the fee ledger —
+   * deliberately, and it is the one grant here that looks surprising.
+   *
+   * In a Nigerian or Ghanaian university, registration completes at the
+   * bursary: a student is not registered until fees are settled, and the
+   * office that confirms the payment is the office that issues the
+   * matriculation number. Putting it anywhere else describes a process no
+   * school follows, and the registry ends up keeping a spreadsheet instead.
+   */
+  FINANCE: [
+    'student:read', 'student:write', 'student:register',
+    'course:read', 'offering:read',
+    'enrollment:read:any',
     'invoice:read:any', 'invoice:write',
     'payment:record', 'payment:read:any',
     'fee:configure',
     'hold:manage', 'audit:read',
+    'directory:read',
     'task:read:own', 'task:create', 'notification:read',
     'forum:read', 'forum:post',
     'library:read',
@@ -271,28 +370,29 @@ export interface RouteGuard {
 }
 
 export const ROUTE_GUARDS: RouteGuard[] = [
-  { prefix: '/dashboard', roles: ['OWNER', 'ADMIN', 'REGISTRAR'] },
-  { prefix: '/students', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'INSTRUCTOR', 'ADMISSIONS', 'FINANCE'] },
-  { prefix: '/instructors', roles: ['OWNER', 'ADMIN', 'REGISTRAR'] },
-  { prefix: '/courses', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'INSTRUCTOR', 'STUDENT', 'ADMISSIONS'] },
-  { prefix: '/offerings', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'INSTRUCTOR', 'STUDENT'] },
+  { prefix: '/dashboard', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'DEAN'] },
+  { prefix: '/students', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'INSTRUCTOR', 'ADMISSIONS', 'FINANCE'] },
+  { prefix: '/instructors', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'DEAN', 'HOD'] },
+  { prefix: '/courses', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'INSTRUCTOR', 'STUDENT', 'ADMISSIONS'] },
+  { prefix: '/offerings', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'INSTRUCTOR', 'STUDENT'] },
   { prefix: '/admissions', roles: ['OWNER', 'ADMIN', 'ADMISSIONS', 'REGISTRAR'] },
   { prefix: '/finance', roles: ['OWNER', 'ADMIN', 'FINANCE', 'REGISTRAR'] },
-  { prefix: '/teaching', roles: ['INSTRUCTOR', 'ADMIN'] },
+  // A head of department lectures too, which is why HOD is here.
+  { prefix: '/teaching', roles: ['INSTRUCTOR', 'HOD', 'ADMIN'] },
   { prefix: '/me', roles: ['STUDENT'] },
   { prefix: '/portal', roles: ['APPLICANT'] },
-  { prefix: '/classes', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'INSTRUCTOR'] },
-  { prefix: '/reports', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'INSTRUCTOR'] },
+  { prefix: '/classes', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'INSTRUCTOR'] },
+  { prefix: '/reports', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'INSTRUCTOR'] },
   { prefix: '/family', roles: ['GUARDIAN'] },
   // Tasks are open to every staff role. Which tasks a person actually sees is
   // a RELATIONSHIP question answered per record by `canViewTask`, not a role
   // question — the guard here only says "may use the task system at all".
-  { prefix: '/tasks', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'FINANCE', 'ADMISSIONS', 'INSTRUCTOR', 'LIBRARIAN', 'STAFF'] },
+  { prefix: '/tasks', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'FINANCE', 'ADMISSIONS', 'INSTRUCTOR', 'LIBRARIAN', 'STAFF'] },
   // Reachable by any instructor; a lecturer with no reports sees an empty team
   // rather than a 403, because having no subordinates is an ordinary fact
   // about most staff, not a permission failure.
-  { prefix: '/team', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'INSTRUCTOR'] },
-  { prefix: '/org', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'INSTRUCTOR'] },
+  { prefix: '/team', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'INSTRUCTOR'] },
+  { prefix: '/org', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'INSTRUCTOR'] },
   // Guardians and applicants are absent on purpose: a parent in the staff
   // room is obviously wrong, and a parent in the student common room is
   // subtler but no better. Which forums a member then sees is decided per
@@ -300,10 +400,11 @@ export const ROUTE_GUARDS: RouteGuard[] = [
   // Guardians and applicants are absent: the library is for the school's own
   // staff and students. A guardian's access to their child's material runs
   // through the family portal.
-  { prefix: '/library', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'FINANCE', 'ADMISSIONS', 'INSTRUCTOR', 'LIBRARIAN', 'STAFF', 'STUDENT'] },
-  { prefix: '/library/manage', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'LIBRARIAN'] },
-  { prefix: '/forums', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'FINANCE', 'ADMISSIONS', 'INSTRUCTOR', 'LIBRARIAN', 'STAFF', 'STUDENT'] },
+  { prefix: '/library', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'FINANCE', 'ADMISSIONS', 'INSTRUCTOR', 'LIBRARIAN', 'STAFF', 'STUDENT'] },
+  { prefix: '/library/manage', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'DEAN', 'LIBRARIAN'] },
+  { prefix: '/forums', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'FINANCE', 'ADMISSIONS', 'INSTRUCTOR', 'LIBRARIAN', 'STAFF', 'STUDENT'] },
   { prefix: '/people', roles: ['OWNER', 'ADMIN', 'REGISTRAR'] },
+  { prefix: '/timetable', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'INSTRUCTOR', 'STUDENT'] },
   { prefix: '/setup', roles: ['OWNER', 'ADMIN'] },
   { prefix: '/settings/school', roles: ['OWNER', 'ADMIN'] },
   // Longest-prefix wins, so this stays reachable by a school ADMIN while

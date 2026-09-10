@@ -21,7 +21,25 @@ export const ROLES = [
    */
   'OWNER',
   'ADMIN',
+  /**
+   * The senior academic officer, and in a university the busiest account in the
+   * system. Owns the academic structure — faculties, departments, programmes,
+   * courses — appoints deans and heads of department, and is the top of the
+   * academic reporting line.
+   */
   'REGISTRAR',
+  /**
+   * Head of a FACULTY. Builds the timetable for it and assigns lecturers to
+   * the sections its departments own. Deans report to the Registrar.
+   */
+  'DEAN',
+  /**
+   * Head of a DEPARTMENT. Assigns teaching within it and answers to a Dean.
+   * A HOD normally also lectures, which is why the role carries the teaching
+   * permissions as well.
+   */
+  'HOD',
+  /** The Bursary. Registers students and runs the fee ledger. */
   'FINANCE',
   'ADMISSIONS',
   'INSTRUCTOR',
@@ -37,9 +55,11 @@ export const ROLE_LABELS: Record<Role, string> = {
   OWNER: 'School Owner',
   ADMIN: 'School Administrator',
   REGISTRAR: 'Registrar',
-  FINANCE: 'Bursary / Finance',
+  DEAN: 'Dean',
+  HOD: 'Head of Department',
+  FINANCE: 'Bursar',
   ADMISSIONS: 'Admissions Officer',
-  INSTRUCTOR: 'Instructor',
+  INSTRUCTOR: 'Lecturer',
   STUDENT: 'Student',
   APPLICANT: 'Applicant',
   LIBRARIAN: 'Librarian',
@@ -62,6 +82,10 @@ export const ROLE_HOME: Record<Role, string> = {
   OWNER: '/dashboard',
   ADMIN: '/dashboard',
   REGISTRAR: '/dashboard',
+  // A dean and a head of department both start on the people who report to
+  // them, which is the thing their job is actually organised around.
+  DEAN: '/team',
+  HOD: '/team',
   FINANCE: '/finance',
   ADMISSIONS: '/admissions',
   INSTRUCTOR: '/teaching',
