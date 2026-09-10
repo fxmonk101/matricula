@@ -39,3 +39,4 @@ tsconfig.tsbuildinfo
 
 # Local file storage (development driver). Never committed.
 .storage/
+.next-check/

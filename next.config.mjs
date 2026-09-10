@@ -51,8 +51,24 @@ const csp = [
   ...(isDev ? [] : ['upgrade-insecure-requests']),
 ].join('; ');
 
+/*
+ * Build output directory
+ * ----------------------
+ * `next dev` and `next build` both own `.next`, and a build run while a dev
+ * server is up DELETES the assets that server is still serving. The dev server
+ * keeps answering, so the failure does not look like what it is: the page loads
+ * with every stylesheet and script 404ing — unstyled HTML — and server actions
+ * fail in confusing ways.
+ *
+ * That happened here, and reached the user as "the app displays raw HTML".
+ * `npm run verify` therefore sets NEXT_DIST_DIR so a correctness build writes
+ * somewhere else entirely and cannot touch a running dev server.
+ */
+const distDir = process.env.NEXT_DIST_DIR || '.next';
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  distDir,
   reactStrictMode: true,
   poweredByHeader: false,
   experimental: {
