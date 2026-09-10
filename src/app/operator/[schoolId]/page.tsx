@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
-import { requirePlatformAdmin } from '@/lib/auth/session';
+import { requireOperator } from '@/lib/auth/operator';
 import { platformDb } from '@/lib/tenant';
 import { loadEntitlement } from '@/server/services/platform.service';
 import { seatUtilisation, trialDaysRemaining } from '@/lib/domain/provisioning';
@@ -32,7 +32,7 @@ export default async function PlatformSchoolPage({
 }: {
   params: Promise<{ schoolId: string }>;
 }) {
-  await requirePlatformAdmin();
+  await requireOperator();
   const { schoolId } = await params;
 
   const school = await platformDb.school.findUnique({
@@ -73,7 +73,7 @@ export default async function PlatformSchoolPage({
   return (
     <>
       <PageHeader
-        eyebrow={<Link href="/admin/platform" className="hover:underline">← All schools</Link>}
+        eyebrow={<Link href="/operator" className="hover:underline">← All schools</Link>}
         title={school.name}
         description={`/s/${school.slug} · ${school.code} · ${school.academicModel === 'K12' ? 'K-12' : 'Higher education'} · ${school.timezone}`}
         actions={<Badge tone={toneForStatus(school.status)}>{school.status}</Badge>}
@@ -193,7 +193,7 @@ export default async function PlatformSchoolPage({
                       </Td>
                       <Td className="text-right">
                         <Link
-                          href={`/admin/platform/${school.id}/invoice/${invoice.id}`}
+                          href={`/operator/${school.id}/invoice/${invoice.id}`}
                           className="text-xs font-medium text-brand-700 hover:underline"
                         >
                           Open

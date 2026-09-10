@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
-import { requirePlatformAdmin } from '@/lib/auth/session';
+import { requireOperator } from '@/lib/auth/operator';
 import { platformDb } from '@/lib/tenant';
 import { listPlatformAudit } from '@/server/services/audit.service';
 import { formatDate, formatDateTime, fullName } from '@/lib/utils';
@@ -25,7 +25,7 @@ export default async function OperatorsPage({
 }: {
   searchParams: Promise<{ q?: string }>;
 }) {
-  await requirePlatformAdmin();
+  await requireOperator();
   const { q } = await searchParams;
   const query = (q ?? '').trim();
 
@@ -72,7 +72,7 @@ export default async function OperatorsPage({
   return (
     <>
       <PageHeader
-        eyebrow={<Link href="/admin/platform" className="hover:underline">← All schools</Link>}
+        eyebrow={<Link href="/operator" className="hover:underline">← All schools</Link>}
         title="Platform operators"
         description="Who can provision, suspend and bill schools. This is not a role — no school can grant it, and it reaches every school's data at once."
       />

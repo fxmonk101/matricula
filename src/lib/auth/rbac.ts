@@ -361,13 +361,14 @@ export function assertCan(role: Role, permission: Permission): void {
 export interface RouteGuard {
   prefix: string;
   roles: Role[];
-  /**
-   * Platform-operator routes. These sit OUTSIDE the per-school role matrix —
-   * a school administrator must never reach them by holding a role, so they
-   * are checked against the session's platform-admin claim instead.
-   */
-  platformOnly?: boolean;
 }
+
+/*
+ * There is no `platformOnly` guard any more. The vendor console lives at
+ * /operator behind its own cookie and its own middleware branch, so it is not
+ * reachable through this table at all — which is stronger than being listed
+ * here with an empty role array and a flag.
+ */
 
 export const ROUTE_GUARDS: RouteGuard[] = [
   { prefix: '/dashboard', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'DEAN'] },
@@ -408,10 +409,7 @@ export const ROUTE_GUARDS: RouteGuard[] = [
   { prefix: '/timetable', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'INSTRUCTOR', 'STUDENT'] },
   { prefix: '/setup', roles: ['OWNER', 'ADMIN'] },
   { prefix: '/settings/school', roles: ['OWNER', 'ADMIN'] },
-  // Longest-prefix wins, so this stays reachable by a school ADMIN while
-  // /admin/platform below is platform-only.
   { prefix: '/admin', roles: ['OWNER', 'ADMIN'] },
-  { prefix: '/admin/platform', roles: [], platformOnly: true },
 ];
 
 /** The guard covering `path`, or null when the path is unguarded. */

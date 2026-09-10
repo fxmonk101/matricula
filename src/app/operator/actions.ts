@@ -4,7 +4,7 @@ import { revalidatePath } from 'next/cache';
 
 import { headers } from 'next/headers';
 
-import { requirePlatformAdmin } from '@/lib/auth/session';
+import { requireOperator } from '@/lib/auth/operator';
 import { schoolEntranceUrl } from '@/lib/domain/tenancy';
 import {
   activateSchool,
@@ -18,7 +18,7 @@ import {
 import type { SubscriptionStatus } from '@/lib/domain/provisioning';
 
 /**
- * Every action here calls `requirePlatformAdmin()` FIRST, which re-checks the
+ * Every action here calls `requireOperator()` FIRST, which re-checks the
  * database rather than trusting the session claim. A server action is a public
  * endpoint: the page guard in middleware protects the page, not the action, and
  * an action that assumed the page had already vetted the caller would be
@@ -47,7 +47,7 @@ export async function provisionSchoolAction(
   _prev: PlatformFormState,
   formData: FormData,
 ): Promise<PlatformFormState> {
-  const session = await requirePlatformAdmin();
+  const session = await requireOperator();
 
   const academicModel = String(formData.get('academicModel') ?? 'HIGHER_ED');
   if (academicModel !== 'HIGHER_ED' && academicModel !== 'K12') {
@@ -74,7 +74,7 @@ export async function provisionSchoolAction(
     actorUserId: session.sub,
   });
 
-  revalidatePath('/admin/platform');
+  revalidatePath('/operator');
 
   // Built server-side: only the server knows whether this deployment addresses
   // schools by path or by subdomain, and a client guessing would hand the new
@@ -105,7 +105,7 @@ export async function setStatusAction(
   _prev: PlatformFormState,
   formData: FormData,
 ): Promise<PlatformFormState> {
-  const session = await requirePlatformAdmin();
+  const session = await requireOperator();
 
   const status = String(formData.get('status') ?? '');
   const valid: SubscriptionStatus[] = ['TRIALING', 'ACTIVE', 'PAST_DUE', 'CANCELLED'];
@@ -121,8 +121,8 @@ export async function setStatusAction(
     actorUserId: session.sub,
   });
 
-  revalidatePath('/admin/platform');
-  revalidatePath(`/admin/platform/${schoolId}`);
+  revalidatePath('/operator');
+  revalidatePath(`/operator/${schoolId}`);
   return result;
 }
 
@@ -130,13 +130,13 @@ export async function activateSchoolAction(
   _prev: PlatformFormState,
   formData: FormData,
 ): Promise<PlatformFormState> {
-  const session = await requirePlatformAdmin();
+  const session = await requireOperator();
   const schoolId = String(formData.get('schoolId') ?? '');
 
   const result = await activateSchool({ schoolId, actorUserId: session.sub });
 
-  revalidatePath('/admin/platform');
-  revalidatePath(`/admin/platform/${schoolId}`);
+  revalidatePath('/operator');
+  revalidatePath(`/operator/${schoolId}`);
   return result;
 }
 
@@ -144,7 +144,7 @@ export async function setPlanAction(
   _prev: PlatformFormState,
   formData: FormData,
 ): Promise<PlatformFormState> {
-  const session = await requirePlatformAdmin();
+  const session = await requireOperator();
   const schoolId = String(formData.get('schoolId') ?? '');
 
   const result = await setPlan({
@@ -155,8 +155,8 @@ export async function setPlanAction(
     actorUserId: session.sub,
   });
 
-  revalidatePath('/admin/platform');
-  revalidatePath(`/admin/platform/${schoolId}`);
+  revalidatePath('/operator');
+  revalidatePath(`/operator/${schoolId}`);
   return result;
 }
 
@@ -164,7 +164,7 @@ export async function raiseInvoiceAction(
   _prev: PlatformFormState,
   formData: FormData,
 ): Promise<PlatformFormState> {
-  const session = await requirePlatformAdmin();
+  const session = await requireOperator();
   const schoolId = String(formData.get('schoolId') ?? '');
 
   const start = new Date(String(formData.get('periodStart') ?? ''));
@@ -181,7 +181,7 @@ export async function raiseInvoiceAction(
     actorUserId: session.sub,
   });
 
-  revalidatePath(`/admin/platform/${schoolId}`);
+  revalidatePath(`/operator/${schoolId}`);
   return { ok: result.ok, message: result.message };
 }
 
@@ -189,7 +189,7 @@ export async function recordPaymentAction(
   _prev: PlatformFormState,
   formData: FormData,
 ): Promise<PlatformFormState> {
-  const session = await requirePlatformAdmin();
+  const session = await requireOperator();
 
   // Passed on in MAJOR units. The service converts against the invoice's own
   // currency; this layer does not know the exponent and must not guess it.
@@ -206,7 +206,7 @@ export async function recordPaymentAction(
     actorUserId: session.sub,
   });
 
-  revalidatePath(`/admin/platform/${String(formData.get('schoolId') ?? '')}`);
+  revalidatePath(`/operator/${String(formData.get('schoolId') ?? '')}`);
   return result;
 }
 
@@ -214,7 +214,7 @@ export async function setPlatformAdminAction(
   _prev: PlatformFormState,
   formData: FormData,
 ): Promise<PlatformFormState> {
-  const session = await requirePlatformAdmin();
+  const session = await requireOperator();
 
   const result = await setPlatformAdmin({
     userId: String(formData.get('userId') ?? ''),
@@ -222,6 +222,6 @@ export async function setPlatformAdminAction(
     actorUserId: session.sub,
   });
 
-  revalidatePath('/admin/platform/operators');
+  revalidatePath('/operator/operators');
   return result;
 }

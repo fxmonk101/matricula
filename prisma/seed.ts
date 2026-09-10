@@ -1299,14 +1299,34 @@ async function main() {
   // Promoted to OWNER as well, so the demo actually exercises the role that
   // sits above ADMIN rather than leaving it reachable only by provisioning a
   // brand-new school.
-  const operator = await db.user.findUnique({ where: { email: 'admin@geu.edu' } });
-  if (operator) {
-    await db.platformAdmin.create({ data: { userId: operator.id } });
+  // The school's own owner. A customer, not the vendor.
+  const owner = await db.user.findUnique({ where: { email: 'admin@geu.edu' } });
+  if (owner) {
     await db.membership.updateMany({
-      where: { userId: operator.id, schoolId: geu.schoolId },
+      where: { userId: owner.id, schoolId: geu.schoolId },
       data: { role: 'OWNER', title: 'Vice-Chancellor' },
     });
   }
+
+  /*
+   * The VENDOR's operator account, and it belongs to NO SCHOOL.
+   *
+   * It used to be the same row as Golden Eagles' administrator, which made the
+   * vendor look like a member of a customer institution and meant the console
+   * rendered inside that customer's shell. The console is now its own portal
+   * with its own cookie, so the account behind it holds no membership anywhere
+   * — which is what it should always have been.
+   */
+  const operator = await db.user.create({
+    data: {
+      email: 'operator@platform.local',
+      passwordHash,
+      firstName: 'Platform',
+      lastName: 'Operator',
+    },
+  });
+  await db.platformAdmin.create({ data: { userId: operator.id } });
+  console.log(`\n  Operator console: ${operator.email} (belongs to no school)`);
 
   // --- the academic reporting line -------------------------------------------
   // A university runs on Student → Lecturer → HOD → Dean → Registrar, so the

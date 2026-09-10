@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
-import { requirePlatformAdmin } from '@/lib/auth/session';
+import { requireOperator } from '@/lib/auth/operator';
 import { platformDb } from '@/lib/tenant';
 import { countSeats, loadEntitlement } from '@/server/services/platform.service';
 import { seatUtilisation, trialDaysRemaining } from '@/lib/domain/provisioning';
@@ -28,7 +28,7 @@ export const metadata: Metadata = { title: 'Platform — schools' };
 export default async function PlatformPage() {
   // Re-checks the database, so revoking an operator ends their access on the
   // next page load rather than when their eight-hour token happens to expire.
-  await requirePlatformAdmin();
+  await requireOperator();
 
   const [schools, plans] = await Promise.all([
     platformDb.school.findMany({
@@ -61,7 +61,7 @@ export default async function PlatformPage() {
         title="Platform"
         description="Every school on this installation. This console belongs to the vendor, not to any school — nothing here is scoped to the school you are signed in to."
         actions={
-          <Link href="/admin/platform/operators" className="text-sm text-brand-700 hover:underline">
+          <Link href="/operator/operators" className="text-sm text-brand-700 hover:underline">
             Operators →
           </Link>
         }
@@ -127,7 +127,7 @@ export default async function PlatformPage() {
                       <tr key={school.id}>
                         <Td>
                           <Link
-                            href={`/admin/platform/${school.id}`}
+                            href={`/operator/${school.id}`}
                             className="text-sm font-medium text-slate-900 hover:text-brand-700"
                           >
                             {school.name}

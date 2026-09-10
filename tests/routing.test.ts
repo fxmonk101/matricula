@@ -25,9 +25,11 @@ describe('sign-in landing pages', () => {
     }
   });
 
-  it('never sends a role to a platform-only route', () => {
+  it('never sends a role into the vendor console', () => {
+    // The console is a separate portal with its own cookie. A school role
+    // landing there would hit its sign-in page and be unable to proceed.
     for (const role of ROLES) {
-      expect(guardForPath(ROLE_HOME[role as Role])?.platformOnly ?? false).toBe(false);
+      expect(ROLE_HOME[role as Role].startsWith('/operator')).toBe(false);
     }
   });
 
@@ -42,8 +44,8 @@ describe('sign-in landing pages', () => {
 describe('route guards', () => {
   it('resolves the longest matching prefix, so a specific rule beats a broad one', () => {
     // /admin/platform must not be answered by the broader /admin rule.
-    expect(guardForPath('/admin/platform')?.prefix).toBe('/admin/platform');
     expect(guardForPath('/admin/audit')?.prefix).toBe('/admin');
+    expect(guardForPath('/library/manage')?.prefix).toBe('/library/manage');
   });
 
   it('matches a path segment, not a string prefix', () => {
@@ -66,11 +68,11 @@ describe('route guards', () => {
     }
   });
 
-  it('gives every platform-only guard an empty role list', () => {
-    // A platform route gated on a role as well would be reachable by holding
-    // that role, which is the exact thing the platform claim exists to prevent.
-    for (const guard of ROUTE_GUARDS.filter((g) => g.platformOnly)) {
-      expect(guard.roles).toHaveLength(0);
+  it('guards no path inside the vendor console', () => {
+    // /operator is handled by its own middleware branch before this table is
+    // consulted. A guard here would be dead code that looks load-bearing.
+    for (const guard of ROUTE_GUARDS) {
+      expect(guard.prefix.startsWith('/operator'), guard.prefix).toBe(false);
     }
   });
 });

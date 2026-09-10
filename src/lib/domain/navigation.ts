@@ -111,16 +111,15 @@ export const NAV_SECTIONS: NavSection[] = [
   },
 ];
 
-/**
- * The vendor's console. Appended by the shell only when the session carries the
- * platform-admin claim, and kept OUT of `NAV_SECTIONS` so that no combination
- * of school roles can surface it — the whole point of the platform tier is that
- * it is not a role.
+/*
+ * There is deliberately NO platform section here any more.
+ *
+ * The vendor console moved to its own portal at /operator, with its own cookie,
+ * its own sign-in page and its own shell. A school's sidebar therefore contains
+ * nothing about the vendor at all — which is the point: somebody signed in to a
+ * university is a member of that university and nothing else, whatever else
+ * they may also be elsewhere.
  */
-export const PLATFORM_SECTION: NavSection = {
-  heading: 'Platform',
-  items: [{ href: '/admin/platform', label: 'Schools', roles: [], icon: 'building' }],
-};
 
 /**
  * The sidebar one person actually sees.
@@ -136,19 +135,15 @@ export const PLATFORM_SECTION: NavSection = {
 export function visibleSections(opts: {
   role: Role;
   academicModel: AcademicModel;
-  isPlatformAdmin: boolean;
   /** `roleSatisfies`, passed in so this module needs no dependency on rbac. */
   satisfies: (role: Role, allowed: readonly Role[]) => boolean;
 }): NavSection[] {
-  const source = opts.isPlatformAdmin ? [...NAV_SECTIONS, PLATFORM_SECTION] : NAV_SECTIONS;
-  return source
+  return NAV_SECTIONS
     .map((section) => ({
       ...section,
       items: section.items.filter(
         (item) =>
-          // An empty role list means "not offered through the role matrix at
-          // all" — the platform section, which is admitted by the flag above.
-          (item.roles.length === 0 || opts.satisfies(opts.role, item.roles)) &&
+          opts.satisfies(opts.role, item.roles) &&
           (!item.models || item.models.includes(opts.academicModel)),
       ),
     }))

@@ -3,6 +3,7 @@ import { NextResponse, type NextRequest } from 'next/server';
 import { SESSION_COOKIE, verifySession } from '@/lib/auth/jwt';
 import { guardForPath, roleSatisfies } from '@/lib/auth/rbac';
 import { FORCED_PASSWORD_PATH, requiresPasswordChange } from '@/lib/auth/password-gate';
+import { OPERATOR_COOKIE, verifyOperatorSession } from '@/lib/auth/operator-jwt';
 import { ROLE_HOME } from '@/lib/domain/enums';
 import { resolveTenantSlug, tenancyMode } from '@/lib/domain/tenancy';
 
@@ -57,6 +58,29 @@ function tenantSlug(pathname: string, host: string | null): string | null {
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  /*
+   * THE OPERATOR CONSOLE IS A SEPARATE DOOR.
+   *
+   * Handled before anything else and returned from outright, so none of the
+   * school logic below runs for it: the console has no tenant, no school role
+   * and no forced-password gate, and every one of those would either reject a
+   * valid operator or try to scope a request that has nothing to scope.
+   *
+   * The cookie is scoped to /operator, so the browser does not even send it to
+   * a school's pages — a bug in tenant code cannot read it.
+   */
+  if (pathname === '/operator' || pathname.startsWith('/operator/')) {
+    if (pathname === '/operator/login') return NextResponse.next();
+
+    const operator = await verifyOperatorSession(
+      request.cookies.get(OPERATOR_COOKIE)?.value,
+    );
+    if (!operator) {
+      return NextResponse.redirect(new URL('/operator/login', request.url));
+    }
+    return NextResponse.next();
+  }
 
   const host = request.headers.get('host');
 
@@ -125,13 +149,6 @@ export async function middleware(request: NextRequest) {
     // Preserve the destination so sign-in can return the user to it.
     loginUrl.searchParams.set('next', pathname);
     return NextResponse.redirect(loginUrl);
-  }
-
-  // Platform routes are gated on the platform claim, never on a school role:
-  // no school administrator can reach them by virtue of their role.
-  if (guard.platformOnly) {
-    if (!session.pa) return NextResponse.redirect(new URL('/forbidden', request.url));
-    return NextResponse.next();
   }
 
   // Same hierarchy as requireTenantRole, from the same function, so the edge

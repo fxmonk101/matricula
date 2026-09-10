@@ -73,7 +73,6 @@ export function AppShell({
   const sections = visibleSections({
     role: session.role,
     academicModel: school.academicModel,
-    isPlatformAdmin: Boolean(session.pa),
     satisfies: roleSatisfies,
   });
 

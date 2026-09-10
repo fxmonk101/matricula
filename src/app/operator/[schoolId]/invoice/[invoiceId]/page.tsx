@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
-import { requirePlatformAdmin } from '@/lib/auth/session';
+import { requireOperator } from '@/lib/auth/operator';
 import { platformDb } from '@/lib/tenant';
 import { formatDate } from '@/lib/utils';
 import { currencyFor, formatMoney } from '@/lib/domain/money';
@@ -16,7 +16,7 @@ export default async function SubscriptionInvoicePage({
 }: {
   params: Promise<{ schoolId: string; invoiceId: string }>;
 }) {
-  await requirePlatformAdmin();
+  await requireOperator();
   const { schoolId, invoiceId } = await params;
 
   const invoice = await platformDb.subscriptionInvoice.findUnique({
@@ -41,7 +41,7 @@ export default async function SubscriptionInvoicePage({
       <div className="no-print">
         <PageHeader
           eyebrow={
-            <Link href={`/admin/platform/${schoolId}`} className="hover:underline">
+            <Link href={`/operator/${schoolId}`} className="hover:underline">
               ← {school.name}
             </Link>
           }
