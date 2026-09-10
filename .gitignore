@@ -5,6 +5,10 @@ build/
 dist/
 
 # local env & database
+# The real one. It carries AUTH_SECRET and the database URL, and it was
+# TRACKED until this commit — `.env.local` was ignored but `.env` was not, which
+# is the exact gap that puts a signing key into a public repository.
+.env
 .env.local
 .env*.local
 *.db
