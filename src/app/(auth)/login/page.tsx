@@ -61,17 +61,18 @@ export default async function LoginPage({
 
         <div className="relative max-w-md">
           <h1 className="text-3xl font-semibold leading-tight tracking-tight">
-            One record for every student, from application to graduation.
+            Run the whole institution on one system.
           </h1>
           <p className="mt-4 text-sm leading-relaxed text-slate-300">
-            Admissions, registration, assessment and the bursary run on a single authoritative
-            record — so a grade, a fee and a transcript can never disagree about the same person.
+            The registry, the faculties, the departments and the bursary working from the same
+            records — so nothing is entered twice, and a grade, a fee and a transcript can never
+            disagree about the same person.
           </p>
 
           <dl className="mt-10 grid grid-cols-3 gap-6 border-t border-white/10 pt-6">
             {[
-              { k: 'Admissions', v: 'Rubric-scored' },
-              { k: 'Registration', v: 'Rule-checked' },
+              { k: 'Structure', v: 'Faculty to course' },
+              { k: 'Registry', v: 'One record' },
               { k: 'Bursary', v: 'Fully reconciled' },
             ].map((item) => (
               <div key={item.k}>
@@ -116,11 +117,15 @@ export default async function LoginPage({
             <FindSchool />
           </div>
 
-          <p className="mt-6 text-center text-xs text-slate-500">
-            Applying for admission?{' '}
-            <Link href="/apply" className="font-medium text-brand-700 hover:underline">
-              Start an application
-            </Link>
+          {/*
+            A SIGNPOST, not a call to action. Applications are made on the
+            institution's own portal — the only place that knows its programmes
+            and its deadlines — so somebody who has arrived at the platform
+            entrance by mistake needs directions rather than a form.
+          */}
+          <p className="mt-6 text-center text-xs leading-relaxed text-slate-500">
+            Applying to a university? Applications are made on your institution&rsquo;s own portal.
+            Use the address they gave you, or find it above.
           </p>
         </div>
       </div>

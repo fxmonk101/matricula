@@ -103,11 +103,11 @@ export default async function SchoolLoginPage({
 
         <div className="relative max-w-lg">
           <h1 className="text-[2.5rem] font-semibold leading-[1.1] tracking-tight">
-            One record for every student, from application to graduation.
+            One system for the whole institution.
           </h1>
           <p className="mt-5 text-sm leading-relaxed text-onAccent/85">
-            Admissions, registration, assessment and the bursary run on a single authoritative
-            record — so a grade, a fee and a transcript can never disagree about the same person.
+            Admissions, the registry, teaching and the bursary working from the same records —
+            so a grade, a fee and a transcript can never disagree about the same person.
           </p>
         </div>
 
