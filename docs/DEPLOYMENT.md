@@ -1,7 +1,42 @@
-# Going live: Supabase + Vercel
+# Going live: GitHub + Supabase + Vercel
 
 Written to be followed in order. Each step says what it is for, because the
 ones that look optional are the ones that break a week later under real load.
+
+---
+
+## 0. GitHub
+
+Create an **empty** repository at [github.com/new](https://github.com/new) —
+private, and with **no** README, `.gitignore` or licence. An initialised
+repository creates a commit this history does not contain, and the first push
+then has to be merged before it can go anywhere.
+
+Then, from the project folder:
+
+```bash
+git remote add origin https://github.com/<you>/<repo>.git
+git push -u origin main
+```
+
+### Before you push, know what was fixed
+
+`.env` was **tracked** by git, from the first commit onwards: `.gitignore`
+covered `.env.local` but not `.env`, and `.env` is the file carrying
+`AUTH_SECRET` and the database URL.
+
+Nothing had ever been pushed, so it was caught in time. It has been removed from
+the working tree's index, added to `.gitignore`, and purged from all 21 commits
+of history; the original refs were deleted and the object store garbage
+collected. The signing key now appears in no reachable blob.
+
+Two things follow from that:
+
+- **Use a different `AUTH_SECRET` in production** from the one on your laptop.
+  Not because the development one leaked, but because a production signing key
+  should never have existed anywhere else.
+- **Never `git add -f .env`.** The ignore rule is the only thing standing
+  between that file and a public repository.
 
 ---
 
