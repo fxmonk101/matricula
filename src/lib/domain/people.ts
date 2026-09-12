@@ -1,4 +1,5 @@
 import { ROLES, type Role } from './enums';
+import { validateIdentifiers } from './identifier';
 
 /**
  * =============================================================================
@@ -181,7 +182,9 @@ export function isValidEmail(raw: string): boolean {
 }
 
 export interface PersonDraft {
-  email: string;
+  /** Either may be absent; the pair is validated by validateIdentifiers. */
+  email?: string | null;
+  username?: string | null;
   firstName: string;
   lastName: string;
   phone?: string | null;
@@ -200,7 +203,10 @@ export interface PersonDraft {
 export function validatePerson(draft: PersonDraft): string[] {
   const problems: string[] = [];
 
-  if (!isValidEmail(draft.email)) problems.push('Enter a valid email address.');
+  // Identity is delegated: the rule that an account must carry at least one
+  // sign-in identifier belongs with the identifier rules, not duplicated here
+  // where it would drift out of step with them.
+  problems.push(...validateIdentifiers({ email: draft.email, username: draft.username }));
   if (draft.firstName.trim().length < 1) problems.push('Enter a first name.');
   if (draft.lastName.trim().length < 1) problems.push('Enter a last name.');
   if (draft.firstName.trim().length > 80 || draft.lastName.trim().length > 80) {

@@ -11,6 +11,13 @@ import {
   verifyPassword,
 } from '@/lib/auth/session';
 import { ROLE_HOME, isRole } from '@/lib/domain/enums';
+import {
+  classifyIdentifier,
+  isValidEmail,
+  isValidUsername,
+  normaliseEmail,
+  normaliseUsername,
+} from '@/lib/domain/identifier';
 import { recordAudit } from '@/server/services/audit.service';
 import { SIGN_IN_POLICY } from '@/lib/domain/rate-limit';
 import {
@@ -21,7 +28,16 @@ import {
 } from '@/server/services/rate-limit.service';
 
 const credentialsSchema = z.object({
-  email: z.string().trim().toLowerCase().email('Enter a valid email address.'),
+  /*
+   * An email address OR a username.
+   *
+   * Validated only for length here, with the shape checked after
+   * classification: a person who typed "ada@school" should be told their
+   * ADDRESS is malformed, whereas somebody who typed "a.okafor" should not be
+   * told anything about email at all. One combined rule can only produce a
+   * message that is wrong for one of them.
+   */
+  identifier: z.string().trim().min(1, 'Enter your email address or username.').max(254),
   password: z.string().min(1, 'Enter your password.'),
   /** Present when signing in through /s/<slug>/login. */
   schoolSlug: z.string().trim().min(1).max(64).optional(),
@@ -62,7 +78,9 @@ export async function signInAction(
   formData: FormData,
 ): Promise<SignInState> {
   const parsed = credentialsSchema.safeParse({
-    email: formData.get('email'),
+    // The field is still named "email" in the DOM so browsers and password
+    // managers keep autofilling it; what it accepts is wider than its name.
+    identifier: formData.get('email'),
     password: formData.get('password'),
     schoolSlug: formData.get('schoolSlug') || undefined,
     next: formData.get('next') ?? undefined,
@@ -72,7 +90,25 @@ export async function signInAction(
     return { error: parsed.error.issues[0]?.message ?? 'Invalid credentials.' };
   }
 
-  const { email, password, schoolSlug, next } = parsed.data;
+  const { identifier, password, schoolSlug, next } = parsed.data;
+
+  // Classified on the presence of "@" alone, so a malformed address is
+  // reported as one rather than being searched for as a username.
+  const kind = classifyIdentifier(identifier);
+  if (kind === 'email' && !isValidEmail(identifier)) {
+    return { error: 'Enter a valid email address.' };
+  }
+  if (kind === 'username' && !isValidUsername(identifier)) {
+    // Deliberately the GENERIC message, not the specific rejection reason: a
+    // sign-in form that explains username rules tells an attacker exactly what
+    // shape of identifier is worth guessing.
+    return { error: 'Email or password is incorrect.' };
+  }
+
+  // The rate-limit key. Normalised so that "A.Okafor" and "a.okafor" share a
+  // budget rather than doubling it.
+  const email =
+    kind === 'email' ? normaliseEmail(identifier) : normaliseUsername(identifier);
   const GENERIC_ERROR = 'Email or password is incorrect.';
 
   /*
@@ -105,7 +141,8 @@ export async function signInAction(
   };
 
   const user = await platformDb.user.findUnique({
-    where: { email },
+    // Both columns carry a unique index, so either is a single-row lookup.
+    where: kind === 'email' ? { email } : { username: email },
     include: {
       platformAdmin: { select: { id: true } },
       memberships: {
@@ -175,7 +212,10 @@ export async function signInAction(
 
   await createSession({
     sub: user.id,
-    email: user.email,
+    // Whichever identifier the account actually has. The claim is named
+    // `email` for continuity, but an account may legitimately have only a
+    // username — and the shell renders this, so it must never be empty.
+    email: user.email ?? user.username ?? user.id,
     name: `${user.firstName} ${user.lastName}`,
     sch: membership.schoolId,
     mbr: membership.id,

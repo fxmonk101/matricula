@@ -34,7 +34,7 @@ export function PasswordForm({
   person,
 }: {
   forced: boolean;
-  person: { email: string; firstName: string; lastName: string };
+  person: { email?: string; firstName: string; lastName: string };
 }) {
   const [state, action] = useActionState<PasswordFormState, FormData>(changePasswordAction, {});
   const [next, setNext] = useState('');

@@ -270,7 +270,25 @@ model IdentityProvider {
 /// Their role(s) live on Membership.
 model User {
   id           String    @id @default(cuid())
-  email        String    @unique
+
+  /// CONTACT address, and OPTIONAL.
+  ///
+  /// A university creating five thousand student accounts cannot invent five
+  /// thousand unique mailboxes, and in this market many students and much of
+  /// the non-teaching staff have no address at the moment their record is
+  /// created. Requiring one forced the registry to fabricate addresses, which
+  /// poisons the single field anybody would later use to actually reach a
+  /// person.
+  email        String?   @unique
+
+  /// LOGIN identifier, also optional — but AT LEAST ONE of the two must be
+  /// present. That rule lives in the account service rather than in the schema
+  /// because SQLite and PostgreSQL express table-level checks differently, and
+  /// this schema stays portable by construction.
+  ///
+  /// Stored lower-case so that "A.Okafor" and "a.okafor" cannot become two
+  /// accounts; the unique index is on the stored form.
+  username     String?   @unique
   passwordHash String
   firstName    String
   lastName     String

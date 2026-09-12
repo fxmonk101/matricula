@@ -4,6 +4,11 @@ import { dbFor, platformDb } from '@/lib/tenant';
 import { hashPassword } from '@/lib/auth/password';
 import { formatTemporaryPassword } from '@/lib/domain/provisioning';
 import {
+  disambiguateUsername,
+  normaliseUsername,
+  suggestUsername,
+} from '@/lib/domain/identifier';
+import {
   canActOn,
   canAssignRole,
   normaliseEmail,
@@ -57,7 +62,9 @@ export interface PeopleResult {
  */
 export async function provisionMembership(params: {
   schoolId: string;
-  email: string;
+  /** Either may be omitted, but not both. */
+  email?: string | null;
+  username?: string | null;
   firstName: string;
   lastName: string;
   phone?: string | null;
@@ -68,9 +75,38 @@ export async function provisionMembership(params: {
   actor: ActorContext;
   actorUserId: string;
 }): Promise<PeopleResult> {
-  const email = normaliseEmail(params.email);
+  const email = params.email ? normaliseEmail(params.email) : null;
+
+  /*
+   * A username is DERIVED when none was given and no email was either.
+   *
+   * The registry enrolling an intake supplies names and nothing else, and an
+   * account with no identifier can never be signed in to — so one is generated
+   * from the name rather than the record being refused. Where an email WAS
+   * given, no username is invented: a second identifier nobody asked for is a
+   * second thing to keep unique and to explain.
+   */
+  let username = params.username ? normaliseUsername(params.username) : null;
+  if (!username && !email) {
+    const suggestion = suggestUsername(params.firstName, params.lastName);
+    if (suggestion) {
+      const taken = new Set(
+        (
+          await platformDb.user.findMany({
+            where: { username: { startsWith: suggestion } },
+            select: { username: true },
+          })
+        )
+          .map((u) => u.username)
+          .filter((u): u is string => u !== null),
+      );
+      username = disambiguateUsername(suggestion, taken);
+    }
+  }
+
   const problems = validatePerson({
     email,
+    username,
     firstName: params.firstName,
     lastName: params.lastName,
     phone: params.phone,
@@ -88,7 +124,9 @@ export async function provisionMembership(params: {
   // an authenticated administrator looking at their own school's register —
   // there is nothing to leak.
   const existing = await db.membership.findFirst({
-    where: { user: { email } },
+    where: {
+      user: email ? { email } : { username },
+    },
     include: { user: { select: { firstName: true, lastName: true } } },
   });
   if (existing) {
@@ -106,7 +144,11 @@ export async function provisionMembership(params: {
     if (!seat.allowed) return { ok: false, message: seat.message! };
   }
 
-  const existingUser = await platformDb.user.findUnique({ where: { email } });
+  const existingUser = email
+    ? await platformDb.user.findUnique({ where: { email } })
+    : username
+      ? await platformDb.user.findUnique({ where: { username } })
+      : null;
   const temporaryPassword = formatTemporaryPassword(randomBytes(32));
 
   try {
@@ -116,6 +158,7 @@ export async function provisionMembership(params: {
         (await tx.user.create({
           data: {
             email,
+            username,
             passwordHash: await hashPassword(temporaryPassword),
             firstName: params.firstName.trim(),
             lastName: params.lastName.trim(),
@@ -192,7 +235,7 @@ export async function updatePerson(params: {
   if (!verdict.allowed) return { ok: false, message: verdict.reason! };
 
   const problems = validatePerson({
-    email: target.user.email,
+    email: target.user.email ?? undefined,
     firstName: params.firstName,
     lastName: params.lastName,
     phone: params.phone,
@@ -475,7 +518,7 @@ export async function changeOwnPassword(params: {
   }
 
   const problems = passwordProblems(params.newPassword, {
-    email: user.email,
+    email: user.email ?? undefined,
     firstName: user.firstName,
     lastName: user.lastName,
   });
@@ -513,7 +556,9 @@ export interface PersonRow {
   membershipId: string;
   userId: string;
   name: string;
-  email: string;
+  /** Either may be absent, but never both. */
+  email: string | null;
+  username: string | null;
   phone: string | null;
   role: Role;
   title: string | null;
@@ -554,6 +599,7 @@ export async function listPeople(
         select: {
           id: true,
           email: true,
+          username: true,
           firstName: true,
           lastName: true,
           phone: true,
@@ -573,6 +619,7 @@ export async function listPeople(
     userId: m.userId,
     name: `${m.user.firstName} ${m.user.lastName}`,
     email: m.user.email,
+    username: m.user.username,
     phone: m.user.phone,
     role: m.role as Role,
     title: m.title,

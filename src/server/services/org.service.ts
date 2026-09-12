@@ -63,7 +63,7 @@ export interface TeamMember {
   membershipId: string;
   userId: string;
   name: string;
-  email: string;
+  email: string | null;
   role: string;
   title: string | null;
   orgUnitName: string | null;

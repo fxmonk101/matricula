@@ -47,7 +47,9 @@ export async function createPersonAction(
 
   const result = await provisionMembership({
     schoolId,
-    email: String(formData.get('email') ?? ''),
+    // Either may be blank; provisionMembership enforces that not both are.
+    email: optional(formData.get('email')),
+    username: optional(formData.get('username')),
     firstName: String(formData.get('firstName') ?? ''),
     lastName: String(formData.get('lastName') ?? ''),
     phone: optional(formData.get('phone')),

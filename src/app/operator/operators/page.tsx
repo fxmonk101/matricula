@@ -3,6 +3,7 @@ import Link from 'next/link';
 
 import { requireOperator } from '@/lib/auth/operator';
 import { platformDb } from '@/lib/tenant';
+import { displayIdentifier } from '@/lib/domain/identifier';
 import { listPlatformAudit } from '@/server/services/audit.service';
 import { formatDate, formatDateTime, fullName } from '@/lib/utils';
 import {
@@ -111,7 +112,7 @@ export default async function OperatorsPage({
                       <Td className="text-right">
                         <OperatorControls
                           userId={op.userId}
-                          label={op.user.email}
+                          label={displayIdentifier(op.user)}
                           grant={false}
                           soleOperator={operators.length <= 1}
                         />
@@ -183,7 +184,12 @@ export default async function OperatorsPage({
                   {operatorIds.has(user.id) ? (
                     <span className="shrink-0 text-[11px] text-slate-400">already an operator</span>
                   ) : (
-                    <OperatorControls userId={user.id} label={user.email} grant soleOperator={false} />
+                    <OperatorControls
+                      userId={user.id}
+                      label={displayIdentifier(user)}
+                      grant
+                      soleOperator={false}
+                    />
                   )}
                 </li>
               ))}

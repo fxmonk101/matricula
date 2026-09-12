@@ -7,6 +7,7 @@ import { can } from '@/lib/auth/rbac';
 import { ASSIGNABLE_ROLES } from '@/lib/domain/people';
 import { seatUtilisation } from '@/lib/domain/provisioning';
 import { ROLE_LABELS, isRole, type Role } from '@/lib/domain/enums';
+import { displayIdentifier } from '@/lib/domain/identifier';
 import { formatDate } from '@/lib/utils';
 import {
   Alert,
@@ -187,7 +188,7 @@ export default async function PeoplePage({
                       <Td>
                         <div className="text-sm font-medium text-slate-900">{person.name}</div>
                         <div className="text-[11px] text-slate-500">
-                          {person.email}
+                          {displayIdentifier(person)}
                           {person.otherSchools > 0 && (
                             <>
                               {' · '}

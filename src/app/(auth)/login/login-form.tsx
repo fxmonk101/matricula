@@ -28,14 +28,31 @@ export function LoginForm({ next, schoolSlug }: { next?: string; schoolSlug?: st
 
       {state.error ? <Alert tone="danger">{state.error}</Alert> : null}
 
-      <Field label="Email address" htmlFor="email" required>
+      {/*
+        `type="text"`, NOT `type="email"`.
+
+        The browser refuses to submit an email input whose value has no
+        at-sign, so a student typing their username would be blocked by the
+        field itself — with a browser-native bubble the app cannot reword or
+        even see. The field name stays `email` so password managers that have
+        already saved a credential for it keep autofilling.
+      */}
+      <Field
+        label="Email address or username"
+        htmlFor="email"
+        required
+        hint="Whichever your institution issued you."
+      >
         <Input
           id="email"
           name="email"
-          type="email"
+          type="text"
+          inputMode="email"
           autoComplete="username"
+          autoCapitalize="none"
+          spellCheck={false}
           required
-          placeholder="you@geu.edu"
+          placeholder="you@university.edu or a.okafor"
         />
       </Field>
 

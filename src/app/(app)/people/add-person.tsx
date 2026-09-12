@@ -13,7 +13,11 @@ import {
   Input,
   Select,
 } from '@/components/ui';
-import { isValidEmail } from '@/lib/domain/people';
+import {
+  isValidEmail,
+  suggestUsername,
+  usernameRejectionReason,
+} from '@/lib/domain/identifier';
 import { ROLE_LABELS, type Role } from '@/lib/domain/enums';
 import { createPersonAction, type PeopleFormState } from './actions';
 
@@ -35,9 +39,19 @@ export function AddPersonPanel({
 }) {
   const [state, action] = useActionState<PeopleFormState, FormData>(createPersonAction, {});
   const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
   const [role, setRole] = useState<Role>('INSTRUCTOR');
 
   const emailLooksWrong = email.trim().length > 0 && !isValidEmail(email);
+  const usernameProblem = username.trim() ? usernameRejectionReason(username) : null;
+
+  // What the server will generate if the registrar supplies neither, shown so
+  // that the account's identifier is never a surprise discovered at handover.
+  const suggestion = suggestUsername(firstName, lastName);
+  const willGenerate = !email.trim() && !username.trim() && Boolean(suggestion);
+  const noIdentifier = !email.trim() && !username.trim() && !suggestion;
 
   // The one-time password screen REPLACES the form. It is shown once and is not
   // recoverable, so leaving a form beside it — one stray click from wiping it —
@@ -105,30 +119,79 @@ export function AddPersonPanel({
 
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="First name" htmlFor="firstName" required>
-              <Input id="firstName" name="firstName" required autoComplete="off" />
+              <Input
+                id="firstName"
+                name="firstName"
+                required
+                autoComplete="off"
+                value={firstName}
+                onChange={(e) => setFirstName(e.target.value)}
+              />
             </Field>
             <Field label="Last name" htmlFor="lastName" required>
-              <Input id="lastName" name="lastName" required autoComplete="off" />
+              <Input
+                id="lastName"
+                name="lastName"
+                required
+                autoComplete="off"
+                value={lastName}
+                onChange={(e) => setLastName(e.target.value)}
+              />
             </Field>
           </div>
 
+          {/*
+            NEITHER is required on its own, but one of them must be present.
+            A university enrolling an intake has names and no mailboxes, so
+            demanding an address here is precisely what makes a registry start
+            inventing them.
+          */}
           <Field
             label="Email"
             htmlFor="email"
-            required
             error={emailLooksWrong ? 'That does not look like an email address.' : undefined}
-            hint="If they already have an account here, they keep their existing password."
+            hint="Optional. If they already have an account here, they keep their existing password."
           >
             <Input
               id="email"
               name="email"
-              type="email"
-              required
+              type="text"
+              inputMode="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               autoComplete="off"
+              autoCapitalize="none"
+              spellCheck={false}
             />
           </Field>
+
+          <Field
+            label="Username"
+            htmlFor="username"
+            error={usernameProblem ?? undefined}
+            hint={
+              willGenerate
+                ? 'Leave blank and they will be given "' + suggestion + '".'
+                : 'Optional. What they type to sign in, if they have no email address.'
+            }
+          >
+            <Input
+              id="username"
+              name="username"
+              value={username}
+              onChange={(e) => setUsername(e.target.value.toLowerCase())}
+              placeholder={suggestion || 'a.okafor'}
+              autoComplete="off"
+              autoCapitalize="none"
+              spellCheck={false}
+            />
+          </Field>
+
+          {noIdentifier && (
+            <Alert tone="warning">
+              Enter an email address or a username. Without one, this person has no way to sign in.
+            </Alert>
+          )}
 
           <Field label="Role" htmlFor="role" required>
             <Select

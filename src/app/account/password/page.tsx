@@ -88,7 +88,7 @@ export default async function PasswordPage() {
           <PasswordForm
             forced={forced}
             person={{
-              email: user.email,
+              email: user.email ?? undefined,
               firstName: user.firstName,
               lastName: user.lastName,
             }}
