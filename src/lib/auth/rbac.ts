@@ -373,6 +373,9 @@ export interface RouteGuard {
 export const ROUTE_GUARDS: RouteGuard[] = [
   { prefix: '/dashboard', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'DEAN'] },
   { prefix: '/students', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'INSTRUCTOR', 'ADMISSIONS', 'FINANCE'] },
+  // Longest-prefix wins. Registration is the Bursary's desk, so a lecturer
+  // who may read the student list cannot reach the form that creates one.
+  { prefix: '/students/register', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'FINANCE'] },
   { prefix: '/instructors', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'DEAN', 'HOD'] },
   { prefix: '/courses', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'INSTRUCTOR', 'STUDENT', 'ADMISSIONS'] },
   { prefix: '/offerings', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'INSTRUCTOR', 'STUDENT'] },

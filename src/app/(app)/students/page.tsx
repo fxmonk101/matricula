@@ -16,6 +16,7 @@ import {
   Th,
   toneForStatus,
 } from '@/components/ui';
+import { can } from '@/lib/auth/rbac';
 
 export const metadata: Metadata = { title: 'Students' };
 
@@ -26,7 +27,7 @@ export default async function StudentsPage({
 }: {
   searchParams: Promise<{ q?: string; program?: string; standing?: string; page?: string }>;
 }) {
-  const { db, school, schoolId } = await requireTenantRole('ADMIN', 'REGISTRAR', 'ADMISSIONS', 'FINANCE', 'INSTRUCTOR');
+  const { db, school, schoolId, role } = await requireTenantRole('ADMIN', 'REGISTRAR', 'ADMISSIONS', 'FINANCE', 'INSTRUCTOR');
 
   const params = await searchParams;
   const q = params.q?.trim() ?? '';
@@ -76,6 +77,16 @@ export default async function StudentsPage({
       <PageHeader
         title="Student register"
         description={`${total.toLocaleString()} record${total === 1 ? '' : 's'} matching the current filter.`}
+        actions={
+          can(role, 'student:register') ? (
+            <Link
+              href="/students/register"
+              className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-onAccent transition-colors hover:bg-brand-700"
+            >
+              Register a student
+            </Link>
+          ) : null
+        }
       />
 
       <Card>
