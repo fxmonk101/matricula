@@ -414,6 +414,12 @@ export const ROUTE_GUARDS: RouteGuard[] = [
   // The registry owns the calendar and the bursary owns the fees, and the two
   // are inseparable: a schedule belongs to a term.
   { prefix: '/calendar', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'FINANCE'] },
+  // EVERY member signs themselves in and out — a lecturer, a librarian and a
+  // student all need the same button, and being present in a building is not a
+  // privilege any role grants or withholds. Guardians and applicants are absent
+  // because neither is ever in the building as a member of it.
+  { prefix: '/presence', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'FINANCE', 'ADMISSIONS', 'INSTRUCTOR', 'LIBRARIAN', 'STAFF', 'STUDENT'] },
+  { prefix: '/presence/teaching', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'INSTRUCTOR'] },
   { prefix: '/settings/school', roles: ['OWNER', 'ADMIN'] },
   { prefix: '/admin', roles: ['OWNER', 'ADMIN'] },
 ];

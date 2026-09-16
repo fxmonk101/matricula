@@ -1,5 +1,10 @@
 import type { PrismaClient } from '@prisma/client';
 
+import { toLocalDate } from '../src/lib/domain/time';
+
+/** The demo K-12 school sits in Lagos, like its parent university. */
+const SEED_TIMEZONE = 'Africa/Lagos';
+
 import {
   DEFAULT_ADMISSIONS_CONFIG,
   DEFAULT_ENROLLMENT_POLICY,
@@ -289,7 +294,17 @@ export async function seedK12School(db: PrismaClient, passwordHash: string, day:
       const date = day(-88 + i);
       const status = i < present ? 'PRESENT' : i < present + late ? 'LATE' : 'ABSENT';
       await db.attendanceRecord.create({
-        data: { schoolId, studentId: student.id, termId: term.id, date, status },
+        data: {
+          schoolId,
+          studentId: student.id,
+          termId: term.id,
+          // The school's calendar day as a string. Seeded through the same
+          // helper the app uses, so seeded registers cannot be in a shape the
+          // product would never produce.
+          localDate: toLocalDate(date, SEED_TIMEZONE),
+          sessionKey: 'DAY',
+          status,
+        },
       });
       d++;
     }

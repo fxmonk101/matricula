@@ -89,6 +89,8 @@ export const NAV_SECTIONS: NavSection[] = [
   {
     heading: 'Work',
     items: [
+      { href: '/presence', label: 'Sign In / Out', roles: ['ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'FINANCE', 'ADMISSIONS', 'INSTRUCTOR', 'LIBRARIAN', 'STAFF', 'STUDENT'], icon: 'check' },
+      { href: '/presence/teaching', label: 'Teaching Log', roles: ['INSTRUCTOR', 'HOD', 'DEAN', 'ADMIN', 'REGISTRAR'], icon: 'book' },
       { href: '/tasks', label: 'Tasks', roles: ['ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'FINANCE', 'ADMISSIONS', 'INSTRUCTOR', 'LIBRARIAN', 'STAFF'], icon: 'check' },
       { href: '/team', label: 'My Team', roles: ['ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'INSTRUCTOR'], icon: 'team' },
       { href: '/org', label: 'Organisation', roles: ['ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'INSTRUCTOR'], icon: 'org' },

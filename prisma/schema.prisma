@@ -189,6 +189,12 @@ model Membership {
   collectionsCurated ResourceCollection[] @relation("CollectionCurator")
   resourceViews      ResourceView[]
 
+  // --- presence and teaching ---
+  presenceSessions     PresenceSession[]    @relation("PresenceOf")
+  presenceCorrections  PresenceCorrection[] @relation("PresenceCorrector")
+  teachingLogs         TeachingLog[]        @relation("TeachingBy")
+  attendanceRecorded   AttendanceRecord[]   @relation("AttendanceRecorder")
+
   @@unique([userId, schoolId])
   @@index([schoolId, role])
   @@index([managerId])
@@ -543,6 +549,7 @@ model CourseOffering {
   @@index([termId])
   @@index([instructorId])
   @@map("course_offerings")
+  teachingLogs TeachingLog[]
 }
 
 /// One weekly timeslot for an offering. Times are minutes-from-midnight in the
@@ -1169,23 +1176,194 @@ model SubjectResult {
 }
 
 /// Daily attendance. K-12 requires it, and it feeds the promotion decision.
+/// A pupil's attendance for one session of one calendar day.
+///
+/// `localDate` IS A STRING, AND THAT IS THE WHOLE POINT.
+///
+/// It was a DateTime under `@@unique([studentId, date])`, and that constraint
+/// held only by luck: the seed was its sole writer and produced one consistent
+/// instant per day. The moment a "take the register" action passed `new Date()`
+/// every call would produce a distinct instant, the constraint would stop
+/// constraining, and a register taken twice would silently write two rows per
+/// pupil — which `summariseAttendance` then double-counts straight onto a
+/// report card, and from there into a promotion decision about a child.
+///
+/// A string cannot carry a time component, so the constraint cannot be
+/// defeated by one. It holds the SCHOOL'S calendar day, in its own timezone,
+/// which is also the only correct answer to "which day was this register for"
+/// for an institution whose staff and servers are not in the same place.
 model AttendanceRecord {
-  id         String   @id @default(cuid())
-  schoolId   String
-  studentId  String
-  student    Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  termId     String
-  term       Term     @relation(fields: [termId], references: [id], onDelete: Cascade)
-  date       DateTime
-  /// AttendanceStatus: PRESENT | ABSENT | LATE | EXCUSED
-  status     String
-  note       String?
-  recordedBy String?
-  createdAt  DateTime @default(now())
+  id        String  @id @default(cuid())
+  schoolId  String
+  studentId String
+  student   Student @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  termId    String
+  term      Term    @relation(fields: [termId], references: [id], onDelete: Cascade)
 
-  @@unique([studentId, date])
-  @@index([schoolId, termId, date])
+  /// "YYYY-MM-DD" in the school's timezone.
+  localDate String
+
+  /// Which register this is. NOT NULL, and defaulted, deliberately: a nullable
+  /// discriminator would be NULL on every daily row, and because NULLs are
+  /// distinct in a unique index the daily register would lose uniqueness
+  /// entirely — reintroducing the exact bug this column exists to close.
+  /// "DAY" for a daily register; a period or subject code for a per-period one.
+  sessionKey String @default("DAY")
+
+  /// AttendanceStatus: PRESENT | ABSENT | LATE | EXCUSED
+  status String
+  note   String?
+
+  /// A real foreign key rather than free text. Safe to introduce because the
+  /// column it replaces is verifiably 100% NULL today.
+  recordedById String?
+  recordedBy   Membership? @relation("AttendanceRecorder", fields: [recordedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@unique([studentId, localDate, sessionKey])
+  @@index([schoolId, termId, localDate])
   @@map("attendance_records")
+}
+
+// -----------------------------------------------------------------------------
+// Presence — who was in the building, and who taught what
+// -----------------------------------------------------------------------------
+
+/// One person's presence, as an INTERVAL.
+///
+/// Keyed on `Membership` so that one mechanism covers staff and students
+/// alike. Deliberately NOT called "attendance": if presence and the pupil
+/// register share a vocabulary, somebody reads the wrong table within a month.
+///
+/// Intervals rather than an event log. With events, "who is in the building"
+/// becomes a self-join, and one unpaired clock-out corrupts every pairing after
+/// it; with intervals it is one indexed predicate and the damage is confined to
+/// its own row.
+model PresenceSession {
+  id           String     @id @default(cuid())
+  schoolId     String
+  membershipId String
+  membership   Membership @relation("PresenceOf", fields: [membershipId], references: [id], onDelete: Cascade)
+
+  /// "YYYY-MM-DD" in the school's timezone — the day this session belongs to.
+  localDate String
+
+  startedAt DateTime
+  endedAt   DateTime?
+
+  /// Materialised on close so a timesheet is one indexed sum rather than a
+  /// per-row subtraction across a term.
+  durationMinutes Int?
+
+  /// PresenceStatus: OPEN | CLOSED | AUTO_CLOSED
+  ///
+  /// AUTO_CLOSED is distinct from CLOSED on purpose: the departure time is an
+  /// assumption the nightly sweep made, not a fact anybody recorded, and any
+  /// report totalling hours has to be able to see the difference.
+  status String @default("OPEN")
+
+  /// PresenceSource: SELF | OFFICE
+  startSource String  @default("SELF")
+  endSource   String?
+
+  /// ONE OPEN SESSION PER PERSON, ENFORCED AT THE DATABASE, PORTABLY.
+  ///
+  /// Holds the membership id while the session is open and NULL once it closes.
+  /// NULLs are distinct in a unique index on both SQLite and PostgreSQL, so the
+  /// constraint binds only open rows — the portable equivalent of a partial
+  /// unique index. A double-tapped button raises a constraint violation instead
+  /// of opening a second session.
+  openKey String? @unique
+
+  note String?
+
+  createdAt   DateTime             @default(now())
+  corrections PresenceCorrection[]
+
+  @@index([schoolId, localDate])
+  @@index([membershipId, localDate])
+  @@map("presence_sessions")
+}
+
+/// An append-only record of every override an office made to a presence
+/// session.
+///
+/// The reason is MANDATORY. An override with no stated reason is not an audit
+/// trail, it is a second version of the truth — and the whole purpose of
+/// letting the office correct a clock-in is that somebody can later see what
+/// was changed and why.
+model PresenceCorrection {
+  id        String          @id @default(cuid())
+  schoolId  String
+  sessionId String
+  session   PresenceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  /// PresenceField: STARTED_AT | ENDED_AT | STATUS
+  field String
+  /// Rendered values, so the trail stays readable after a schema change.
+  previousValue String?
+  newValue      String?
+
+  reason String
+
+  correctedById String?
+  correctedBy   Membership? @relation("PresenceCorrector", fields: [correctedById], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([schoolId, sessionId])
+  @@map("presence_corrections")
+}
+
+/// A lecture actually delivered.
+///
+/// FREE-STANDING, with an OPTIONAL link to the `Meeting` it realises.
+///
+/// Derived purely from the timetable would make cover lessons, catch-up classes
+/// and moved slots unrecordable — and those are precisely the hours a head of
+/// department is trying to see. Unlinked entirely would mean a lecturer
+/// retypes their timetable every afternoon and the log stays empty. A flag on
+/// `Meeting` cannot work at all: a Meeting is a weekly recurrence standing for
+/// a dozen occurrences, with nowhere to put a date.
+model TeachingLog {
+  id           String     @id @default(cuid())
+  schoolId     String
+  membershipId String
+  membership   Membership @relation("TeachingBy", fields: [membershipId], references: [id], onDelete: Cascade)
+
+  /// The section taught, where there is one. Null for a seminar, an induction,
+  /// or anything else that is teaching without being a timetabled section.
+  offeringId String?
+  offering   CourseOffering? @relation(fields: [offeringId], references: [id], onDelete: SetNull)
+
+  /// "YYYY-MM-DD" in the school's timezone.
+  localDate String
+  /// Minutes from midnight, matching the timetable's own representation.
+  startMinute Int
+  endMinute   Int
+  /// Materialised so "hours taught this term" is one indexed groupBy.
+  durationMinutes Int
+
+  /// TeachingLogStatus: DELIVERED | CANCELLED | MOVED
+  ///
+  /// CANCELLED earns a status rather than being left unrecorded: "three of your
+  /// twelve Chemistry periods did not run" is the finding a head of department
+  /// needs, and a missing row is indistinguishable from a log nobody filled in.
+  status String @default("DELIVERED")
+
+  topic    String?
+  note     String?
+  /// Headcount present, where the lecturer took one.
+  attended Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([schoolId, localDate])
+  @@index([membershipId, localDate])
+  @@index([offeringId])
+  @@map("teaching_logs")
 }
 
 /// A termly report card.

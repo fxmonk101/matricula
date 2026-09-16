@@ -198,7 +198,16 @@ export async function generateClassReportCards(params: {
       orderBy: { subject: { code: 'asc' } },
     }),
     db.attendanceRecord.findMany({
-      where: { termId: params.termId },
+      /*
+       * SCOPED TO THE DAILY REGISTER, and this is load-bearing.
+       *
+       * Without sessionKey, the first per-period row makes summariseAttendance
+       * count periods as days — inflating totalSessions, deflating every
+       * attendance rate derived from it, and feeding that into the promotion
+       * cascade. The system would then quietly start changing decisions about
+       * children on the basis of arithmetic over the wrong denominator.
+       */
+      where: { termId: params.termId, sessionKey: 'DAY' },
       select: { studentId: true, status: true },
     }),
   ]);
