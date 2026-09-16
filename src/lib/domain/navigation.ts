@@ -69,6 +69,7 @@ export const NAV_SECTIONS: NavSection[] = [
       { href: '/students', label: 'Students', roles: ['ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'ADMISSIONS', 'FINANCE', 'INSTRUCTOR'], icon: 'people' },
       { href: '/instructors', label: 'Lecturers', roles: ['ADMIN', 'REGISTRAR', 'DEAN', 'HOD'], icon: 'people' },
       { href: '/structure', label: 'Structure', roles: ['ADMIN', 'REGISTRAR', 'DEAN', 'HOD'], models: ['HIGHER_ED'], icon: 'org' },
+      { href: '/calendar', label: 'Calendar & Fees', roles: ['ADMIN', 'REGISTRAR', 'FINANCE'], icon: 'check' },
       { href: '/courses', label: 'Courses', roles: ['ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'INSTRUCTOR', 'STUDENT', 'ADMISSIONS'], models: ['HIGHER_ED'], icon: 'book' },
       { href: '/offerings', label: 'Sections', roles: ['ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'INSTRUCTOR', 'STUDENT'], models: ['HIGHER_ED'], icon: 'grid' },
       { href: '/classes', label: 'Classes', roles: ['ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'INSTRUCTOR'], models: ['K12'], icon: 'grid' },

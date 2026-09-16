@@ -411,6 +411,9 @@ export const ROUTE_GUARDS: RouteGuard[] = [
   { prefix: '/structure', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'DEAN', 'HOD'] },
   { prefix: '/timetable', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'INSTRUCTOR', 'STUDENT'] },
   { prefix: '/setup', roles: ['OWNER', 'ADMIN'] },
+  // The registry owns the calendar and the bursary owns the fees, and the two
+  // are inseparable: a schedule belongs to a term.
+  { prefix: '/calendar', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'FINANCE'] },
   { prefix: '/settings/school', roles: ['OWNER', 'ADMIN'] },
   { prefix: '/admin', roles: ['OWNER', 'ADMIN'] },
 ];
