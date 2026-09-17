@@ -57,12 +57,15 @@ export function AppShell({
   school,
   notifications,
   unreadCount,
+  avatarKey,
   children,
 }: {
   session: SessionClaims;
   school: School;
   notifications: BellItem[];
   unreadCount: number;
+  /** Storage key for the signed-in person's picture, if they have set one. */
+  avatarKey?: string | null;
   children: React.ReactNode;
 }) {
   // Filtered by BOTH role and academic model: a K-12 school should never see
@@ -142,12 +145,25 @@ export function AppShell({
               </span>
               <ThemeToggle />
             </div>
-            <div className="flex items-center gap-2.5 rounded-lg px-2 py-1.5">
+            {/*
+              The person's own name is the link to their own account. It is
+              where everybody already looks for it, and it saves a navigation
+              entry for something nobody browses to deliberately.
+            */}
+            <Link
+              href="/account/profile"
+              className="flex items-center gap-2.5 rounded-lg px-2 py-1.5 transition-colors hover:bg-slate-100"
+            >
               <span
-                className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-ink text-xs font-semibold text-onInk ring-1 ring-inset ring-slate-900/10"
+                className="grid h-8 w-8 shrink-0 place-items-center overflow-hidden rounded-full bg-ink text-xs font-semibold text-onInk ring-1 ring-inset ring-slate-900/10"
                 aria-hidden
               >
-                {initials(firstName, lastName || firstName)}
+                {avatarKey ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={`/files/${avatarKey}`} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  initials(firstName, lastName || firstName)
+                )}
               </span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate text-xs font-medium text-slate-900">
@@ -157,7 +173,7 @@ export function AppShell({
                   {ROLE_LABELS[session.role]}
                 </span>
               </span>
-            </div>
+            </Link>
             <div className="px-2 pb-1">
               <SignOutButton />
             </div>

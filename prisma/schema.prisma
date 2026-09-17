@@ -294,11 +294,19 @@ model User {
   ///
   /// Stored lower-case so that "A.Okafor" and "a.okafor" cannot become two
   /// accounts; the unique index is on the stored form.
-  username           String?   @unique
-  passwordHash       String
-  firstName          String
-  lastName           String
-  phone              String?
+  username     String? @unique
+  passwordHash String
+  firstName    String
+  lastName     String
+  phone        String?
+
+  /// Storage key for the profile picture, never a URL.
+  ///
+  /// A key is resolved through the /files route, which re-checks the session
+  /// and the tenant on every read. Storing a URL instead would put the
+  /// authorisation in the link, and a link gets forwarded.
+  avatarKey String?
+
   isActive           Boolean   @default(true)
   /// Set when an account is created with a generated one-time password, and
   /// cleared the moment the person sets their own. Defaults FALSE so that
@@ -309,15 +317,57 @@ model User {
   createdAt          DateTime  @default(now())
   updatedAt          DateTime  @updatedAt
 
-  memberships   Membership[]
-  platformAdmin PlatformAdmin?
-  students      Student[]
-  instructors   Instructor[]
-  applicants    Applicant[]
-  guardianships Guardian[]
-  auditLogs     AuditLog[]
+  memberships    Membership[]
+  changeRequests AccountChangeRequest[]
+  platformAdmin  PlatformAdmin?
+  students       Student[]
+  instructors    Instructor[]
+  applicants     Applicant[]
+  guardianships  Guardian[]
+  auditLogs      AuditLog[]
 
   @@map("users")
+}
+
+/// A change to an account that is not applied until the owner confirms it by
+/// email.
+///
+/// The row holds the change; the email holds the only key that unlocks it.
+/// A password change written straight to the user row can be made by anybody
+/// who walks up to an unlocked laptop, and the real owner finds out when they
+/// can no longer sign in. Parking it here means the attacker needs the
+/// mailbox too, and the owner gets a message saying somebody tried.
+model AccountChangeRequest {
+  id     String @id @default(cuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  /// AccountChangeKind: PASSWORD | EMAIL
+  kind String
+
+  /// SHA-256 of the token. The token itself exists only in the email that was
+  /// sent — so a database dump does not let anybody complete a pending change,
+  /// exactly as for a password.
+  tokenHash String @unique
+
+  /// For PASSWORD, the ALREADY-HASHED new password. For EMAIL, the address.
+  ///
+  /// Hashing before parking it matters: a pending change sits in this table for
+  /// an hour, and a plaintext password in a database row is a plaintext
+  /// password whatever the intention was.
+  payload String
+
+  expiresAt  DateTime
+  consumedAt DateTime?
+
+  /// What the person was told we would do, for the audit trail.
+  summary String?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, kind])
+  @@index([expiresAt])
+  @@map("account_change_requests")
 }
 
 /// Append-only trail of every state-changing operation. Never updated, never

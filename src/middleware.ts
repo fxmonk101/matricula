@@ -30,7 +30,16 @@ import { resolveTenantSlug, tenancyMode } from '@/lib/domain/tenancy';
  */
 
 /** Exact public paths. */
-const PUBLIC_EXACT = new Set(['/', '/login', '/apply', '/forbidden']);
+/*
+ * /account/confirm is public because the TOKEN is the authorisation.
+ *
+ * The link is emailed, and people open email on a phone that is not signed in
+ * to the portal. Requiring a session as well would block the ordinary case
+ * while adding nothing: the token is single-use, expires in an hour, is stored
+ * only as a hash, and unlocks a change whose requester already proved they knew
+ * the current password.
+ */
+const PUBLIC_EXACT = new Set(['/', '/login', '/apply', '/forbidden', '/account/confirm']);
 
 /** Public path prefixes, including the tenant-qualified ones. */
 const PUBLIC_PREFIXES = ['/s/'];

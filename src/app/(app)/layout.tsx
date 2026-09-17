@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 
 import { getTenantContext, requireTenantContext } from '@/server/tenant-context';
 import { AppShell } from '@/components/shell';
+import { platformDb } from '@/lib/tenant';
 import { ToastProvider } from '@/components/ui/overlays';
 import { listNotifications, unreadCount } from '@/server/services/notification.service';
 
@@ -47,9 +48,15 @@ export default async function AppLayout({ children }: { children: React.ReactNod
   // per-person AND per-school by construction: the professor who holds a post
   // at two institutions sees only the notifications for the one they are
   // currently signed in to.
-  const [notifications, unread] = await Promise.all([
+  const [notifications, unread, me] = await Promise.all([
     listNotifications(schoolId, membershipId, 8),
     unreadCount(schoolId, membershipId),
+    // Identity is global, so the picture comes from the platform client rather
+    // than a tenant one — the same person at two schools has one face.
+    platformDb.user.findUnique({
+      where: { id: session.sub },
+      select: { avatarKey: true },
+    }),
   ]);
 
   return (
@@ -62,6 +69,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         school={school}
         notifications={notifications}
         unreadCount={unread}
+        avatarKey={me?.avatarKey ?? null}
       >
         {children}
       </AppShell>

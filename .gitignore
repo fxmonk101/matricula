@@ -48,3 +48,6 @@ tsconfig.tsbuildinfo
 # Local scratch harnesses (session-only, never part of the product)
 *.local.mjs
 *.local.cjs
+
+# Development mail drop. Each file contains a live confirmation link.
+.mail/
