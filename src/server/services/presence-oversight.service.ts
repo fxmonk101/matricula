@@ -1,5 +1,4 @@
 import { dbFor } from '@/lib/tenant';
-import { can } from '@/lib/auth/rbac';
 import type { Role } from '@/lib/domain/enums';
 import { getSubordinateIds } from './org.service';
 import {
@@ -263,27 +262,6 @@ export async function oversightReport(params: {
     inBuildingNow: [...staff, ...students].filter((p) => p.openNow).length,
     expectedDays: params.expectedDays,
   };
-}
-
-/**
- * Whether this person has anybody to oversee at all.
- *
- * Used to decide whether to offer the link, because a lecturer with no reports
- * following "My team's register" to an empty table learns nothing and concludes
- * the feature is broken.
- */
-export async function hasOversight(params: {
-  schoolId: string;
-  membershipId: string;
-  role: Role;
-}): Promise<boolean> {
-  if (!can(params.role, 'attendance:record')) {
-    // A role with no attendance grant has no business reading anybody's
-    // register but their own, whatever the org chart says.
-    if (params.role !== 'DEAN' && params.role !== 'HOD') return false;
-  }
-  const scope = await presenceScopeFor(params);
-  return scope.staffMembershipIds.length > 0 || scope.studentMembershipIds.length > 0;
 }
 
 /** A compact line for a dashboard tile: who is in, who is missing. */
