@@ -5,6 +5,7 @@
   "description": "Golden Eagles University — Student Information, Admissions and Finance System",
   "scripts": {
     "dev": "next dev",
+    "dev:fresh": "node scripts/dev-fresh.cjs",
     "build": "prisma generate && prisma migrate deploy && next build",
     "start": "next start",
     "lint": "next lint",
