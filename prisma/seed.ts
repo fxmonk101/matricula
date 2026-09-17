@@ -159,6 +159,17 @@ const GEU: SchoolSpec = {
     { email: 'e.balogun@geu.edu', first: 'Emeka', last: 'Balogun', role: 'INSTRUCTOR', dept: 'CSC', rank: 'SENIOR_LECTURER', staffNo: 'STF-0102', office: 'CSC-208' },
     { email: 'f.dauda@geu.edu', first: 'Fatima', last: 'Dauda', role: 'INSTRUCTOR', dept: 'MTH', rank: 'ASSOCIATE_PROFESSOR', staffNo: 'STF-0201', office: 'MTH-115' },
     { email: 'o.eze@geu.edu', first: 'Obinna', last: 'Eze', role: 'INSTRUCTOR', dept: 'EEE', rank: 'LECTURER', staffNo: 'STF-0301', office: 'EEE-042' },
+    // Engineering and Management need their own dean and heads: EEE and ACC sit
+    // outside the Faculty of Science, and without these their staff would have
+    // to report across a faculty boundary to be managed at all.
+    { email: 'b.adewale@geu.edu', first: 'Bola', last: 'Adewale', role: 'INSTRUCTOR', dept: 'EEE', rank: 'PROFESSOR', staffNo: 'STF-0300', office: 'EEE-200', title: 'Dean, Faculty of Engineering' },
+    { email: 'i.nwachukwu@geu.edu', first: 'Ifeanyi', last: 'Nwachukwu', role: 'INSTRUCTOR', dept: 'EEE', rank: 'SENIOR_LECTURER', staffNo: 'STF-0302', office: 'EEE-118', title: 'Head, Electrical & Electronic Engineering' },
+    { email: 's.oyelaran@geu.edu', first: 'Simisola', last: 'Oyelaran', role: 'INSTRUCTOR', dept: 'ACC', rank: 'PROFESSOR', staffNo: 'STF-0400', office: 'ACC-101', title: 'Dean, Faculty of Management Sciences' },
+    { email: 'k.abiodun@geu.edu', first: 'Kehinde', last: 'Abiodun', role: 'INSTRUCTOR', dept: 'ACC', rank: 'SENIOR_LECTURER', staffNo: 'STF-0401', office: 'ACC-014', title: 'Head, Accounting' },
+    // Ordinary lecturers, so each head actually has somebody to head.
+    { email: 'c.nnaji@geu.edu', first: 'Chinelo', last: 'Nnaji', role: 'INSTRUCTOR', dept: 'CSC', rank: 'LECTURER', staffNo: 'STF-0103', office: 'CSC-112' },
+    { email: 'y.sani@geu.edu', first: 'Yakubu', last: 'Sani', role: 'INSTRUCTOR', dept: 'MTH', rank: 'LECTURER', staffNo: 'STF-0202', office: 'MTH-009' },
+    { email: 'r.okeke@geu.edu', first: 'Rita', last: 'Okeke', role: 'INSTRUCTOR', dept: 'EEE', rank: 'ASSISTANT_LECTURER', staffNo: 'STF-0303', office: 'EEE-044' },
   ],
   courses: [
     { code: 'CSC101', title: 'Introduction to Computer Science', credits: 3, level: 100, dept: 'CSC', desc: 'Foundations of computing, algorithms and problem decomposition.' },
@@ -1337,8 +1348,12 @@ async function main() {
   console.log('\nAppointing deans and heads of department…');
   const appointments: { email: string; role: string; title: string }[] = [
     { email: 'a.okafor@geu.edu', role: 'DEAN', title: 'Dean, Faculty of Science' },
+    { email: 'b.adewale@geu.edu', role: 'DEAN', title: 'Dean, Faculty of Engineering' },
+    { email: 's.oyelaran@geu.edu', role: 'DEAN', title: 'Dean, Faculty of Management Sciences' },
     { email: 'e.balogun@geu.edu', role: 'HOD', title: 'Head, Computer Science' },
     { email: 'f.dauda@geu.edu', role: 'HOD', title: 'Head, Mathematics' },
+    { email: 'i.nwachukwu@geu.edu', role: 'HOD', title: 'Head, Electrical & Electronic Engineering' },
+    { email: 'k.abiodun@geu.edu', role: 'HOD', title: 'Head, Accounting' },
   ];
   for (const appointment of appointments) {
     const person = await db.user.findUnique({ where: { email: appointment.email } });
@@ -1359,32 +1374,80 @@ async function main() {
     return db.membership.findFirst({ where: { userId: person.id, schoolId: geu.schoolId } });
   };
 
-  const [dean, csHod, mathHod, registrar] = await Promise.all([
-    membershipFor('a.okafor@geu.edu'),
-    membershipFor('e.balogun@geu.edu'),
-    membershipFor('f.dauda@geu.edu'),
-    membershipFor('registrar@geu.edu'),
-  ]);
+  /*
+   * THE LINE IS DERIVED FROM THE STRUCTURE, NOT HAND-LISTED.
+   *
+   * It used to be three hardcoded pairs plus "remaining lecturers in Computer
+   * Science answer to its head" — which wired Obinna Eze, who lectures in
+   * Electrical & Electronic Engineering, to the head of Computer Science. EEE
+   * is in the Faculty of ENGINEERING, so that one line had a lecturer reporting
+   * across a department AND a faculty boundary. Nothing detected it, because
+   * nothing was checking: a hand-written line is only correct on the day it is
+   * written.
+   *
+   * Deriving it from each person's own department means the chain is right by
+   * construction, and stays right when a department is added.
+   */
+  const registrar = await membershipFor('registrar@geu.edu');
 
-  const line: [typeof dean, typeof dean][] = [
-    [dean, registrar],
-    [csHod, dean],
-    [mathHod, dean],
-  ];
-  for (const [subordinate, manager] of line) {
-    if (!subordinate || !manager) continue;
-    await db.membership.update({
-      where: { id: subordinate.id },
-      data: { managerId: manager.id },
+  const deansByFaculty = new Map<string, string>();
+  const headsByDepartment = new Map<string, string>();
+
+  const academics = await db.membership.findMany({
+    where: { schoolId: geu.schoolId, role: { in: ['DEAN', 'HOD', 'INSTRUCTOR'] } },
+    include: { user: { select: { id: true, email: true } } },
+  });
+
+  // Resolve each academic's own department and faculty from their Instructor
+  // profile, which is the only place that fact actually lives.
+  const placement = new Map<string, { departmentId: string; facultyId: string }>();
+  for (const member of academics) {
+    const profile = await db.instructor.findFirst({
+      where: { userId: member.userId, schoolId: geu.schoolId },
+      include: { department: { select: { id: true, facultyId: true } } },
     });
+    if (!profile?.department) continue;
+    placement.set(member.id, {
+      departmentId: profile.department.id,
+      facultyId: profile.department.facultyId,
+    });
+    if (member.role === 'DEAN') deansByFaculty.set(profile.department.facultyId, member.id);
+    if (member.role === 'HOD') headsByDepartment.set(profile.department.id, member.id);
   }
 
-  // Remaining lecturers in Computer Science answer to its head.
-  if (csHod) {
-    const lecturer = await membershipFor('o.eze@geu.edu');
-    if (lecturer) {
-      await db.membership.update({ where: { id: lecturer.id }, data: { managerId: csHod.id } });
+  for (const member of academics) {
+    const where = placement.get(member.id);
+    if (!where) continue;
+
+    let managerId: string | null = null;
+    if (member.role === 'INSTRUCTOR') {
+      // A lecturer answers to the head of the department they teach in, and
+      // falls back to their own dean where a department has no head yet.
+      managerId = headsByDepartment.get(where.departmentId) ?? deansByFaculty.get(where.facultyId) ?? null;
+    } else if (member.role === 'HOD') {
+      managerId = deansByFaculty.get(where.facultyId) ?? null;
+    } else if (member.role === 'DEAN') {
+      managerId = registrar?.id ?? null;
     }
+
+    // Nobody manages themselves — a dean who also heads a department would
+    // otherwise be wired into a one-person cycle.
+    if (!managerId || managerId === member.id) continue;
+    await db.membership.update({ where: { id: member.id }, data: { managerId } });
+  }
+
+  // The org unit is what the presence roll-up reads to decide whose records a
+  // dean or head may see, so it has to agree with the reporting line.
+  for (const member of academics) {
+    const where = placement.get(member.id);
+    if (!where) continue;
+    const unitName =
+      member.role === 'DEAN'
+        ? (await db.faculty.findUnique({ where: { id: where.facultyId } }))?.name
+        : (await db.department.findUnique({ where: { id: where.departmentId } }))?.name;
+    if (!unitName) continue;
+    const unit = await db.orgUnit.findFirst({ where: { schoolId: geu.schoolId, name: unitName } });
+    if (unit) await db.membership.update({ where: { id: member.id }, data: { orgUnitId: unit.id } });
   }
 
   // --- recompute derived academics ------------------------------------------

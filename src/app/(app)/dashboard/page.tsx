@@ -4,6 +4,9 @@ import Link from 'next/link';
 import { requireRoute } from '@/server/tenant-context';
 import { platformDb } from '@/lib/tenant';
 import { getReceivablesPosition } from '@/server/services/finance.service';
+import { oversightReport } from '@/server/services/presence-oversight.service';
+import { addLocalDays, toLocalDate } from '@/lib/domain/time';
+import { formatDuration } from '@/lib/domain/presence';
 import { formatDate, titleCase } from '@/lib/utils';
 import {
   Badge,
@@ -23,9 +26,35 @@ import {
 export const metadata: Metadata = { title: 'Overview' };
 
 export default async function DashboardPage() {
-  const { db, school, schoolId, money } = await requireRoute('/dashboard');
+  const { db, school, schoolId, money, role, membershipId } = await requireRoute('/dashboard');
+
+  /*
+   * WHAT A DASHBOARD SHOWS DEPENDS ON WHERE ITS READER SITS.
+   *
+   * School-wide receivables are the bursary's work and the registry's
+   * oversight. A head of department opening their own home page has no business
+   * being shown the institution's total outstanding fees, and a dean has a
+   * faculty rather than a balance sheet — so the finance band is limited to the
+   * offices that actually own it, and the academic leadership gets the register
+   * for their own people instead.
+   */
+  const seesInstitutionFinance = role === 'OWNER' || role === 'ADMIN' || role === 'REGISTRAR';
+  const leadsAUnit = role === 'DEAN' || role === 'HOD';
 
   const currentTerm = await db.term.findFirst({ where: { isCurrent: true } });
+
+  const today = toLocalDate(new Date(), school.timezone);
+  const oversight = leadsAUnit
+    ? await oversightReport({
+        schoolId,
+        membershipId,
+        role,
+        from: addLocalDays(today, -6),
+        to: today,
+        // A working week, which is the window a head of department thinks in.
+        expectedDays: 5,
+      })
+    : null;
 
   // Independent aggregates run concurrently — six sequential round trips would
   // dominate the page's response time for no reason.
@@ -86,6 +115,62 @@ export default async function DashboardPage() {
         }
       />
 
+      {oversight && oversight.scope.staffMembershipIds.length + oversight.scope.studentMembershipIds.length > 0 && (
+        <Card className="mb-4">
+          <CardHeader
+            title={`${oversight.scope.label} — this week`}
+            description="The people who report to you, and whether they have been in."
+            actions={
+              <Link
+                href="/presence/team"
+                className="text-xs font-medium text-brand-700 hover:underline"
+              >
+                Full register →
+              </Link>
+            }
+          />
+          <CardBody>
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              <StatTile
+                label="In right now"
+                value={oversight.inBuildingNow}
+                tone={oversight.inBuildingNow > 0 ? 'success' : 'neutral'}
+                sublabel={`Of ${oversight.staff.length + oversight.students.length} people`}
+              />
+              <StatTile
+                label="Staff"
+                value={oversight.staff.length}
+                sublabel="Reporting to you"
+              />
+              <StatTile
+                label="Hours this week"
+                value={formatDuration(
+                  [...oversight.staff, ...oversight.students].reduce(
+                    (sum, p) => sum + p.totals.netMinutes,
+                    0,
+                  ),
+                )}
+                tone="brand"
+                sublabel="After unpaid breaks"
+              />
+              <StatTile
+                label="No record this week"
+                value={
+                  [...oversight.staff, ...oversight.students].filter((p) => p.totals.days === 0)
+                    .length
+                }
+                tone={
+                  [...oversight.staff, ...oversight.students].some((p) => p.totals.days === 0)
+                    ? 'warning'
+                    : 'success'
+                }
+                sublabel="Nobody signed them in"
+              />
+            </div>
+          </CardBody>
+        </Card>
+      )}
+
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatTile
           label="Students"
@@ -104,12 +189,20 @@ export default async function DashboardPage() {
           sublabel="awaiting a committee decision"
           tone={pendingApplications > 0 ? 'warning' : 'neutral'}
         />
-        <StatTile
-          label="Outstanding fees"
-          value={money.formatCompact(receivables.outstandingMinor)}
-          sublabel={`${receivables.collectionRate.toFixed(1)}% collected`}
-          tone={receivables.outstandingMinor > 0 ? 'danger' : 'success'}
-        />
+        {seesInstitutionFinance ? (
+          <StatTile
+            label="Outstanding fees"
+            value={money.formatCompact(receivables.outstandingMinor)}
+            sublabel={`${receivables.collectionRate.toFixed(1)}% collected`}
+            tone={receivables.outstandingMinor > 0 ? 'danger' : 'success'}
+          />
+        ) : (
+          <StatTile
+            label="Faculty members"
+            value={instructorCount.toLocaleString()}
+            sublabel={`${programCount} active programmes`}
+          />
+        )}
       </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-3">
@@ -199,6 +292,7 @@ export default async function DashboardPage() {
             </CardBody>
           </Card>
 
+          {seesInstitutionFinance && (
           <Card>
             <CardHeader title="Receivables ageing" />
             <CardBody>
@@ -226,6 +320,7 @@ export default async function DashboardPage() {
               </dl>
             </CardBody>
           </Card>
+          )}
         </div>
       </div>
 
@@ -239,7 +334,10 @@ export default async function DashboardPage() {
                   ['Academic programs', programCount],
                   ['Faculty members', instructorCount],
                   ['Sections this term', offeringCount],
-                  ['Invoices raised', receivables.invoiceCount],
+                  // The invoice count is a finance figure like any other.
+                  ...(seesInstitutionFinance
+                    ? ([['Invoices raised', receivables.invoiceCount]] as const)
+                    : []),
                 ] as const
               ).map(([label, value]) => (
                 <div key={label} className="flex justify-between border-b border-slate-100 pb-2 last:border-0">

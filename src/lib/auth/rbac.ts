@@ -371,7 +371,10 @@ export interface RouteGuard {
  */
 
 export const ROUTE_GUARDS: RouteGuard[] = [
-  { prefix: '/dashboard', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'DEAN'] },
+  // HOD belongs here. A head of department runs a unit with staff and
+  // students in it, and leaving them off the dashboard left the role with no
+  // landing page at all — they were bounced to /forbidden by their own home.
+  { prefix: '/dashboard', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'DEAN', 'HOD'] },
   { prefix: '/students', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'INSTRUCTOR', 'ADMISSIONS', 'FINANCE'] },
   // Longest-prefix wins. Registration is the Bursary's desk, so a lecturer
   // who may read the student list cannot reach the form that creates one.
@@ -420,6 +423,12 @@ export const ROUTE_GUARDS: RouteGuard[] = [
   // because neither is ever in the building as a member of it.
   { prefix: '/presence', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'FINANCE', 'ADMISSIONS', 'INSTRUCTOR', 'LIBRARIAN', 'STAFF', 'STUDENT'] },
   { prefix: '/presence/teaching', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'INSTRUCTOR'] },
+  // Reading somebody ELSE's register is oversight, not self-service, so this
+  // needs its own guard: without it the rule above would apply by longest
+  // prefix and hand a student the attendance of everybody in the building.
+  // INSTRUCTOR is absent deliberately — teaching somebody is not overseeing
+  // them, and a lecturer's own reports (if any) are on /team.
+  { prefix: '/presence/team', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'DEAN', 'HOD'] },
   { prefix: '/settings/school', roles: ['OWNER', 'ADMIN'] },
   { prefix: '/admin', roles: ['OWNER', 'ADMIN'] },
 ];

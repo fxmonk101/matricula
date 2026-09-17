@@ -92,6 +92,9 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { href: '/presence', label: 'Sign In / Out', roles: ['ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'FINANCE', 'ADMISSIONS', 'INSTRUCTOR', 'LIBRARIAN', 'STAFF', 'STUDENT'], icon: 'check' },
       { href: '/presence/teaching', label: 'Teaching Log', roles: ['INSTRUCTOR', 'HOD', 'DEAN', 'ADMIN', 'REGISTRAR'], icon: 'book' },
+      // Offered only to the roles that actually oversee somebody. A lecturer
+      // following this to an empty table would reasonably conclude it is broken.
+      { href: '/presence/team', label: 'Team Register', roles: ['ADMIN', 'REGISTRAR', 'DEAN', 'HOD'], icon: 'team' },
       { href: '/tasks', label: 'Tasks', roles: ['ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'FINANCE', 'ADMISSIONS', 'INSTRUCTOR', 'LIBRARIAN', 'STAFF'], icon: 'check' },
       { href: '/team', label: 'My Team', roles: ['ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'INSTRUCTOR'], icon: 'team' },
       { href: '/org', label: 'Organisation', roles: ['ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'INSTRUCTOR'], icon: 'org' },
