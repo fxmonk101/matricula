@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
-import { requireTenantRole } from '@/server/tenant-context';
+import { requireRoute } from '@/server/tenant-context';
 import { platformDb } from '@/lib/tenant';
 import { getReceivablesPosition } from '@/server/services/finance.service';
 import { formatDate, titleCase } from '@/lib/utils';
@@ -23,7 +23,7 @@ import {
 export const metadata: Metadata = { title: 'Overview' };
 
 export default async function DashboardPage() {
-  const { db, school, schoolId, money } = await requireTenantRole('ADMIN', 'REGISTRAR');
+  const { db, school, schoolId, money } = await requireRoute('/dashboard');
 
   const currentTerm = await db.term.findFirst({ where: { isCurrent: true } });
 

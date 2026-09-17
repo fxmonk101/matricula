@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
-import { requireTenantRole } from '@/server/tenant-context';
+import { requireRoute } from '@/server/tenant-context';
 import { libraryAnalytics } from '@/server/services/library.service';
 import { formatDate } from '@/lib/utils';
 import {
@@ -26,7 +26,7 @@ export default async function ManageLibraryPage({
 }: {
   searchParams: Promise<{ edit?: string }>;
 }) {
-  const { db, schoolId, school } = await requireTenantRole('LIBRARIAN', 'ADMIN', 'REGISTRAR');
+  const { db, schoolId, school } = await requireRoute('/library/manage');
   const { edit } = await searchParams;
 
   const [analytics, resources, programs] = await Promise.all([

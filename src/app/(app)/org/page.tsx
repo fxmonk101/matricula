@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 
-import { requireTenantRole } from '@/server/tenant-context';
+import { requireRoute } from '@/server/tenant-context';
 import { getOrgTree, loadReportingGraph } from '@/server/services/org.service';
 import { flattenOrgTree, resolveSubordinates } from '@/lib/domain/org';
 import {
@@ -27,11 +27,7 @@ const KIND_LABEL: Record<string, string> = {
 };
 
 export default async function OrgPage() {
-  const { db, schoolId, school, membershipId } = await requireTenantRole(
-    'ADMIN',
-    'REGISTRAR',
-    'INSTRUCTOR',
-  );
+  const { db, schoolId, school, membershipId } = await requireRoute('/org');
 
   const [tree, graph, memberships] = await Promise.all([
     getOrgTree(schoolId),

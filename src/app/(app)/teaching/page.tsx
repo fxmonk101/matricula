@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 
-import { requireTenantRole } from '@/server/tenant-context';
+import { requireRoute } from '@/server/tenant-context';
 import { DAY_NAMES } from '@/lib/domain/enums';
 import { formatMinutes, titleCase } from '@/lib/utils';
 import {
@@ -21,7 +21,7 @@ import {
 export const metadata: Metadata = { title: 'My teaching' };
 
 export default async function TeachingPage() {
-  const { db, school, schoolId, session } = await requireTenantRole('INSTRUCTOR', 'ADMIN');
+  const { db, school, schoolId, session } = await requireRoute('/teaching');
 
   // An ADMIN has no instructor profile; they see the whole schedule instead of
   // a personal one, which is the sensible reading of "my teaching" for staff

@@ -8,7 +8,7 @@ import { loadSchoolConfig } from './school-config';
 import { makeMoney, type Money } from '@/lib/domain/money';
 import type { SchoolConfigBundle } from '@/lib/domain/config';
 import { getSession } from '@/lib/auth/session';
-import { roleSatisfies } from '@/lib/auth/rbac';
+import { guardForPath, roleSatisfies } from '@/lib/auth/rbac';
 import type { SessionClaims } from '@/lib/auth/jwt';
 import { schoolAllowsSignIn, type AcademicModel, type Role } from '@/lib/domain/enums';
 
@@ -139,7 +139,33 @@ export async function requireTenantContext(): Promise<TenantContext> {
 }
 
 /**
- * Tenant context with a role assertion — the common case in a page or action.
+ * Tenant context for a PAGE, with its roles read from the route table.
+ *
+ * Use this in a page rather than listing roles by hand. The two used to be
+ * written separately — ROUTE_GUARDS in one file, requireTenantRole(...) in each
+ * page — and they drifted: adding DEAN and HOD to the guards without touching
+ * the pages meant middleware admitted them and the page then bounced them to
+ * /forbidden. A role advertised in the sidebar and refused on arrival is worse
+ * than one that was never offered.
+ *
+ * Taking the prefix as an argument rather than reading the request path is
+ * deliberate: a page states which guard it is under, so a mistyped prefix is a
+ * visible string rather than a silent mismatch, and a nested page can opt into
+ * its parent's guard on purpose.
+ */
+export async function requireRoute(prefix: string): Promise<TenantContext> {
+  const guard = guardForPath(prefix);
+  if (!guard) {
+    // An unguarded page still needs a tenant, but asserts no role — better than
+    // silently admitting everybody through an empty allow-list.
+    return requireTenantContext();
+  }
+  return requireTenantRole(...guard.roles);
+}
+
+/**
+ * Tenant context with a role assertion — for actions, and for pages whose
+ * allowed roles genuinely differ from their route guard.
  * Guards the ROUTE; guarding the RECORD is still the caller's job.
  */
 export async function requireTenantRole(...allowed: Role[]): Promise<TenantContext> {

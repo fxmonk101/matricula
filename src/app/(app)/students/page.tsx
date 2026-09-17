@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
-import { requireTenantRole } from '@/server/tenant-context';
+import { requireRoute } from '@/server/tenant-context';
 import { titleCase } from '@/lib/utils';
 import { like } from '@/lib/search-filter';
 import {
@@ -27,7 +27,7 @@ export default async function StudentsPage({
 }: {
   searchParams: Promise<{ q?: string; program?: string; standing?: string; page?: string }>;
 }) {
-  const { db, school, schoolId, role } = await requireTenantRole('ADMIN', 'REGISTRAR', 'ADMISSIONS', 'FINANCE', 'INSTRUCTOR');
+  const { db, school, schoolId, role } = await requireRoute('/students');
 
   const params = await searchParams;
   const q = params.q?.trim() ?? '';

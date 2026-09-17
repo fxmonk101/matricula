@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 
-import { requireTenantRole } from '@/server/tenant-context';
+import { requireRoute } from '@/server/tenant-context';
 import { DAY_NAMES } from '@/lib/domain/enums';
 import { formatMinutes, titleCase } from '@/lib/utils';
 import {
@@ -23,7 +23,7 @@ export default async function OfferingsPage({
 }: {
   searchParams: Promise<{ term?: string }>;
 }) {
-  const { db, school, schoolId } = await requireTenantRole('ADMIN', 'REGISTRAR', 'INSTRUCTOR', 'STUDENT');
+  const { db, school, schoolId } = await requireRoute('/offerings');
   const { term: termParam } = await searchParams;
 
   const terms = await db.term.findMany({ orderBy: { startDate: 'desc' } });

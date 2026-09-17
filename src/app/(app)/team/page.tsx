@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 
-import { requireTenantRole } from '@/server/tenant-context';
+import { requireRoute } from '@/server/tenant-context';
 import { getTeam } from '@/server/services/org.service';
 import { getTeachingWorkload } from '@/server/services/teaching.service';
 import {
@@ -31,11 +31,7 @@ import { AllocatePanel } from './allocate-panel';
 export const metadata: Metadata = { title: 'My team' };
 
 export default async function TeamPage() {
-  const { db, schoolId, school, membershipId, role } = await requireTenantRole(
-    'ADMIN',
-    'REGISTRAR',
-    'INSTRUCTOR',
-  );
+  const { db, schoolId, school, membershipId, role } = await requireRoute('/team');
 
   const team = await getTeam(schoolId, membershipId);
 
