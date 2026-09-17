@@ -1,4 +1,5 @@
 import { dbFor } from '@/lib/tenant';
+import { validateFeeItem, type FeeItemDraft } from '@/lib/domain/finance';
 import { loadSchoolConfig } from '@/server/school-config';
 import { recordAudit } from './audit.service';
 
@@ -29,43 +30,13 @@ export interface FeeResult {
   id?: string;
 }
 
-export interface FeeItemDraft {
-  code: string;
-  description: string;
-  /** MAJOR units, as typed. Converted here. */
-  amount: number;
-  perCreditHour: boolean;
-  isMandatory: boolean;
-}
-
-/** The charges a university actually raises, offered so codes stay consistent. */
-export const FEE_CODES = [
-  'TUITION',
-  'ACCEPTANCE',
-  'REGISTRATION',
-  'LAB',
-  'LIBRARY',
-  'ACCOMMODATION',
-  'MEDICAL',
-  'SPORTS',
-  'EXAMINATION',
-  'ID_CARD',
-  'CAUTION',
-  'DEVELOPMENT',
-  'OTHER',
-] as const;
-
-export function validateFeeItem(item: FeeItemDraft): string[] {
-  const problems: string[] = [];
-  if (!item.code.trim()) problems.push('Every fee line needs a code.');
-  if (!item.description.trim()) problems.push('Every fee line needs a description.');
-  if (!Number.isFinite(item.amount) || item.amount < 0) {
-    problems.push('Every fee line needs an amount of zero or more.');
-  }
-  // A ten-million-unit line is a slipped decimal point, not a fee.
-  if (item.amount > 100_000_000) problems.push('That amount is implausibly large.');
-  return problems;
-}
+/*
+ * The draft shape and its rules moved to the domain layer: the dialog that
+ * collects them is a client component, and a client component that imports a
+ * service imports the Prisma client with it. Re-exported here so callers that
+ * already reach for the service keep working.
+ */
+export { FEE_CODES, validateFeeItem, type FeeItemDraft } from '@/lib/domain/finance';
 
 export async function saveFeeStructure(params: {
   schoolId: string;

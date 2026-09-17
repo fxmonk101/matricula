@@ -505,3 +505,52 @@ export function computeRefund(
     weeksElapsed,
   };
 }
+
+// -----------------------------------------------------------------------------
+// FEE STRUCTURE DRAFTS
+// -----------------------------------------------------------------------------
+//
+// These live HERE rather than beside `saveFeeStructure` because the dialog that
+// collects them is a client component. A service module imports the Prisma
+// client, and importing one from the browser bundle pulls in a Prisma build
+// with no `dmmf` — which is how `/calendar` came to crash on a page that had
+// nothing wrong with it. The rules are pure, so they belong in the domain.
+
+/** A fee line as a bursar types it, before it is converted to minor units. */
+export interface FeeItemDraft {
+  code: string;
+  description: string;
+  /** MAJOR units, as typed. Converted when saved. */
+  amount: number;
+  perCreditHour: boolean;
+  isMandatory: boolean;
+}
+
+/** The charges a university actually raises, offered so codes stay consistent. */
+export const FEE_CODES = [
+  'TUITION',
+  'ACCEPTANCE',
+  'REGISTRATION',
+  'LAB',
+  'LIBRARY',
+  'ACCOMMODATION',
+  'MEDICAL',
+  'SPORTS',
+  'EXAMINATION',
+  'ID_CARD',
+  'CAUTION',
+  'DEVELOPMENT',
+  'OTHER',
+] as const;
+
+export function validateFeeItem(item: FeeItemDraft): string[] {
+  const problems: string[] = [];
+  if (!item.code.trim()) problems.push('Every fee line needs a code.');
+  if (!item.description.trim()) problems.push('Every fee line needs a description.');
+  if (!Number.isFinite(item.amount) || item.amount < 0) {
+    problems.push('Every fee line needs an amount of zero or more.');
+  }
+  // A ten-million-unit line is a slipped decimal point, not a fee.
+  if (item.amount > 100_000_000) problems.push('That amount is implausibly large.');
+  return problems;
+}

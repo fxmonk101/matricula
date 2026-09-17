@@ -190,10 +190,10 @@ model Membership {
   resourceViews      ResourceView[]
 
   // --- presence and teaching ---
-  presenceSessions     PresenceSession[]    @relation("PresenceOf")
-  presenceCorrections  PresenceCorrection[] @relation("PresenceCorrector")
-  teachingLogs         TeachingLog[]        @relation("TeachingBy")
-  attendanceRecorded   AttendanceRecord[]   @relation("AttendanceRecorder")
+  presenceSessions    PresenceSession[]    @relation("PresenceOf")
+  presenceCorrections PresenceCorrection[] @relation("PresenceCorrector")
+  teachingLogs        TeachingLog[]        @relation("TeachingBy")
+  attendanceRecorded  AttendanceRecord[]   @relation("AttendanceRecorder")
 
   @@unique([userId, schoolId])
   @@index([schoolId, role])
@@ -275,7 +275,7 @@ model IdentityProvider {
 /// A person. Global — one row per human, whatever schools they belong to.
 /// Their role(s) live on Membership.
 model User {
-  id           String    @id @default(cuid())
+  id String @id @default(cuid())
 
   /// CONTACT address, and OPTIONAL.
   ///
@@ -285,7 +285,7 @@ model User {
   /// created. Requiring one forced the registry to fabricate addresses, which
   /// poisons the single field anybody would later use to actually reach a
   /// person.
-  email        String?   @unique
+  email String? @unique
 
   /// LOGIN identifier, also optional — but AT LEAST ONE of the two must be
   /// present. That rule lives in the account service rather than in the schema
@@ -294,20 +294,20 @@ model User {
   ///
   /// Stored lower-case so that "A.Okafor" and "a.okafor" cannot become two
   /// accounts; the unique index is on the stored form.
-  username     String?   @unique
-  passwordHash String
-  firstName    String
-  lastName     String
-  phone        String?
-  isActive     Boolean   @default(true)
+  username           String?   @unique
+  passwordHash       String
+  firstName          String
+  lastName           String
+  phone              String?
+  isActive           Boolean   @default(true)
   /// Set when an account is created with a generated one-time password, and
   /// cleared the moment the person sets their own. Defaults FALSE so that
   /// every account that already existed when this column arrived is not
   /// suddenly locked behind a change-password gate.
-  mustChangePassword Boolean @default(false)
-  lastLoginAt  DateTime?
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  mustChangePassword Boolean   @default(false)
+  lastLoginAt        DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
   memberships   Membership[]
   platformAdmin PlatformAdmin?
@@ -541,15 +541,15 @@ model CourseOffering {
   gradesPosted     Boolean     @default(false)
   createdAt        DateTime    @default(now())
 
-  meetings    Meeting[]
-  enrollments Enrollment[]
+  meetings     Meeting[]
+  enrollments  Enrollment[]
+  teachingLogs TeachingLog[]
 
   @@unique([courseId, termId, section])
   @@index([schoolId])
   @@index([termId])
   @@index([instructorId])
   @@map("course_offerings")
-  teachingLogs TeachingLog[]
 }
 
 /// One weekly timeslot for an offering. Times are minutes-from-midnight in the
@@ -1276,10 +1276,37 @@ model PresenceSession {
   /// of opening a second session.
   openKey String? @unique
 
+  /// THE ATTESTATION.
+  ///
+  /// A register is not a log of what a machine observed; it is a declaration a
+  /// person made. These fields are that declaration, kept verbatim as it was
+  /// given rather than resolved through a join — a timesheet read two years
+  /// from now has to show the department somebody was in THEN, and the number
+  /// they signed with THEN, not whatever the record happens to say today.
+  identifierGiven String?
+  unitGiven       String?
+  signature       String?
+  endSignature    String?
+
+  /// Whether the time was KEYED IN rather than taken from the clock.
+  ///
+  /// startedAt is the time that counts either way, and createdAt is when the
+  /// row was actually written — so the gap between a declared arrival and the
+  /// moment it was recorded stays visible. Without this flag a report cannot
+  /// tell an observed time from a remembered one, and the two carry very
+  /// different weight in a dispute.
+  startDeclared Boolean @default(false)
+  endDeclared   Boolean @default(false)
+
+  /// Materialised on close, from the break rows. Net is what was worked.
+  breakMinutes Int  @default(0)
+  netMinutes   Int?
+
   note String?
 
   createdAt   DateTime             @default(now())
   corrections PresenceCorrection[]
+  breaks      PresenceBreak[]
 
   @@index([schoolId, localDate])
   @@index([membershipId, localDate])
@@ -1293,6 +1320,40 @@ model PresenceSession {
 /// trail, it is a second version of the truth — and the whole purpose of
 /// letting the office correct a clock-in is that somebody can later see what
 /// was changed and why.
+model PresenceBreak {
+  id        String          @id @default(cuid())
+  schoolId  String
+  sessionId String
+  session   PresenceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+
+  /// BreakKind: SHORT | LUNCH | PRAYER | OTHER
+  kind String
+
+  startedAt DateTime
+  endedAt   DateTime?
+  minutes   Int?
+
+  /// Whether this break counted as time worked, AS DECIDED WHEN IT WAS TAKEN.
+  ///
+  /// Copied from policy rather than read through it. A school that stops
+  /// paying lunch breaks next year must not thereby rewrite every timesheet
+  /// its staff have already been paid against.
+  paid Boolean
+
+  /// ONE OPEN BREAK PER SESSION, enforced the same portable way the session
+  /// itself enforces one open session per person: the id while open, NULL once
+  /// closed, unique either way because NULLs are distinct on both engines.
+  /// Two open breaks would each deduct the same wall-clock minutes.
+  openKey String? @unique
+
+  note      String?
+  createdAt DateTime @default(now())
+
+  @@index([schoolId, sessionId])
+  @@index([sessionId])
+  @@map("presence_breaks")
+}
+
 model PresenceCorrection {
   id        String          @id @default(cuid())
   schoolId  String
@@ -1300,7 +1361,7 @@ model PresenceCorrection {
   session   PresenceSession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
 
   /// PresenceField: STARTED_AT | ENDED_AT | STATUS
-  field String
+  field         String
   /// Rendered values, so the trail stays readable after a schema change.
   previousValue String?
   newValue      String?
@@ -1338,10 +1399,10 @@ model TeachingLog {
   offering   CourseOffering? @relation(fields: [offeringId], references: [id], onDelete: SetNull)
 
   /// "YYYY-MM-DD" in the school's timezone.
-  localDate String
+  localDate       String
   /// Minutes from midnight, matching the timetable's own representation.
-  startMinute Int
-  endMinute   Int
+  startMinute     Int
+  endMinute       Int
   /// Materialised so "hours taught this term" is one indexed groupBy.
   durationMinutes Int
 
@@ -1356,6 +1417,13 @@ model TeachingLog {
   note     String?
   /// Headcount present, where the lecturer took one.
   attended Int?
+
+  /// The lecturer signing for the class, drawn on the device.
+  ///
+  /// Optional, because a log the office enters for an absent lecturer has no
+  /// signature to give. Refusing the row would lose the hours entirely, and an
+  /// unsigned record is a weaker record rather than no record at all.
+  signature String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1505,9 +1573,9 @@ model Task {
   description String?
 
   /// TaskKind: COURSE_ASSIGNMENT | GRADE_SUBMISSION | DOCUMENT_REQUEST | ONBOARDING | MODERATION | ADMISSIONS_REVIEW | GENERAL
-  kind String @default("GENERAL")
+  kind     String @default("GENERAL")
   /// TaskStatus: OPEN | IN_PROGRESS | BLOCKED | SUBMITTED | COMPLETED | CANCELLED
-  status String @default("OPEN")
+  status   String @default("OPEN")
   /// TaskPriority: LOW | NORMAL | HIGH | URGENT
   priority String @default("NORMAL")
 
@@ -1577,7 +1645,7 @@ model TaskEvent {
   task     Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
 
   /// TaskEventKind: CREATED | STATUS_CHANGED | REASSIGNED | DUE_DATE_CHANGED | PRIORITY_CHANGED | COMMENTED | ESCALATED
-  kind String
+  kind    String
   /// Null for a system-initiated event such as an automatic escalation.
   actorId String?
   actor   Membership? @relation(fields: [actorId], references: [id], onDelete: SetNull)
@@ -1700,9 +1768,9 @@ model Thread {
   categoryId String?
   category   ForumCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
 
-  title String
+  title    String
   /// ThreadStatus: OPEN | LOCKED | HIDDEN | DELETED
-  status String @default("OPEN")
+  status   String  @default("OPEN")
   isPinned Boolean @default(false)
 
   /// Nullable so a thread survives the author's membership being removed.
@@ -1802,10 +1870,10 @@ model PostReport {
   reporter   Membership? @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: SetNull)
 
   /// ReportReason: SPAM | ABUSE | OFF_TOPIC | PERSONAL_DATA | ACADEMIC_DISHONESTY | OTHER
-  reason  String
-  detail  String?
+  reason String
+  detail String?
   /// ReportStatus: PENDING | UPHELD | DISMISSED
-  status  String  @default("PENDING")
+  status String  @default("PENDING")
 
   /// The moderation task raised for this report, so the queue and the task
   /// system are the same queue rather than two places to look.
@@ -1867,7 +1935,7 @@ model LibraryResource {
 
   // --- targeting -------------------------------------------------------------
   /// ResourceAudience: ALL | STAFF | STUDENT
-  audience String @default("ALL")
+  audience         String @default("ALL")
   /// JSON arrays. EMPTY means "no restriction on this dimension", not "matches
   /// nothing" — so an unconfigured resource is visible to the school rather
   /// than invisible to everyone. Confidentiality is expressed by `audience`,
@@ -1978,10 +2046,10 @@ model RateLimitHit {
   schoolId String?
 
   /// What is being limited: "signin" | "apply".
-  action String
+  action     String
   /// Normalised client address. Spoofable, so a spam-control key only —
   /// never identity. See normaliseAddress().
-  address String
+  address    String
   /// The email or slug being acted on. Lower-cased.
   identifier String
 
@@ -2005,15 +2073,15 @@ model RateLimitHit {
 
 /// A commercial plan the platform sells.
 model Plan {
-  id   String @id @default(cuid())
-  code String @unique
-  name String
+  id          String  @id @default(cuid())
+  code        String  @unique
+  name        String
   description String?
 
   /// Recurring price in MINOR units, in `currencyCode`. Integer, never float —
   /// the same rule the student finance engine follows.
-  priceMinor   Int    @default(0)
-  currencyCode String @default("NGN")
+  priceMinor    Int    @default(0)
+  currencyCode  String @default("NGN")
   /// BillingPeriod: MONTHLY | TERMLY | ANNUAL
   billingPeriod String @default("ANNUAL")
 
@@ -2065,7 +2133,7 @@ model Subscription {
   cancelledAt DateTime?
   /// Free text for "why is this school suspended" — read by the operator, not
   /// by the school.
-  note String?
+  note        String?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -2092,11 +2160,11 @@ model SubscriptionInvoice {
   /// InvoiceStatus reused: DRAFT | ISSUED | PARTIALLY_PAID | PAID | OVERDUE | VOID
   status String @default("DRAFT")
 
-  currencyCode String @default("NGN")
-  subtotalMinor Int   @default(0)
-  taxMinor      Int   @default(0)
-  totalMinor    Int   @default(0)
-  paidMinor     Int   @default(0)
+  currencyCode  String @default("NGN")
+  subtotalMinor Int    @default(0)
+  taxMinor      Int    @default(0)
+  totalMinor    Int    @default(0)
+  paidMinor     Int    @default(0)
 
   periodStart DateTime
   periodEnd   DateTime
@@ -2125,10 +2193,10 @@ model SubscriptionInvoiceLine {
   invoice   SubscriptionInvoice @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
 
   description String
-  quantity    Int @default(1)
-  unitMinor   Int @default(0)
-  amountMinor Int @default(0)
-  position    Int @default(0)
+  quantity    Int    @default(1)
+  unitMinor   Int    @default(0)
+  amountMinor Int    @default(0)
+  position    Int    @default(0)
 
   @@index([invoiceId])
   @@map("subscription_invoice_lines")

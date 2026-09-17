@@ -146,6 +146,7 @@ export default async function TeachingLogPage({
                     <Th>Time</Th>
                     <Th className="w-24">Length</Th>
                     <Th>Outcome</Th>
+                    <Th className="w-28">Signed</Th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -186,6 +187,23 @@ export default async function TeachingLogPage({
                           <div className="mt-0.5 text-[11px] text-slate-500">
                             {r.attended} present
                           </div>
+                        )}
+                      </Td>
+                      {/*
+                        A signature stored and never shown is a signature nobody
+                        can check, which is the same as not having one. It is
+                        rendered small here and at full size on a printed log.
+                      */}
+                      <Td>
+                        {r.signature ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={r.signature}
+                            alt="Lecturer signature"
+                            className="h-8 w-24 object-contain object-left"
+                          />
+                        ) : (
+                          <span className="text-[11px] text-slate-400">unsigned</span>
                         )}
                       </Td>
                     </tr>

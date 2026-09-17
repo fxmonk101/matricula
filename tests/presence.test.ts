@@ -181,6 +181,8 @@ describe('timesheet totals', () => {
     expect(summariseTimesheet([])).toEqual({
       days: 0,
       minutes: 0,
+      breakMinutes: 0,
+      netMinutes: 0,
       assumedMinutes: 0,
       openSessions: 0,
     });

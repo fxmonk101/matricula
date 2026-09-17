@@ -16,7 +16,7 @@ import {
   MenuSeparator,
   useToast,
 } from '@/components/ui/overlays';
-import { FEE_CODES } from '@/server/services/fees.service';
+import { FEE_CODES } from '@/lib/domain/finance';
 import {
   deleteFeeStructureAction,
   saveFeeStructureAction,

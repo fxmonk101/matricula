@@ -2,13 +2,16 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 
 import { requireTenantContext } from '@/server/tenant-context';
-import { timesheet, whoIsIn } from '@/server/services/presence.service';
+import { presenceIdentity, timesheet, whoIsIn } from '@/server/services/presence.service';
 import { can } from '@/lib/auth/rbac';
 import { addLocalDays, toLocalDate } from '@/lib/domain/time';
 import {
+  BREAK_LABELS,
   PRESENCE_LABELS,
   formatDuration,
   toDecimalHours,
+  totalBreakMinutes,
+  type BreakKind,
   type PresenceStatus,
 } from '@/lib/domain/presence';
 import { fullName } from '@/lib/utils';
@@ -48,17 +51,22 @@ export default async function PresencePage({
   const today = toLocalDate(now, school.timezone);
   const from = addLocalDays(today, -(window - 1));
 
-  const [{ sessions, totals }, inBuilding] = await Promise.all([
+  const [{ sessions, totals }, inBuilding, identity] = await Promise.all([
     timesheet({ schoolId, membershipId, from, to: today }),
     // Only the office needs the building-wide view; everyone else sees their
     // own record and nothing about their colleagues.
     can(role, 'attendance:record') ? whoIsIn(schoolId) : Promise.resolve([]),
+    presenceIdentity(schoolId, membershipId),
   ]);
 
   const open = sessions.find((s) => s.status === 'OPEN') ?? null;
+  const runningBreak = open?.breaks.find((b) => b.endedAt === null) ?? null;
   const todayClosed = sessions
     .filter((s) => s.localDate === today && s.status !== 'OPEN')
-    .reduce((sum, s) => sum + (s.durationMinutes ?? 0), 0);
+    .reduce((sum, s) => sum + (s.netMinutes ?? s.durationMinutes ?? 0), 0);
+  const breaksToday = sessions
+    .filter((s) => s.localDate === today)
+    .reduce((sum, s) => sum + totalBreakMinutes(s.breaks), 0);
 
   const mayOversee = can(role, 'attendance:record');
 
@@ -71,27 +79,36 @@ export default async function PresencePage({
       />
 
       <div className="mb-4">
-        <PresenceClock openSince={open ? open.startedAt.toISOString() : null} todayMinutes={todayClosed} />
+        <PresenceClock
+          openSince={open ? open.startedAt.toISOString() : null}
+          todayMinutes={todayClosed}
+          identifier={identity.identifier}
+          identifierLabel={identity.identifierLabel}
+          unit={identity.unit}
+          breakSince={runningBreak ? runningBreak.startedAt.toISOString() : null}
+          breakKind={runningBreak?.kind ?? null}
+          breakMinutesToday={breaksToday}
+        />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatTile label="Days recorded" value={totals.days} sublabel={`Last ${window} days`} />
         <StatTile
-          label="Total time"
-          value={formatDuration(totals.minutes)}
+          label="Time worked"
+          value={formatDuration(totals.netMinutes)}
           tone="brand"
-          sublabel={`${toDecimalHours(totals.minutes)} hours`}
+          sublabel={`${toDecimalHours(totals.netMinutes)} hours, after breaks`}
+        />
+        <StatTile
+          label="Unpaid breaks"
+          value={formatDuration(totals.breakMinutes)}
+          sublabel={`Of ${formatDuration(totals.minutes)} on site`}
         />
         <StatTile
           label="Assumed"
           value={formatDuration(totals.assumedMinutes)}
           tone={totals.assumedMinutes > 0 ? 'warning' : 'success'}
           sublabel="From sessions nobody closed"
-        />
-        <StatTile
-          label="Still open"
-          value={totals.openSessions}
-          tone={totals.openSessions > 0 ? 'info' : 'neutral'}
         />
       </div>
 
@@ -141,7 +158,8 @@ export default async function PresencePage({
                     <Th>Day</Th>
                     <Th>In</Th>
                     <Th>Out</Th>
-                    <Th className="w-24">Time</Th>
+                    <Th className="w-20">Breaks</Th>
+                    <Th className="w-24">Worked</Th>
                     <Th>How</Th>
                   </tr>
                 </thead>
@@ -157,6 +175,16 @@ export default async function PresencePage({
                           minute: '2-digit',
                           timeZone: school.timezone,
                         })}
+                        {/*
+                          A declared time is marked, because a remembered arrival
+                          and an observed one carry different weight and a column
+                          of identical-looking timestamps hides which is which.
+                        */}
+                        {s.startDeclared && (
+                          <span className="ml-1 text-[10px] text-amber-700" title="Keyed in, not taken from the clock">
+                            keyed
+                          </span>
+                        )}
                       </Td>
                       <Td className="whitespace-nowrap text-xs tabular-nums text-slate-600">
                         {s.endedAt
@@ -166,9 +194,35 @@ export default async function PresencePage({
                               timeZone: school.timezone,
                             })
                           : '—'}
+                        {s.endDeclared && (
+                          <span className="ml-1 text-[10px] text-amber-700" title="Keyed in, not taken from the clock">
+                            keyed
+                          </span>
+                        )}
+                      </Td>
+                      <Td className="whitespace-nowrap text-xs tabular-nums text-slate-600">
+                        {s.breaks.length === 0 ? (
+                          '—'
+                        ) : (
+                          <span
+                            title={s.breaks
+                              .map(
+                                (b) =>
+                                  `${BREAK_LABELS[b.kind as BreakKind] ?? b.kind}: ${formatDuration(b.minutes)}${b.paid ? ' (paid)' : ''}`,
+                              )
+                              .join('\n')}
+                          >
+                            {formatDuration(totalBreakMinutes(s.breaks))}
+                            {s.breakMinutes > 0 && (
+                              <span className="ml-1 text-[10px] text-slate-400">
+                                −{formatDuration(s.breakMinutes)}
+                              </span>
+                            )}
+                          </span>
+                        )}
                       </Td>
                       <Td className="text-xs tabular-nums text-slate-900">
-                        {formatDuration(s.durationMinutes)}
+                        {formatDuration(s.netMinutes ?? s.durationMinutes)}
                       </Td>
                       <Td>
                         <Badge
@@ -231,7 +285,16 @@ export default async function PresencePage({
                         <p className="truncate text-xs text-slate-800">
                           {fullName(s.membership.user)}
                         </p>
-                        <p className="text-[11px] text-slate-500">{s.membership.role}</p>
+                        <p className="text-[11px] text-slate-500">
+                          {s.membership.role}
+                          {s.unitGiven ? ` · ${s.unitGiven}` : ''}
+                          {s.breaks.length > 0 && (
+                            <span className="text-amber-700">
+                              {' '}
+                              · on {BREAK_LABELS[s.breaks[0].kind as BreakKind]?.toLowerCase() ?? 'a break'}
+                            </span>
+                          )}
+                        </p>
                       </div>
                       <span className="shrink-0 text-[11px] tabular-nums text-slate-500">
                         {s.startedAt.toLocaleTimeString('en-GB', {

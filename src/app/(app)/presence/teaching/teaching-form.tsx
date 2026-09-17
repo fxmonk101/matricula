@@ -5,6 +5,7 @@ import { useFormStatus } from 'react-dom';
 
 import { Alert, Button, Card, CardBody, CardHeader, Field, Input, Select, Textarea } from '@/components/ui';
 import { useToast } from '@/components/ui/overlays';
+import { SignaturePad } from '@/components/signature-pad';
 import { TEACHING_LABELS, TEACHING_STATUSES, formatDuration } from '@/lib/domain/presence';
 import { logTeachingAction, type PresenceFormState } from '../actions';
 
@@ -156,6 +157,22 @@ export function TeachingForm({
           <Field label="Note" htmlFor="note">
             <Textarea id="note" name="note" rows={2} placeholder="Covering for a colleague." />
           </Field>
+
+          {/*
+            The signature is what turns the entry from a claim into a record. It
+            is not required: a head of department entering a class for a
+            colleague who is off sick has no signature to give, and refusing the
+            row would lose the hours entirely.
+          */}
+          <SignaturePad
+            name="signature"
+            label="Lecturer signature"
+            hint={
+              cancelled
+                ? 'Sign to confirm this class did not run.'
+                : 'Sign to confirm you delivered this class. Optional, but a signed log carries weight a typed one does not.'
+            }
+          />
 
           <SubmitButton />
         </form>
