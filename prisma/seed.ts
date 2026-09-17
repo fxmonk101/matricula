@@ -1450,6 +1450,157 @@ async function main() {
     if (unit) await db.membership.update({ where: { id: member.id }, data: { orgUnitId: unit.id } });
   }
 
+  // --- the register ----------------------------------------------------------
+  /*
+   * A FORTNIGHT OF SIGN-IN HISTORY.
+   *
+   * Without it a dean opens the team register and sees "never" against every
+   * name — which is literally correct and reads as a broken page. A demo has to
+   * show the feature doing its job, and the job includes showing the things
+   * that go wrong: somebody who never signs in, somebody who forgets to sign
+   * out, somebody who keys their arrival time in by hand.
+   *
+   * Deterministic, not random. A seed that produces different data every run
+   * cannot be used to reproduce anything anybody reports.
+   */
+  console.log('\nWriting a fortnight of sign-in history…');
+
+  const registerPeople = await db.membership.findMany({
+    where: {
+      schoolId: geu.schoolId,
+      status: 'ACTIVE',
+      role: { in: ['DEAN', 'HOD', 'INSTRUCTOR', 'REGISTRAR', 'FINANCE', 'LIBRARIAN', 'STUDENT'] },
+    },
+    include: { user: { select: { id: true, username: true, email: true } }, orgUnit: true },
+  });
+
+  await db.presenceBreak.deleteMany({ where: { schoolId: geu.schoolId } });
+  await db.presenceSession.deleteMany({ where: { schoolId: geu.schoolId } });
+
+  const dayNames = (back: number) => {
+    const d = new Date();
+    d.setDate(d.getDate() - back);
+    return d;
+  };
+
+  let sessionsWritten = 0;
+  let personIndex = 0;
+
+  for (const member of registerPeople) {
+    personIndex += 1;
+
+    // One person in every seven never signs in at all: the case the register
+    // exists to surface, and the one a page that lists only rows would hide.
+    const neverSignsIn = personIndex % 7 === 0;
+    if (neverSignsIn) continue;
+
+    const identity = await db.instructor.findFirst({
+      where: { userId: member.userId, schoolId: geu.schoolId },
+      include: { department: true },
+    });
+    const student = identity
+      ? null
+      : await db.student.findFirst({
+          where: { userId: member.userId, schoolId: geu.schoolId },
+          include: { program: { include: { department: true } } },
+        });
+
+    const identifier =
+      student?.matricNumber ?? identity?.staffNumber ?? member.user.username ?? member.user.email;
+    const unit =
+      student?.program?.department?.name ?? identity?.department?.name ?? member.orgUnit?.name ?? null;
+
+    for (let back = 13; back >= 0; back -= 1) {
+      const day = dayNames(back);
+      const weekday = day.getDay();
+      if (weekday === 0 || weekday === 6) continue;
+
+      // Deterministic absences, spread so no two people are off on the same
+      // pattern.
+      if ((back + personIndex) % 5 === 0) continue;
+
+      const localDate = `${day.getFullYear()}-${String(day.getMonth() + 1).padStart(2, '0')}-${String(day.getDate()).padStart(2, '0')}`;
+
+      const startHour = 7 + (personIndex % 3);
+      const startMinute = (personIndex * 7) % 60;
+      const startedAt = new Date(day);
+      startedAt.setHours(startHour, startMinute, 0, 0);
+
+      const lengthMinutes = 7 * 60 + ((personIndex * 13) % 150);
+      const endedAt = new Date(startedAt.getTime() + lengthMinutes * 60_000);
+
+      // One person is still in the building today, so "in right now" is not
+      // always zero.
+      const stillIn = back === 0 && personIndex % 4 === 1;
+
+      // Somebody, occasionally, forgets to sign out and gets swept.
+      const forgotten = !stillIn && back > 0 && (back + personIndex) % 11 === 0;
+
+      // A keyed arrival time, so the "keyed" marker appears somewhere.
+      const declared = (back + personIndex) % 6 === 0;
+
+      const takesLunch = lengthMinutes > 6 * 60;
+      const lunchMinutes = 30 + ((personIndex * 5) % 30);
+      const takesShort = personIndex % 3 === 0;
+
+      const breakDeduction = takesLunch ? lunchMinutes : 0;
+      const gross = forgotten ? 16 * 60 : lengthMinutes;
+
+      const session = await db.presenceSession.create({
+        data: {
+          schoolId: geu.schoolId,
+          membershipId: member.id,
+          localDate,
+          startedAt,
+          startDeclared: declared,
+          endedAt: stillIn ? null : forgotten ? new Date(startedAt.getTime() + 16 * 60 * 60_000) : endedAt,
+          durationMinutes: stillIn ? null : gross,
+          breakMinutes: stillIn ? 0 : breakDeduction,
+          netMinutes: stillIn ? null : Math.max(0, gross - breakDeduction),
+          status: stillIn ? 'OPEN' : forgotten ? 'AUTO_CLOSED' : 'CLOSED',
+          startSource: 'SELF',
+          endSource: stillIn ? null : forgotten ? 'OFFICE' : 'SELF',
+          openKey: stillIn ? member.id : null,
+          identifierGiven: identifier,
+          unitGiven: unit,
+        },
+      });
+      sessionsWritten += 1;
+
+      if (takesLunch && !stillIn) {
+        const lunchStart = new Date(startedAt.getTime() + 4 * 60 * 60_000);
+        await db.presenceBreak.create({
+          data: {
+            schoolId: geu.schoolId,
+            sessionId: session.id,
+            kind: 'LUNCH',
+            startedAt: lunchStart,
+            endedAt: new Date(lunchStart.getTime() + lunchMinutes * 60_000),
+            minutes: lunchMinutes,
+            paid: false,
+          },
+        });
+      }
+      if (takesShort && !stillIn) {
+        const shortStart = new Date(startedAt.getTime() + 2 * 60 * 60_000);
+        await db.presenceBreak.create({
+          data: {
+            schoolId: geu.schoolId,
+            sessionId: session.id,
+            kind: personIndex % 2 === 0 ? 'SHORT' : 'PRAYER',
+            startedAt: shortStart,
+            endedAt: new Date(shortStart.getTime() + 15 * 60_000),
+            minutes: 15,
+            // Short and prayer breaks are paid, so they must NOT be deducted.
+            paid: true,
+          },
+        });
+      }
+    }
+  }
+
+  console.log(`  · ${sessionsWritten} sessions across ${registerPeople.length} people`);
+
   // --- recompute derived academics ------------------------------------------
   console.log('\nComputing GPAs and academic standing…');
   const { recomputeStudentAcademics } = await import('../src/server/academics');
@@ -1492,14 +1643,45 @@ async function main() {
 
   console.log(`\n  Password for every account: ${PASSWORD}\n`);
   console.log('  Golden Eagles University — /s/golden-eagles/login');
-  console.log('    admin@geu.edu                 School admin (also platform operator)');
+  console.log('    admin@geu.edu                 Owner (also platform operator)');
   console.log('    registrar@geu.edu             Registrar');
   console.log('    admissions@geu.edu            Admissions officer');
-  console.log('    bursary@geu.edu               Finance officer');
-  console.log('    a.okafor@geu.edu              Instructor · Dean, 3 direct reports');
+  console.log('    bursary@geu.edu               Finance officer (Bursar)');
   console.log('    chidi.eze@student.geu.edu     Student (strong record)');
   console.log('    kunle.adeoye@student.geu.edu  Student (repeated course)');
   console.log('    segun.okonkwo@student.geu.edu Student (probation + financial hold)');
+
+  /*
+   * THE ACADEMIC CHAIN IS PRINTED FROM THE DATABASE, NOT HAND-LISTED.
+   *
+   * This block used to describe one person as "Instructor · Dean" and mention
+   * no heads of department at all, which made it impossible to tell from the
+   * summary that a dean and a lecturer are different accounts — or that the
+   * heads existed. A hand-written summary of derived data drifts away from it
+   * the first time the data changes.
+   */
+  console.log('');
+  console.log('    The academic line — a dean, a head and a lecturer are DIFFERENT people:');
+  const chain = await db.membership.findMany({
+    where: { schoolId: geu.schoolId, role: { in: ['DEAN', 'HOD', 'INSTRUCTOR'] } },
+    include: {
+      user: { select: { email: true, firstName: true, lastName: true } },
+      orgUnit: { select: { name: true } },
+      manager: { include: { user: { select: { lastName: true } } } },
+      _count: { select: { reports: true } },
+    },
+    orderBy: [{ role: 'asc' }, { title: 'asc' }],
+  });
+  const ORDER = { DEAN: 0, HOD: 1, INSTRUCTOR: 2 } as Record<string, number>;
+  for (const person of chain.sort(
+    (a, b) => (ORDER[a.role] ?? 9) - (ORDER[b.role] ?? 9) || a.user.lastName.localeCompare(b.user.lastName),
+  )) {
+    const reports = person._count.reports;
+    const under = person.manager ? `under ${person.manager.user.lastName}` : 'top of the line';
+    console.log(
+      `    ${(person.user.email ?? '').padEnd(29)} ${person.role.padEnd(11)} ${(person.orgUnit?.name ?? '—').padEnd(37)} ${under}${reports > 0 ? `, ${reports} report${reports === 1 ? '' : 's'}` : ''}`,
+    );
+  }
   console.log('');
   console.log('  Golden Eagles International School (K-12) — /s/gis/login');
   console.log('    head@gis.edu.ng               Head teacher');
