@@ -1642,8 +1642,26 @@ async function main() {
   }
 
   console.log(`\n  Password for every account: ${PASSWORD}\n`);
+
+  /*
+   * The operator portal is a SEPARATE sign-in with a separate cookie, and the
+   * account that reaches it holds no school membership at all. Leaving it out
+   * of this summary meant the only way to find it was to read the schema.
+   */
+  const operators = await db.platformAdmin.findMany({
+    include: { user: { select: { email: true, username: true } } },
+  });
+  if (operators.length > 0) {
+    console.log('  Platform operator (us, not a school) — /operator/login');
+    for (const operator of operators) {
+      console.log(
+        `    ${(operator.user.email ?? operator.user.username ?? '').padEnd(29)} Provisions and suspends schools`,
+      );
+    }
+    console.log('');
+  }
   console.log('  Golden Eagles University — /s/golden-eagles/login');
-  console.log('    admin@geu.edu                 Owner (also platform operator)');
+  console.log('    admin@geu.edu                 Owner (school admin — NOT the platform operator)');
   console.log('    registrar@geu.edu             Registrar');
   console.log('    admissions@geu.edu            Admissions officer');
   console.log('    bursary@geu.edu               Finance officer (Bursar)');
