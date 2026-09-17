@@ -15,6 +15,7 @@ import {
 } from '@/components/ui';
 import {
   activateSchoolAction,
+  reissueOwnerPasswordAction,
   raiseInvoiceAction,
   recordPaymentAction,
   setPlanAction,
@@ -80,6 +81,10 @@ export function SchoolControls({
     activateSchoolAction,
     {},
   );
+  const [reissueState, reissue] = useActionState<PlatformFormState, FormData>(
+    reissueOwnerPasswordAction,
+    {},
+  );
   const [planState, savePlan] = useActionState<PlatformFormState, FormData>(setPlanAction, {});
   const [statusState, saveStatus] = useActionState<PlatformFormState, FormData>(
     setStatusAction,
@@ -114,6 +119,40 @@ export function SchoolControls({
           </CardBody>
         </Card>
       )}
+
+      <Card>
+        <CardHeader
+          title="Owner access"
+          description="For an owner who cannot get in. Their current password stops working immediately."
+        />
+        <CardBody>
+          <form action={reissue}>
+            <input type="hidden" name="schoolId" value={schoolId} />
+            <Submit>Issue a new owner password</Submit>
+          </form>
+
+          {/*
+            Shown ONCE and never recoverable, which is the same contract as
+            provisioning. It is rendered as selectable text rather than
+            summarised, because the next thing that happens is somebody reading
+            it down a telephone.
+          */}
+          {reissueState.temporaryPassword && (
+            <div className="mt-3 rounded-lg bg-amber-50 p-3 ring-1 ring-inset ring-amber-200">
+              <p className="text-xs font-medium text-amber-900">
+                Give this to {reissueState.ownerEmail ?? 'the owner'} now. It cannot be shown
+                again, and they must change it at first sign-in.
+              </p>
+              <code className="mt-2 block select-all break-all rounded bg-white px-2 py-1.5 font-mono text-sm text-slate-900 ring-1 ring-inset ring-amber-200">
+                {reissueState.temporaryPassword}
+              </code>
+            </div>
+          )}
+          {reissueState.message && !reissueState.temporaryPassword && (
+            <Result state={reissueState} />
+          )}
+        </CardBody>
+      </Card>
 
       {hasSubscription && (
         <>

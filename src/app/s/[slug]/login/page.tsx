@@ -3,7 +3,7 @@ import Image from 'next/image';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
 
-import { schoolAcceptsPublicTraffic } from '@/lib/domain/enums';
+import { schoolAcceptsSignIn } from '@/lib/domain/enums';
 import { platformDb } from '@/lib/tenant';
 import { LoginForm } from '@/app/(auth)/login/login-form';
 
@@ -30,7 +30,7 @@ export async function generateMetadata({
     where: { slug },
     select: { name: true, status: true },
   });
-  if (!school || !schoolAcceptsPublicTraffic(school.status)) return { title: 'Sign in' };
+  if (!school || !schoolAcceptsSignIn(school.status)) return { title: 'Sign in' };
   // The browser tab carries the institution, not the platform.
   return { title: `Sign in · ${school.name}` };
 }
@@ -57,7 +57,7 @@ export default async function SchoolLoginPage({
       academicModel: true,
     },
   });
-  if (!school || !schoolAcceptsPublicTraffic(school.status)) notFound();
+  if (!school || !schoolAcceptsSignIn(school.status)) notFound();
 
   const isUniversity = school.academicModel === 'HIGHER_ED';
 
@@ -135,6 +135,20 @@ export default async function SchoolLoginPage({
           <p className="mt-1.5 text-sm text-slate-500">
             Use the credentials issued by your {isUniversity ? 'faculty or the registry' : 'school office'}.
           </p>
+
+          {/*
+            A school still being provisioned admits its OWNER and nobody else.
+            Saying so on the form matters: without it a teacher who was given
+            the link early gets a generic credential failure and spends the
+            afternoon convinced they have the wrong password.
+          */}
+          {school.status === 'PROVISIONING' && (
+            <div className="mt-5 rounded-lg bg-amber-50 p-3 text-xs leading-relaxed text-amber-900 ring-1 ring-inset ring-amber-200">
+              <span className="font-medium">This school is still being set up.</span> Only the
+              owner account can sign in until the setup is finished. If you are staff or a
+              student here, your account will work once the school goes live.
+            </div>
+          )}
 
           <div className="mt-7">
             <LoginForm next={next} schoolSlug={slug} />

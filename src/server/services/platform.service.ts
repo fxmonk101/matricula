@@ -714,3 +714,75 @@ export async function setPlatformAdmin(params: {
       : `${user.email} is no longer a platform operator.`,
   };
 }
+
+/**
+ * Issue a fresh one-time password for a school's OWNER.
+ *
+ * The one credential nobody else can recover. A school's own `/people` page can
+ * reset anybody's password, but the owner has to be able to sign in to use it —
+ * so an owner who loses the password shown once at provisioning is locked out
+ * of their institution permanently, with nobody above them to ask. That is not
+ * a hypothetical: it is the first thing that happens when somebody provisions a
+ * school, closes the tab, and comes back tomorrow.
+ *
+ * Deliberately restricted to OWNER. Reissuing a lecturer's password is the
+ * school office's business and it has a page for it; the platform operator
+ * reaching past a customer's own administration into arbitrary staff accounts
+ * is a much larger power than the problem needs.
+ */
+export async function reissueOwnerPassword(params: {
+  schoolId: string;
+  actorUserId: string | null;
+}): Promise<{ ok: boolean; message: string; temporaryPassword?: string; email?: string }> {
+  const school = await platformDb.school.findUnique({
+    where: { id: params.schoolId },
+    select: { id: true, name: true },
+  });
+  if (!school) return { ok: false, message: 'School not found.' };
+
+  const owner = await platformDb.membership.findFirst({
+    where: { schoolId: params.schoolId, role: 'OWNER' },
+    include: { user: { select: { id: true, email: true, firstName: true, lastName: true } } },
+    orderBy: { createdAt: 'asc' },
+  });
+  if (!owner) {
+    return {
+      ok: false,
+      message: `${school.name} has no owner account. Provision one before resetting anything.`,
+    };
+  }
+
+  const temporaryPassword = formatTemporaryPassword(randomBytes(32));
+  await platformDb.user.update({
+    where: { id: owner.userId },
+    data: {
+      passwordHash: await hashPassword(temporaryPassword),
+      // Forces them onto /account/password before anything else, so a password
+      // read aloud across a desk does not become the account's real one.
+      mustChangePassword: true,
+    },
+  });
+
+  // Any half-finished email confirmation is abandoned: it was authorised by a
+  // password that no longer exists.
+  await platformDb.accountChangeRequest.deleteMany({
+    where: { userId: owner.userId, consumedAt: null },
+  });
+
+  void recordAudit({
+    schoolId: params.schoolId,
+    actorId: params.actorUserId,
+    action: 'platform.owner.password.reissue',
+    entityType: 'User',
+    entityId: owner.userId,
+    // What happened, by whom, to whom — never the secret itself.
+    summary: `Platform operator reissued the owner password for ${school.name} (${owner.user.email ?? owner.user.id}).`,
+  });
+
+  return {
+    ok: true,
+    message: `New one-time password for ${owner.user.firstName} ${owner.user.lastName}. It cannot be shown again.`,
+    temporaryPassword,
+    email: owner.user.email ?? undefined,
+  };
+}

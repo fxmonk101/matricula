@@ -10,7 +10,7 @@ import {
   equaliseTiming,
   verifyPassword,
 } from '@/lib/auth/session';
-import { ROLE_HOME, isRole } from '@/lib/domain/enums';
+import { ROLE_HOME, isRole, schoolAllowsSignIn, type Role } from '@/lib/domain/enums';
 import {
   classifyIdentifier,
   isValidEmail,
@@ -167,8 +167,22 @@ export async function signInAction(
     return fail();
   }
 
-  // A suspended school cannot be signed into, even with a valid password.
-  const usable = user.memberships.filter((m) => m.school.status !== 'SUSPENDED');
+  /*
+   * THE SAME ALLOW-LIST THE REST OF THE APPLICATION USES.
+   *
+   * This was `status !== 'SUSPENDED'` — the deny-list that
+   * `schoolAllowsSignIn` was written to replace, and which every other caller
+   * had already stopped using. It admitted any role into a PROVISIONING school,
+   * so a teacher could sign in to an institution with no terms, no grading
+   * scheme and no timetable and reasonably conclude the product was broken.
+   *
+   * Applied PER MEMBERSHIP, because the answer depends on the role held at that
+   * particular school: the owner of a provisioning school gets in to finish
+   * setting it up, and nobody else does.
+   */
+  const usable = user.memberships.filter((m) =>
+    schoolAllowsSignIn(m.school.status, m.role as Role),
+  );
 
   const membership = schoolSlug
     ? usable.find((m) => m.school.slug === schoolSlug)

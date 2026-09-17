@@ -8,6 +8,7 @@ import { requireOperator } from '@/lib/auth/operator';
 import { schoolEntranceUrl } from '@/lib/domain/tenancy';
 import {
   activateSchool,
+  reissueOwnerPassword,
   provisionSchool,
   raiseSubscriptionInvoice,
   recordSubscriptionPayment,
@@ -138,6 +139,32 @@ export async function activateSchoolAction(
   revalidatePath('/operator');
   revalidatePath(`/operator/${schoolId}`);
   return result;
+}
+
+/**
+ * Reissue the owner's one-time password.
+ *
+ * The only credential nobody else can recover: a school's own /people page can
+ * reset anybody, but the owner has to be able to sign in to use it. Without
+ * this, an owner who loses the password shown once at provisioning is locked
+ * out of their institution with nobody above them to ask.
+ */
+export async function reissueOwnerPasswordAction(
+  _prev: PlatformFormState,
+  formData: FormData,
+): Promise<PlatformFormState> {
+  const session = await requireOperator();
+  const schoolId = String(formData.get('schoolId') ?? '');
+
+  const result = await reissueOwnerPassword({ schoolId, actorUserId: session.sub });
+
+  revalidatePath(`/operator/${schoolId}`);
+  return {
+    ok: result.ok,
+    message: result.message,
+    temporaryPassword: result.temporaryPassword,
+    ownerEmail: result.email,
+  };
 }
 
 export async function setPlanAction(

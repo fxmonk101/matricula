@@ -149,6 +149,26 @@ export function schoolAllowsSignIn(status: string, role: Role): boolean {
   return false;
 }
 
+/**
+ * May the sign-in FORM be rendered for this school?
+ *
+ * Distinct from `schoolAcceptsPublicTraffic`, and the distinction is the whole
+ * point. A school being provisioned takes no applications and belongs in no
+ * public picker — but its owner was just handed a link to it and has to be able
+ * to get in and finish the setup. Deciding whether to render the form with the
+ * PUBLIC rule 404s that owner out of the school they were given thirty seconds
+ * earlier, which is exactly what happened.
+ *
+ * Rendering the form is not authorisation. Whether a particular person may
+ * actually sign in is still `schoolAllowsSignIn(status, role)`, applied per
+ * membership once the credentials are known — so a teacher at a provisioning
+ * school reaches the form and is refused, rather than being told the school
+ * does not exist.
+ */
+export function schoolAcceptsSignIn(status: string): boolean {
+  return schoolAcceptsPublicTraffic(status) || status === 'PROVISIONING';
+}
+
 export const MEMBERSHIP_STATUSES = ['ACTIVE', 'INVITED', 'SUSPENDED'] as const;
 export type MembershipStatus = (typeof MEMBERSHIP_STATUSES)[number];
 
