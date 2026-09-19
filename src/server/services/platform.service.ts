@@ -15,6 +15,7 @@
 import { randomBytes } from 'node:crypto';
 
 import { platformDb } from '@/lib/tenant';
+import { starterTerms, starterUnitFor } from '@/lib/domain/school-starter';
 import { currencyFor, toMinor } from '@/lib/domain/money';
 import { hashPassword } from '@/lib/auth/password';
 import {
@@ -207,7 +208,7 @@ export async function provisionSchool(params: {
           },
         }));
 
-      await tx.membership.create({
+      const ownerMembership = await tx.membership.create({
         data: {
           userId: user.id,
           schoolId: school.id,
@@ -217,6 +218,65 @@ export async function provisionSchool(params: {
           status: 'ACTIVE',
         },
       });
+
+      /*
+       * THE SCAFFOLDING, in the same transaction as the school itself.
+       *
+       * A school used to arrive with a configuration and nothing to apply it
+       * to, and almost every academic page hangs off a CURRENT TERM — offerings
+       * belong to one, registration opens within one, fees are scoped by one,
+       * the timetable is drawn for one. A school with no term is not a school
+       * with less data; it is a school where most of the product does nothing
+       * and nothing on screen says why.
+       *
+       * These are DEFAULTS, not sample data. Every institution has terms and a
+       * department; only the names and dates differ, and an editable guess is
+       * strictly better than an empty table.
+       */
+      await tx.term.createMany({
+        data: starterTerms(now).map((t) => ({ ...t, schoolId: school.id })),
+      });
+
+      const unit = starterUnitFor(params.academicModel);
+      const faculty = await tx.faculty.create({
+        data: { schoolId: school.id, code: unit.facultyCode, name: unit.facultyName },
+      });
+      const department = await tx.department.create({
+        data: {
+          schoolId: school.id,
+          facultyId: faculty.id,
+          code: unit.departmentCode,
+          name: unit.departmentName,
+        },
+      });
+
+      // Org units mirror the academic structure, and the presence roll-up reads
+      // them — so they are created together or the two disagree from day one.
+      const facultyUnit = await tx.orgUnit.create({
+        data: {
+          schoolId: school.id,
+          code: unit.facultyCode,
+          name: unit.facultyName,
+          kind: 'FACULTY',
+        },
+      });
+      await tx.orgUnit.create({
+        data: {
+          schoolId: school.id,
+          code: unit.departmentCode,
+          name: unit.departmentName,
+          kind: 'DEPARTMENT',
+          parentId: facultyUnit.id,
+        },
+      });
+
+      // The owner runs the institution, so they sit at the top of it.
+      await tx.membership.update({
+        where: { id: ownerMembership.id },
+        data: { orgUnitId: facultyUnit.id },
+      });
+
+      void department;
 
       return school;
     });
@@ -232,7 +292,7 @@ export async function provisionSchool(params: {
 
     return {
       ok: true,
-      message: `${name} is ready. Give the owner their one-time password — it cannot be shown again.`,
+      message: `${name} is ready, with its academic year and a starting department already set up. Give the owner their one-time password — it cannot be shown again.`,
       schoolId: created.id,
       slug,
       ownerEmail: email,

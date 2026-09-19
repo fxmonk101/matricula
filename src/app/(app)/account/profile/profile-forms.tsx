@@ -14,6 +14,7 @@ import {
   saveProfileAction,
   type ProfileFormState,
 } from './actions';
+import { PasswordInput } from '@/components/password-input';
 
 function Submit({ label, variant = 'primary' }: { label: string; variant?: 'primary' | 'secondary' }) {
   const { pending } = useFormStatus();
@@ -233,10 +234,9 @@ export function PasswordForm({
 
         <form action={action} className="space-y-4">
           <Field label="Current password" htmlFor="currentPassword" required>
-            <Input
+            <PasswordInput
               id="currentPassword"
               name="currentPassword"
-              type="password"
               required
               autoComplete="current-password"
             />
@@ -249,20 +249,18 @@ export function PasswordForm({
               required
               hint={`At least ${PASSWORD_MIN} characters.`}
             >
-              <Input
+              <PasswordInput
                 id="newPassword"
                 name="newPassword"
-                type="password"
                 required
                 minLength={PASSWORD_MIN}
                 autoComplete="new-password"
               />
             </Field>
             <Field label="Repeat it" htmlFor="confirmPassword" required>
-              <Input
+              <PasswordInput
                 id="confirmPassword"
                 name="confirmPassword"
-                type="password"
                 required
                 autoComplete="new-password"
               />

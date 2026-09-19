@@ -39,7 +39,17 @@ import { resolveTenantSlug, tenancyMode } from '@/lib/domain/tenancy';
  * only as a hash, and unlocks a change whose requester already proved they knew
  * the current password.
  */
-const PUBLIC_EXACT = new Set(['/', '/login', '/apply', '/forbidden', '/account/confirm']);
+const PUBLIC_EXACT = new Set([
+  '/',
+  '/login',
+  '/apply',
+  '/forbidden',
+  '/account/confirm',
+  // Reached by somebody who CANNOT sign in, which is the whole errand. The
+  // token carries the authority; a session requirement here would gate the
+  // recovery path behind the thing being recovered.
+  '/account/reset',
+]);
 
 /** Public path prefixes, including the tenant-qualified ones. */
 const PUBLIC_PREFIXES = ['/s/'];

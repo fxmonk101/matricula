@@ -10,6 +10,7 @@ import {
   AVATAR_EDGE,
   AVATAR_MAX_BYTES,
   CONFIRM_TTL_MINUTES,
+  PASSWORD_MIN,
   confirmationRoute,
   maskEmail,
   validatePasswordChange,
@@ -464,4 +465,210 @@ export async function cancelPendingChange(userId: string): Promise<ProfileResult
   return count > 0
     ? { ok: true, message: 'Cancelled. Your current password is unchanged.' }
     : { ok: false, message: 'There was nothing pending to cancel.' };
+}
+
+// -----------------------------------------------------------------------------
+// Forgotten passwords
+// -----------------------------------------------------------------------------
+
+/**
+ * Begin a password reset for somebody who cannot sign in.
+ *
+ * THE RESPONSE NEVER REVEALS WHETHER THE ACCOUNT EXISTS. Every path returns the
+ * same message: an unknown address, a known address, an account with no email on
+ * file. A reset form that says "no such user" is a free membership oracle for
+ * the whole institution — walk a list of names and learn who attends the school,
+ * without a single credential.
+ *
+ * Nothing about the account changes here. The current password keeps working
+ * until a link is actually opened, so a stranger spamming this form cannot lock
+ * anybody out — which is the failure mode of every reset flow that invalidates
+ * the old password up front.
+ */
+export async function requestPasswordReset(params: {
+  identifier: string;
+  origin: string;
+  /** Narrows to one school when the request came from a branded login page. */
+  schoolSlug?: string | null;
+  now?: Date;
+}): Promise<{ ok: true; message: string; localMailPath?: string }> {
+  const now = params.now ?? new Date();
+
+  // One message, whatever happened. Composed once so no branch can drift.
+  const SAME_ANSWER = {
+    ok: true as const,
+    message:
+      'If that account exists and has an email address on file, a reset link is on its way. It expires in an hour. If nothing arrives, your school office can reset it for you.',
+  };
+
+  const raw = params.identifier.trim().toLowerCase();
+  if (!raw) return SAME_ANSWER;
+
+  const user = await platformDb.user.findFirst({
+    where: raw.includes('@') ? { email: raw } : { username: raw },
+    include: { memberships: { include: { school: { select: { slug: true, name: true } } } } },
+  });
+
+  // No account, no email to send to, or a disabled account: all silent.
+  if (!user || !user.email || !user.isActive) return SAME_ANSWER;
+
+  /*
+   * A RESET IS RATE-LIMITED BY THE PENDING REQUEST ITSELF.
+   *
+   * Deleting the previous one and issuing a fresh token means a stranger
+   * hammering the form sends the owner a stream of emails. So an unexpired
+   * request is reused rather than replaced: the second press inside the hour
+   * re-sends nothing and the owner gets one message, not forty.
+   */
+  const live = await platformDb.accountChangeRequest.findFirst({
+    where: { userId: user.id, kind: 'PASSWORD_RESET', consumedAt: null, expiresAt: { gt: now } },
+  });
+  if (live) return SAME_ANSWER;
+
+  const token = randomBytes(TOKEN_BYTES).toString('base64url');
+  await platformDb.accountChangeRequest.create({
+    data: {
+      userId: user.id,
+      kind: 'PASSWORD_RESET',
+      tokenHash: hashToken(token),
+      // Nothing to apply: the new password is chosen when the link is opened.
+      // A reset differs from a change in exactly this — the person asking has
+      // no password to prove anything with.
+      payload: '',
+      expiresAt: new Date(now.getTime() + CONFIRM_TTL_MINUTES * 60_000),
+      summary: 'Password reset requested from the sign-in page.',
+    },
+  });
+
+  const link = `${params.origin}/account/reset?token=${encodeURIComponent(token)}`;
+  const school =
+    user.memberships.find((m) => m.school.slug === params.schoolSlug)?.school ??
+    user.memberships[0]?.school ??
+    null;
+
+  const sent = await (
+    await mailer()
+  ).send({
+    to: user.email,
+    subject: 'Reset your password',
+    body: [
+      `Hello ${user.firstName},`,
+      '',
+      school
+        ? `Somebody asked to reset the password for your ${school.name} account.`
+        : 'Somebody asked to reset the password on your account.',
+      '',
+      `Open this link within ${CONFIRM_TTL_MINUTES} minutes to choose a new one:`,
+      '',
+      link,
+      '',
+      'If this was not you, do nothing. Your current password still works and the',
+      'link expires on its own. Nobody can change your password without opening it.',
+    ].join('\n'),
+  });
+
+  void recordAudit({
+    schoolId: null,
+    actorId: user.id,
+    action: 'profile.password.reset.request',
+    entityType: 'User',
+    entityId: user.id,
+    summary: `Password reset requested; sent via ${sent.via}.`,
+  });
+
+  return { ...SAME_ANSWER, localMailPath: sent.localPath };
+}
+
+/** Is this reset link still good? Checked before the form is rendered. */
+export async function checkResetToken(params: {
+  token: string;
+  now?: Date;
+}): Promise<{ ok: boolean; firstName?: string }> {
+  const now = params.now ?? new Date();
+  const token = params.token.trim();
+  if (!token) return { ok: false };
+
+  const request = await platformDb.accountChangeRequest.findUnique({
+    where: { tokenHash: hashToken(token) },
+    include: { user: { select: { firstName: true } } },
+  });
+
+  if (!request || request.kind !== 'PASSWORD_RESET') return { ok: false };
+  if (request.consumedAt || request.expiresAt.getTime() < now.getTime()) return { ok: false };
+
+  return { ok: true, firstName: request.user.firstName };
+}
+
+/**
+ * Finish a reset: set the new password and burn the token.
+ *
+ * The token and the new password arrive TOGETHER, in one request. Rendering the
+ * form and then accepting the password on a second request without the token
+ * would mean the form itself had to carry authority, and a form that carries
+ * authority is a form that can be replayed.
+ */
+export async function completePasswordReset(params: {
+  token: string;
+  newPassword: string;
+  confirmPassword: string;
+  now?: Date;
+}): Promise<ProfileResult> {
+  const now = params.now ?? new Date();
+
+  const refusal: ProfileResult = {
+    ok: false,
+    message:
+      'That reset link is not valid. It may have expired, or already been used. Ask for a new one from the sign-in page.',
+  };
+
+  const token = params.token.trim();
+  if (!token) return refusal;
+
+  const request = await platformDb.accountChangeRequest.findUnique({
+    where: { tokenHash: hashToken(token) },
+  });
+  if (!request || request.kind !== 'PASSWORD_RESET') return refusal;
+  if (request.consumedAt || request.expiresAt.getTime() < now.getTime()) return refusal;
+
+  // The password rules, minus the current-password check — the whole point of a
+  // reset is that the person does not have it.
+  const problems: string[] = [];
+  if (params.newPassword.length < PASSWORD_MIN) {
+    problems.push(`A password needs at least ${PASSWORD_MIN} characters.`);
+  }
+  if (params.newPassword.length > 200) problems.push('That password is too long.');
+  if (params.newPassword !== params.confirmPassword) {
+    problems.push('The two passwords do not match.');
+  }
+  if (problems.length > 0) return { ok: false, message: problems.join(' ') };
+
+  const hash = await hashPassword(params.newPassword);
+
+  await platformDb.$transaction([
+    platformDb.user.update({
+      where: { id: request.userId },
+      // mustChangePassword is CLEARED: they have just chosen this one
+      // themselves, so forcing them to choose again at sign-in is pointless.
+      data: { passwordHash: hash, mustChangePassword: false },
+    }),
+    platformDb.accountChangeRequest.update({
+      where: { id: request.id },
+      data: { consumedAt: now },
+    }),
+    // Any pending change authorised by the OLD password is abandoned with it.
+    platformDb.accountChangeRequest.deleteMany({
+      where: { userId: request.userId, consumedAt: null, kind: 'PASSWORD' },
+    }),
+  ]);
+
+  void recordAudit({
+    schoolId: null,
+    actorId: request.userId,
+    action: 'profile.password.reset.complete',
+    entityType: 'User',
+    entityId: request.userId,
+    summary: 'Password reset completed from an emailed link.',
+  });
+
+  return { ok: true, message: 'Your password has been reset. Sign in with it now.' };
 }

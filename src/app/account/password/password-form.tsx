@@ -4,6 +4,7 @@ import { useActionState, useState } from 'react';
 import { useFormStatus } from 'react-dom';
 
 import { Alert, Button, Field, Input } from '@/components/ui';
+import { PasswordInput } from '@/components/password-input';
 import {
   MIN_PASSWORD_LENGTH,
   passwordProblems,
@@ -60,10 +61,9 @@ export function PasswordForm({
             : undefined
         }
       >
-        <Input
+        <PasswordInput
           id="currentPassword"
           name="currentPassword"
-          type="password"
           autoComplete="current-password"
           required
         />
@@ -75,10 +75,9 @@ export function PasswordForm({
         required
         hint={`At least ${MIN_PASSWORD_LENGTH} characters. Length is what makes a password hard to break — a long phrase beats a short one with symbols in it.`}
       >
-        <Input
+        <PasswordInput
           id="newPassword"
           name="newPassword"
-          type="password"
           autoComplete="new-password"
           required
           value={next}
@@ -117,10 +116,9 @@ export function PasswordForm({
         required
         error={mismatch ? 'The two passwords do not match.' : undefined}
       >
-        <Input
+        <PasswordInput
           id="confirmPassword"
           name="confirmPassword"
-          type="password"
           autoComplete="new-password"
           required
           value={confirm}

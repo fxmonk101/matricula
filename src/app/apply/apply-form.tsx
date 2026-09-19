@@ -16,6 +16,7 @@ import {
   Textarea,
 } from '@/components/ui';
 import { submitApplicationAction, type ApplyState } from './actions';
+import { PasswordInput } from '@/components/password-input';
 
 const MIN_STATEMENT = 100;
 const MAX_STATEMENT = 5000;
@@ -95,10 +96,9 @@ export function ApplyForm({
             hint="At least 10 characters. Length matters far more than punctuation."
             className="sm:col-span-2"
           >
-            <Input
+            <PasswordInput
               id="password"
               name="password"
-              type="password"
               required
               minLength={10}
               autoComplete="new-password"

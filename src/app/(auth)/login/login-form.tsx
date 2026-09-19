@@ -1,9 +1,11 @@
 'use client';
 
+import Link from 'next/link';
 import { useActionState } from 'react';
 import { useFormStatus } from 'react-dom';
 
 import { Alert, Button, Field, Input } from '@/components/ui';
+import { PasswordInput } from '@/components/password-input';
 import { signInAction, type SignInState } from '../actions';
 
 function SubmitButton() {
@@ -57,15 +59,23 @@ export function LoginForm({ next, schoolSlug }: { next?: string; schoolSlug?: st
       </Field>
 
       <Field label="Password" htmlFor="password" required>
-        <Input
+        <PasswordInput
           id="password"
           name="password"
-          type="password"
           autoComplete="current-password"
           required
           placeholder="••••••••"
         />
       </Field>
+
+      <div className="-mt-1 text-right">
+        <Link
+          href={schoolSlug ? `/account/reset?school=${schoolSlug}` : '/account/reset'}
+          className="text-xs font-medium text-brand-700 hover:underline"
+        >
+          Forgotten your password?
+        </Link>
+      </div>
 
       <SubmitButton />
     </form>
