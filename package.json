@@ -4,9 +4,10 @@
   "private": true,
   "description": "Golden Eagles University — Student Information, Admissions and Finance System",
   "scripts": {
-    "dev": "next dev",
+    "dev": "node scripts/dev-guard.cjs",
     "dev:fresh": "node scripts/dev-fresh.cjs",
     "build": "prisma generate && prisma migrate deploy && next build",
+    "_comment_build": "Writes to .next and is for DEPLOYMENT. To check a build compiles, use build:check — it writes to .next-check and cannot break a running dev server.",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
