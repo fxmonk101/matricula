@@ -24,6 +24,7 @@ import {
   deleteModuleAction,
   moveItemAction,
   moveModuleAction,
+  saveCourseworkAction,
   saveItemAction,
   saveModuleAction,
   setItemPublishedAction,
@@ -108,6 +109,10 @@ export function ModuleBuilder({
   );
   const [moveState, moveModule] = useActionState<LmsFormState, FormData>(moveModuleAction, {});
   const [itemState, addItem] = useActionState<LmsFormState, FormData>(saveItemAction, {});
+  const [courseworkState, addCoursework] = useActionState<LmsFormState, FormData>(
+    saveCourseworkAction,
+    {},
+  );
   const [itemPublishState, publishItem] = useActionState<LmsFormState, FormData>(
     setItemPublishedAction,
     {},
@@ -123,6 +128,7 @@ export function ModuleBuilder({
   useResult(removeState, 'Deleted');
   useResult(moveState, 'Moved');
   useResult(itemState, 'Item saved');
+  useResult(courseworkState, 'Assignment saved');
   useResult(itemPublishState, 'Done');
   useResult(itemRemoveState, 'Deleted');
   useResult(itemMoveState, 'Moved');
@@ -281,7 +287,80 @@ export function ModuleBuilder({
             )}
 
             <div className="border-t border-slate-100 px-5 py-3">
-              {openFor === module.id ? (
+              {openFor === module.id && kind === 'COURSEWORK' ? (
+                <form action={addCoursework} className="space-y-3">
+                  <input type="hidden" name="offeringId" value={offeringId} />
+                  <input type="hidden" name="moduleId" value={module.id} />
+
+                  <div className="grid gap-3 sm:grid-cols-[10rem_1fr]">
+                    <Field label="Kind" htmlFor={`kind-${module.id}`} required>
+                      <Select
+                        id={`kind-${module.id}`}
+                        value={kind}
+                        onChange={(e) => setKind(e.target.value as ModuleItemKind)}
+                      >
+                        {MODULE_ITEM_KINDS.map((k) => (
+                          <option key={k} value={k} disabled={k === 'MEETING'}>
+                            {ITEM_KIND_LABELS[k]}
+                            {k === 'MEETING' && ' — coming next'}
+                          </option>
+                        ))}
+                      </Select>
+                    </Field>
+                    <Field label="Title" htmlFor={`ctitle-${module.id}`} required>
+                      <Input id={`ctitle-${module.id}`} name="title" required placeholder="Problem set 1" />
+                    </Field>
+                  </div>
+
+                  <Field
+                    label="Instructions"
+                    htmlFor={`instructions-${module.id}`}
+                    hint="Markdown. What the student has to do."
+                  >
+                    <Textarea id={`instructions-${module.id}`} name="instructions" rows={5} />
+                  </Field>
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Field label="Marks available" htmlFor={`points-${module.id}`} required>
+                      <Input
+                        id={`points-${module.id}`}
+                        name="pointsPossible"
+                        type="number"
+                        min={1}
+                        step="any"
+                        defaultValue={100}
+                        required
+                      />
+                    </Field>
+                    <Field label="Due" htmlFor={`due-${module.id}`} hint="Optional.">
+                      <Input id={`due-${module.id}`} name="dueAt" type="datetime-local" />
+                    </Field>
+                  </div>
+
+                  <fieldset className="space-y-1.5">
+                    <legend className="text-xs font-medium text-slate-700">How it is handed in</legend>
+                    <label className="flex items-center gap-2 text-xs text-slate-700">
+                      <input type="checkbox" name="allowsText" defaultChecked className="h-3.5 w-3.5 rounded border-slate-300" />
+                      A typed answer
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-slate-700">
+                      <input type="checkbox" name="allowsFile" defaultChecked className="h-3.5 w-3.5 rounded border-slate-300" />
+                      A file — PDF, Word, Excel, PowerPoint or an image
+                    </label>
+                    <label className="flex items-center gap-2 text-xs text-slate-700">
+                      <input type="checkbox" name="acceptsLate" defaultChecked className="h-3.5 w-3.5 rounded border-slate-300" />
+                      Accept late work, marked as late
+                    </label>
+                  </fieldset>
+
+                  <div className="flex gap-2">
+                    <Submit label="Set the assignment" size="sm" />
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setOpenFor(null)}>
+                      Cancel
+                    </Button>
+                  </div>
+                </form>
+              ) : openFor === module.id ? (
                 <form action={addItem} className="space-y-3">
                   <input type="hidden" name="offeringId" value={offeringId} />
                   <input type="hidden" name="moduleId" value={module.id} />
@@ -295,9 +374,9 @@ export function ModuleBuilder({
                         onChange={(e) => setKind(e.target.value as ModuleItemKind)}
                       >
                         {MODULE_ITEM_KINDS.map((k) => (
-                          <option key={k} value={k} disabled={k === 'COURSEWORK' || k === 'MEETING'}>
+                          <option key={k} value={k} disabled={k === 'MEETING'}>
                             {ITEM_KIND_LABELS[k]}
-                            {(k === 'COURSEWORK' || k === 'MEETING') && ' — coming next'}
+                            {k === 'MEETING' && ' — coming next'}
                           </option>
                         ))}
                       </Select>

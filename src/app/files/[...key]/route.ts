@@ -44,6 +44,22 @@ export async function GET(
     }
   }
 
+  /*
+   * SUBMISSIONS ARE NOT SERVED FROM HERE.
+   *
+   * This route authorises by session and tenant, which is right for a logo or
+   * an avatar and nowhere near enough for assessed work — under it, every
+   * signed-in member of the school could read any submission whose key they
+   * learned. Those files go through /files/submission/[submissionId], which
+   * resolves the row and asks who may read that particular piece of work.
+   *
+   * Refused HERE as well as routed elsewhere, because a key is guessable from
+   * a screenshot or a proxy log and an alternative route is not a control.
+   */
+  if (key.includes('/submission/')) {
+    return new NextResponse('Not found', { status: 404 });
+  }
+
   const object = await (await storage()).get(key);
   if (!object) return new NextResponse('Not found', { status: 404 });
 

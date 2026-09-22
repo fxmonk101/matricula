@@ -1,11 +1,14 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  ACCEPTED_TYPES,
   DOCUMENT_LIMITS,
   LOGO_LIMITS,
+  SUBMISSION_LIMITS,
   UploadError,
   extensionOf,
   formatBytes,
+  mayRenderInline,
   safeDisplayName,
   sniffType,
   storedFileName,
@@ -69,7 +72,7 @@ describe('the bytes decide, not the claim', () => {
       limits: LOGO_LIMITS,
     });
     expect(verdict.ok).toBe(false);
-    if (!verdict.ok) expect(verdict.message).toMatch(/do not match any accepted format/);
+    if (!verdict.ok) expect(verdict.message).toMatch(/not a file type this system accepts|not one this system accepts/);
   });
 
   it('accepts a real PNG whatever the file is called', () => {
@@ -179,5 +182,120 @@ describe('helpers', () => {
     expect(formatBytes(512)).toBe('512 B');
     expect(formatBytes(2048)).toBe('2 KB');
     expect(formatBytes(2 * 1024 * 1024)).toBe('2.0 MB');
+  });
+});
+
+// -----------------------------------------------------------------------------
+// The ZIP-container family
+// -----------------------------------------------------------------------------
+
+/*
+ * Office documents are the one place this codebase lets a CLAIMED EXTENSION
+ * decide anything, because .docx, .xlsx, .pptx, .zip and .jar share their
+ * leading bytes byte for byte. These tests pin the boundary of that concession:
+ * it applies only to the ZIP family, only with a matching container, and never
+ * to a format whose bytes already identify it.
+ */
+
+const ZIP = new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0x14, 0x00, 0x00, 0x00]);
+
+describe('Office documents', () => {
+  it('accepts a .docx whose bytes really are a ZIP container', () => {
+    const verdict = validateUpload({
+      bytes: ZIP,
+      fileName: 'essay.docx',
+      limits: SUBMISSION_LIMITS,
+    });
+    expect(verdict.ok).toBe(true);
+    if (verdict.ok) expect(verdict.type.extension).toBe('docx');
+  });
+
+  it('tells a .docx from an .xlsx by the name, since the bytes cannot', () => {
+    const asSheet = validateUpload({
+      bytes: ZIP,
+      fileName: 'results.xlsx',
+      limits: SUBMISSION_LIMITS,
+    });
+    expect(asSheet.ok).toBe(true);
+    if (asSheet.ok) expect(asSheet.type.extension).toBe('xlsx');
+  });
+
+  it('refuses a ZIP claiming to be a document it is not shaped like', () => {
+    // No extension, so nothing disambiguates it and it stays unidentified.
+    const verdict = validateUpload({ bytes: ZIP, fileName: 'archive', limits: SUBMISSION_LIMITS });
+    expect(verdict.ok).toBe(false);
+  });
+
+  it('refuses a plain .zip by name, rather than letting it through as a document', () => {
+    const verdict = validateUpload({ bytes: ZIP, fileName: 'work.zip', limits: SUBMISSION_LIMITS });
+    expect(verdict.ok).toBe(false);
+    expect(verdict.ok === false && verdict.message).toMatch(/document itself/);
+  });
+
+  it('REFUSES macro-enabled formats, which sniff identically to safe ones', () => {
+    // .docm is a ZIP container exactly like .docx, so only the name can refuse
+    // it — which is precisely why it is refused by name.
+    for (const name of ['essay.docm', 'book.xlsm', 'deck.pptm']) {
+      const verdict = validateUpload({ bytes: ZIP, fileName: name, limits: SUBMISSION_LIMITS });
+      expect(verdict.ok, name).toBe(false);
+      expect(verdict.ok === false && verdict.message).toMatch(/Macro-enabled/);
+    }
+  });
+
+  it('refuses a .jar, which is also a ZIP container', () => {
+    const verdict = validateUpload({ bytes: ZIP, fileName: 'app.jar', limits: SUBMISSION_LIMITS });
+    expect(verdict.ok).toBe(false);
+  });
+
+  it('refuses the pre-2007 binary Office formats with a useful message', () => {
+    for (const name of ['essay.doc', 'sheet.xls', 'deck.ppt']) {
+      const verdict = validateUpload({ bytes: ZIP, fileName: name, limits: SUBMISSION_LIMITS });
+      expect(verdict.ok, name).toBe(false);
+      expect(verdict.ok === false && verdict.message).toMatch(/not accepted/);
+    }
+  });
+
+  it('does NOT let an extension override bytes that already identify a file', () => {
+    /*
+     * The concession is one-way. A real PNG called .docx is still a PNG — the
+     * unambiguous formats are resolved first and never consult the name.
+     */
+    const verdict = validateUpload({
+      bytes: PNG,
+      fileName: 'sneaky.docx',
+      limits: SUBMISSION_LIMITS,
+    });
+    expect(verdict.ok).toBe(true);
+    if (verdict.ok) expect(verdict.type.mediaType).toBe('image/png');
+  });
+
+  it('still refuses HTML that claims to be a .docx', () => {
+    const verdict = validateUpload({
+      bytes: bytesOf('<html><script>alert(1)</script></html>'),
+      fileName: 'essay.docx',
+      limits: SUBMISSION_LIMITS,
+    });
+    expect(verdict.ok).toBe(false);
+  });
+});
+
+describe('what may be rendered in the browser', () => {
+  it('allows only the formats that cannot carry a surprise', () => {
+    for (const type of ['image/png', 'image/jpeg', 'image/webp', 'application/pdf']) {
+      expect(mayRenderInline(type), type).toBe(true);
+    }
+  });
+
+  it('REFUSES to render every ZIP-container format inline', () => {
+    /*
+     * The mitigation that makes accepting an ambiguous format defensible. These
+     * are downloaded, never handed to the browser — so a .zip wearing a .docx
+     * name is an archive somebody saves, not code the page runs.
+     */
+    for (const spec of ACCEPTED_TYPES.filter((t) => t.ambiguous)) {
+      expect(mayRenderInline(spec.mediaType), spec.extension).toBe(false);
+    }
+    expect(mayRenderInline('text/html')).toBe(false);
+    expect(mayRenderInline('application/octet-stream')).toBe(false);
   });
 });

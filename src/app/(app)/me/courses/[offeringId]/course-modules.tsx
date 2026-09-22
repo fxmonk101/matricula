@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import Link from 'next/link';
 
 import { Badge, Card } from '@/components/ui';
 import { ModuleItemIcon } from '@/components/module-item-icon';
@@ -24,6 +25,10 @@ export interface StudentItemView {
   externalUrl: string | null;
   /** Already sanitised on the server. */
   bodyHtml: string | null;
+  /** Set for COURSEWORK items, so the row can link to the hand-in page. */
+  courseworkId: string | null;
+  dueLabel: string | null;
+  stateLabel: string | null;
 }
 
 export interface StudentModuleView {
@@ -33,7 +38,13 @@ export interface StudentModuleView {
   items: StudentItemView[];
 }
 
-export function CourseModules({ modules }: { modules: StudentModuleView[] }) {
+export function CourseModules({
+  modules,
+  offeringId,
+}: {
+  modules: StudentModuleView[];
+  offeringId: string;
+}) {
   const [open, setOpen] = useState<Set<string>>(
     () => new Set(modules.length > 0 ? [modules[0].id] : []),
   );
@@ -117,18 +128,42 @@ export function CourseModules({ modules }: { modules: StudentModuleView[] }) {
                           >
                             {item.title}
                           </button>
+                        ) : item.kind === 'COURSEWORK' && item.courseworkId ? (
+                          <Link
+                            href={`/me/courses/${offeringId}/${item.courseworkId}`}
+                            className="block truncate text-sm font-medium text-brand-700 hover:underline"
+                          >
+                            {item.title}
+                          </Link>
                         ) : (
                           <span className="block truncate text-sm text-slate-900">{item.title}</span>
                         )}
 
                         <span className="block text-[11px] text-slate-500">
                           {ITEM_KIND_LABELS[item.kind]}
+                          {item.dueLabel && ` · ${item.dueLabel}`}
                         </span>
                       </span>
 
-                      {(item.kind === 'COURSEWORK' || item.kind === 'MEETING') && (
-                        <Badge tone="neutral">Coming soon</Badge>
+                      {item.stateLabel && (
+                        <Badge
+                          tone={
+                            item.stateLabel === 'Marked'
+                              ? 'success'
+                              : item.stateLabel === 'Closed'
+                                ? 'danger'
+                                : item.stateLabel === 'Submitted late'
+                                  ? 'warning'
+                                  : item.stateLabel === 'Submitted'
+                                    ? 'success'
+                                    : 'neutral'
+                          }
+                        >
+                          {item.stateLabel}
+                        </Badge>
                       )}
+
+                      {item.kind === 'MEETING' && <Badge tone="neutral">Coming soon</Badge>}
                     </div>
 
                     {item.kind === 'PAGE' && reading === item.id && item.bodyHtml && (

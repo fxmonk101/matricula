@@ -16,6 +16,7 @@ import {
   setItemPublished,
   setModulePublished,
 } from '@/server/services/lms.service';
+import { saveCoursework } from '@/server/services/coursework.service';
 
 /**
  * Authoring a course's content.
@@ -233,6 +234,42 @@ export async function moveItemAction(
     moduleId: String(formData.get('moduleId') ?? ''),
     itemId: String(formData.get('itemId') ?? ''),
     toIndex: Number(formData.get('toIndex') ?? 0),
+    actorUserId: ctx.session.sub,
+  });
+
+  refresh(offeringId);
+  return { ok: result.ok, message: result.message };
+}
+
+// -----------------------------------------------------------------------------
+// Coursework
+// -----------------------------------------------------------------------------
+
+export async function saveCourseworkAction(
+  _prev: LmsFormState,
+  formData: FormData,
+): Promise<LmsFormState> {
+  const offeringId = String(formData.get('offeringId') ?? '');
+  const { ctx, allowed } = await authorise(offeringId);
+  if (!allowed) return NOT_YOURS;
+
+  /*
+   * Checkboxes are absent from FormData when unticked, so each is read as
+   * "was it sent" rather than compared to a value. `acceptsLate` defaults ON
+   * for the same reason the service does: refusing late work leaves a lecturer
+   * with nothing to look at, and whether to penalise it is a human decision.
+   */
+  const result = await saveCoursework({
+    schoolId: ctx.schoolId,
+    moduleId: String(formData.get('moduleId') ?? ''),
+    itemId: String(formData.get('itemId') ?? '') || null,
+    title: String(formData.get('title') ?? ''),
+    instructions: String(formData.get('instructions') ?? '') || null,
+    pointsPossible: Number(formData.get('pointsPossible') ?? 100),
+    dueAt: instantOf(String(formData.get('dueAt') ?? '')),
+    allowsText: formData.get('allowsText') !== null,
+    allowsFile: formData.get('allowsFile') !== null,
+    acceptsLate: formData.get('acceptsLate') !== null,
     actorUserId: ctx.session.sub,
   });
 
