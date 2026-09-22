@@ -92,6 +92,10 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { href: '/presence', label: 'Sign In / Out', roles: ['ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'FINANCE', 'ADMISSIONS', 'INSTRUCTOR', 'LIBRARIAN', 'STAFF', 'STUDENT'], icon: 'check' },
       { href: '/presence/teaching', label: 'Teaching Log', roles: ['INSTRUCTOR', 'HOD', 'DEAN', 'ADMIN', 'REGISTRAR'], icon: 'book' },
+      // A student's own courses. HIGHER_ED only for now: a K-12 pupil's subjects
+      // hang off SubjectAssignment, which the content layer is shaped for but
+      // does not yet serve.
+      { href: '/me/courses', label: 'My Courses', roles: ['STUDENT'], models: ['HIGHER_ED'], icon: 'book' },
       // Offered only to the roles that actually oversee somebody. A lecturer
       // following this to an empty table would reasonably conclude it is broken.
       { href: '/presence/team', label: 'Team Register', roles: ['ADMIN', 'REGISTRAR', 'DEAN', 'HOD'], icon: 'team' },

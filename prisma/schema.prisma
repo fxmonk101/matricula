@@ -99,6 +99,12 @@ model School {
   subscription      Subscription?
   libraryResources  LibraryResource[]
   collections       ResourceCollection[]
+  courseSpaces      CourseSpace[]
+  courseModules     CourseModule[]
+  moduleItems       ModuleItem[]
+  coursework        Coursework[]
+  submissions       Submission[]
+  virtualClasses    VirtualClass[]
 
   @@index([status])
   @@map("schools")
@@ -194,6 +200,9 @@ model Membership {
   presenceCorrections PresenceCorrection[] @relation("PresenceCorrector")
   teachingLogs        TeachingLog[]        @relation("TeachingBy")
   attendanceRecorded  AttendanceRecord[]   @relation("AttendanceRecorder")
+  // --- the learning management layer ---
+  submissionsGraded   Submission[]         @relation("SubmissionGrader")
+  virtualClasses      VirtualClass[]       @relation("VirtualClassOrganiser")
 
   @@unique([userId, schoolId])
   @@index([schoolId, role])
@@ -514,6 +523,7 @@ model Term {
   classEnrolments    ClassEnrolment[]
   attendance         AttendanceRecord[]
   reportCards        ReportCard[]
+  courseSpaces       CourseSpace[]
 
   @@unique([schoolId, code])
   @@index([schoolId, isCurrent])
@@ -594,6 +604,7 @@ model CourseOffering {
   meetings     Meeting[]
   enrollments  Enrollment[]
   teachingLogs TeachingLog[]
+  space        CourseSpace?
 
   @@unique([courseId, termId, section])
   @@index([schoolId])
@@ -844,10 +855,11 @@ model Enrollment {
   /// under the "best attempt" policy).
   isRepeatSuperseded Boolean @default(false)
 
-  enrolledAt DateTime  @default(now())
-  droppedAt  DateTime?
-  gradedAt   DateTime?
-  updatedAt  DateTime  @updatedAt
+  enrolledAt  DateTime     @default(now())
+  droppedAt   DateTime?
+  gradedAt    DateTime?
+  updatedAt   DateTime     @updatedAt
+  submissions Submission[]
 
   @@unique([studentId, offeringId])
   @@index([schoolId])
@@ -1170,6 +1182,7 @@ model SubjectAssignment {
   createdAt   DateTime    @default(now())
 
   results SubjectResult[]
+  space   CourseSpace?
 
   @@unique([subjectId, formClassId, termId])
   @@index([schoolId, termId])
@@ -2250,4 +2263,262 @@ model SubscriptionInvoiceLine {
 
   @@index([invoiceId])
   @@map("subscription_invoice_lines")
+}
+
+/// =============================================================================
+/// THE LEARNING MANAGEMENT LAYER
+/// =============================================================================
+///
+/// Where teaching actually happens: the readings, the work set, the work handed
+/// in, and the virtual classes.
+
+/// The container a course's learning content hangs off.
+///
+/// A LEVEL OF INDIRECTION ON PURPOSE. Content could have hung straight off
+/// CourseOffering, but this platform serves two academic models and their
+/// delivery rows are different tables: a university teaches a CourseOffering,
+/// a secondary school teaches a SubjectAssignment, which this schema calls "the
+/// K-12 analogue of CourseOffering" where it is defined. Pointing every module,
+/// item and piece of coursework at an offering would mean rewriting every
+/// foreign key the day K-12 needs the same feature.
+///
+/// EXACTLY ONE of the two owners is set. Enforced in the service and pinned by
+/// a test rather than by the schema, because neither engine expresses a
+/// table-level check portably.
+///
+/// Only the offering side is wired today. The K-12 side needs a roster resolver
+/// (its pupils arrive indirectly through FormClass and ClassEnrolment) and a
+/// different grade write-back, and half-building that would be worse than not
+/// starting it.
+model CourseSpace {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  /// Denormalised from whichever owner is set, so "this term's content" is one
+  /// indexed predicate rather than a join through two nullable paths.
+  termId String
+  term   Term   @relation(fields: [termId], references: [id], onDelete: Cascade)
+
+  offeringId String?         @unique
+  offering   CourseOffering? @relation(fields: [offeringId], references: [id], onDelete: Cascade)
+
+  subjectAssignmentId String?            @unique
+  subjectAssignment   SubjectAssignment? @relation(fields: [subjectAssignmentId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  modules CourseModule[]
+
+  @@index([schoolId, termId])
+  @@map("course_spaces")
+}
+
+/// One section of a course's content, in the sequence a student works through.
+model CourseModule {
+  id       String      @id @default(cuid())
+  schoolId String
+  school   School      @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  spaceId  String
+  space    CourseSpace @relation(fields: [spaceId], references: [id], onDelete: Cascade)
+
+  title       String
+  description String?
+
+  /// Sparse on purpose. Gaps are legal, and re-ordering rewrites the whole set
+  /// in one transaction; a dense sequence would need every sibling renumbered
+  /// on each insert.
+  position Int
+
+  /// Nothing reaches a student until somebody decides it should. A lecturer
+  /// builds next week's module in the open without it appearing half-finished.
+  isPublished Boolean @default(false)
+
+  /// Published but not yet open. Null means "open as soon as it is published".
+  unlockAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  items ModuleItem[]
+
+  @@index([schoolId, spaceId])
+  @@index([spaceId, position])
+  @@map("course_modules")
+}
+
+/// One row inside a module: something to read, download, open, do, or attend.
+///
+/// A single table with a kind discriminator rather than five joined tables.
+/// These rows are displayed together, ordered together and re-ordered together,
+/// and the alternative is a five-way union on every read of a page students
+/// open constantly.
+model ModuleItem {
+  id       String       @id @default(cuid())
+  schoolId String
+  school   School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  moduleId String
+  module   CourseModule @relation(fields: [moduleId], references: [id], onDelete: Cascade)
+
+  /// ModuleItemKind: PAGE | FILE | LINK | COURSEWORK | MEETING
+  kind  String
+  title String
+
+  position    Int
+  isPublished Boolean @default(false)
+
+  /// PAGE. Markdown, rendered through the sanitiser this codebase already has.
+  bodyMarkdown String?
+
+  /// LINK. An address somebody typed, so its scheme is not to be trusted.
+  externalUrl String?
+
+  /// FILE. A STORAGE KEY, never a URL, exactly as User.avatarKey is. A URL
+  /// would put the authorisation in the link, and links get forwarded.
+  fileKey  String?
+  fileName String?
+  fileSize Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  coursework   Coursework?
+  virtualClass VirtualClass?
+
+  @@index([schoolId, moduleId])
+  @@index([moduleId, position])
+  @@map("module_items")
+}
+
+/// A piece of work set for students to hand in.
+///
+/// NOT called "Assignment". SubjectAssignment already means a teaching
+/// allocation in this schema, and /classes/[id]/marks/[assignmentId] already
+/// resolves to one. Two things called an assignment in one codebase is how a
+/// service comes to read the wrong table. "Coursework" is also the more exact
+/// word: what this feeds is caScore, the continuous-assessment component.
+model Coursework {
+  id           String     @id @default(cuid())
+  schoolId     String
+  school       School     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  moduleItemId String     @unique
+  moduleItem   ModuleItem @relation(fields: [moduleItemId], references: [id], onDelete: Cascade)
+
+  instructions String?
+
+  /// The scale THIS piece is marked on, deliberately not the school's grade
+  /// scale: a quiz out of 10 and an essay out of 100 sit in the same course,
+  /// and the weighting between them is resolved when they roll up to caScore.
+  pointsPossible Float @default(100)
+
+  dueAt DateTime?
+
+  /// A late hand-in is accepted and MARKED LATE rather than refused. Refusing
+  /// it leaves the work undone and the lecturer with nothing to look at, which
+  /// helps nobody; whether to penalise it is a human decision.
+  acceptsLate Boolean @default(true)
+
+  allowsText Boolean @default(true)
+  allowsFile Boolean @default(true)
+
+  /// Rubric rows, as JSON. A rubric is edited whole and never queried by its
+  /// parts, so normalising it would buy nothing and cost two joins.
+  rubricJson String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  submissions Submission[]
+
+  @@index([schoolId])
+  @@map("coursework")
+}
+
+/// One student's hand-in, and what it was given.
+model Submission {
+  id           String     @id @default(cuid())
+  schoolId     String
+  school       School     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  courseworkId String
+  coursework   Coursework @relation(fields: [courseworkId], references: [id], onDelete: Cascade)
+
+  /// THE ENROLMENT, not the student.
+  ///
+  /// The roster already lives on Enrollment, which is unique on
+  /// [studentId, offeringId] and carries the caScore column this work must
+  /// eventually feed. Keying here means a withdrawn student's work travels with
+  /// the enrolment it belonged to, and the grade roll-up needs no second join.
+  enrollmentId String
+  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  /// Resubmission is a NEW ROW, not an overwrite. Work that can be silently
+  /// replaced after it was marked is not evidence of anything, and a dispute
+  /// about what was handed in, and when, has to be answerable.
+  attempt Int @default(1)
+
+  textBody String?
+  fileKey  String?
+  fileName String?
+  fileSize Int?
+
+  submittedAt DateTime @default(now())
+
+  /// Recorded at hand-in against the due date rather than recomputed on read,
+  /// so moving a deadline afterwards does not rewrite history.
+  isLate Boolean @default(false)
+
+  score      Float?
+  feedback   String?
+  rubricJson String?
+  gradedById String?
+  gradedBy   Membership? @relation("SubmissionGrader", fields: [gradedById], references: [id], onDelete: SetNull)
+  gradedAt   DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([courseworkId, enrollmentId, attempt])
+  @@index([schoolId, courseworkId])
+  @@index([enrollmentId])
+  @@map("submissions")
+}
+
+/// A virtual class: a join link with a time on it.
+///
+/// Its own table rather than columns on ModuleItem, because a meeting is the
+/// one item kind with an EXTERNAL LIFECYCLE. It exists in somebody else's
+/// system, carries their identifier, and can fail to be created at all.
+///
+/// Note this is the first dated event in the schema. Meeting, the timetable
+/// one, is a weekly recurrence with no date on it whatsoever.
+model VirtualClass {
+  id           String     @id @default(cuid())
+  schoolId     String
+  school       School     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  moduleItemId String     @unique
+  moduleItem   ModuleItem @relation(fields: [moduleItemId], references: [id], onDelete: Cascade)
+
+  /// MeetingProviderKind: MANUAL | TEAMS | ZOOM | MEET
+  ///
+  /// MANUAL is a first-class answer rather than a fallback: a school with no
+  /// Microsoft 365 pastes a link and runs its virtual classes today.
+  provider String @default("MANUAL")
+
+  joinUrl  String
+  startsAt DateTime
+  endsAt   DateTime
+
+  /// The provider's own id, kept so a meeting can later be updated or cancelled
+  /// in their system rather than only in ours.
+  externalId String?
+
+  organiserMembershipId String?
+  organiser             Membership? @relation("VirtualClassOrganiser", fields: [organiserMembershipId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([schoolId, startsAt])
+  @@map("virtual_classes")
 }

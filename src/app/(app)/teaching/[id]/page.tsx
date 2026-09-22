@@ -74,9 +74,17 @@ export default async function GradesheetPage({
         title={`${offering.course.code}-${offering.section} — ${offering.course.title}`}
         description={`${offering.term.name} · ${offering.enrollments.length} students · ${offering.course.creditHours} credit hours`}
         actions={
-          <Link href="/teaching" className="text-sm text-brand-700 hover:underline">
-            ← All sections
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link
+              href={`/teaching/${offering.id}/modules`}
+              className="text-sm font-medium text-brand-700 hover:underline"
+            >
+              Course content →
+            </Link>
+            <Link href="/teaching" className="text-sm text-brand-700 hover:underline">
+              ← All sections
+            </Link>
+          </div>
         }
       />
 

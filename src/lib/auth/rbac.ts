@@ -56,6 +56,12 @@ export const PERMISSIONS = [
   'hold:manage', 'user:manage', 'audit:read', 'announcement:write',
   // K-12
   'class:read', 'class:manage', 'marks:enter', 'report:generate', 'report:read:own', 'attendance:record',
+
+  // Course content. `lms:read` is what a STUDENT holds: it means "may open the
+  // material of a course I am enrolled on", and enrolment is checked per record.
+  // Authoring and publishing are separate because they are separate decisions —
+  // writing next week's module is routine, releasing it to a class is not.
+  'lms:read', 'lms:author', 'lms:publish',
   // Collaboration (Phase 3)
   'task:read:own', 'task:create', 'task:assign', 'task:admin',
   'team:read', 'notification:read',
@@ -107,6 +113,7 @@ const ADMIN_PERMISSIONS: readonly Permission[] = [
   // can still be operated by its administrator.
   'faculty:write', 'department:write', 'program:write',
   'offering:assign', 'student:register',
+  'lms:read', 'lms:author', 'lms:publish',
   'timetable:read', 'timetable:write',
   'forum:create',
 ];
@@ -181,6 +188,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     'department:write',
     'course:read', 'course:write',
     'offering:read', 'offering:write', 'offering:assign',
+    'lms:read', 'lms:author', 'lms:publish',
     'timetable:read', 'timetable:write',
     'enrollment:read:any',
     'grade:read:any',
@@ -204,6 +212,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     'instructor:read',
     'course:read', 'course:write',
     'offering:read', 'offering:write', 'offering:assign',
+    'lms:read', 'lms:author', 'lms:publish',
     'timetable:read',
     'enrollment:read:any',
     'grade:submit', 'grade:read:any',
@@ -254,6 +263,7 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     'course:read', 'offering:read',
     'enrollment:read:any',
     'grade:submit', 'grade:read:any',
+    'lms:read', 'lms:author', 'lms:publish',
     'task:read:own', 'task:create', 'task:assign', 'team:read', 'notification:read',
     'forum:read', 'forum:post',
     'library:read',
@@ -263,6 +273,9 @@ export const ROLE_PERMISSIONS: Record<Role, readonly Permission[]> = {
     'course:read', 'offering:read',
     'enrollment:read:own', 'enrollment:write:own',
     'grade:read:own', 'transcript:read:own',
+    // Read only. A student opens the material of a course they are enrolled on;
+    // whether they are enrolled is a question about a record, asked per request.
+    'lms:read',
     'invoice:read:own', 'payment:read:own',
     'task:read:own', 'notification:read',
     'forum:read', 'forum:post',
@@ -387,6 +400,10 @@ export const ROUTE_GUARDS: RouteGuard[] = [
   // A head of department lectures too, which is why HOD is here.
   { prefix: '/teaching', roles: ['INSTRUCTOR', 'HOD', 'ADMIN'] },
   { prefix: '/me', roles: ['STUDENT'] },
+  // Course content a student is enrolled on. Under /me rather than /courses
+  // because that guard admits ADMISSIONS, who have no business reading
+  // coursework, and because this is the student's own view of their own course.
+  { prefix: '/me/courses', roles: ['STUDENT'] },
   { prefix: '/portal', roles: ['APPLICANT'] },
   { prefix: '/classes', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'INSTRUCTOR'] },
   { prefix: '/reports', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'INSTRUCTOR'] },

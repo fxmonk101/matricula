@@ -135,12 +135,20 @@ export default async function TeachingPage() {
                     <Meter value={pct} tone={pct === 100 ? 'success' : 'brand'} />
                   </div>
 
-                  <Link
-                    href={`/teaching/${o.id}`}
-                    className="inline-flex w-full items-center justify-center rounded-lg bg-brand-600 px-3.5 py-2 text-sm font-medium text-onAccent transition-colors hover:bg-brand-700"
-                  >
-                    {graded === total && total > 0 ? 'Review grades' : 'Enter grades'}
-                  </Link>
+                  <div className="flex gap-2">
+                    <Link
+                      href={`/teaching/${o.id}`}
+                      className="inline-flex flex-1 items-center justify-center rounded-lg bg-brand-600 px-3.5 py-2 text-sm font-medium text-onAccent transition-colors hover:bg-brand-700"
+                    >
+                      {graded === total && total > 0 ? 'Review grades' : 'Enter grades'}
+                    </Link>
+                    <Link
+                      href={`/teaching/${o.id}/modules`}
+                      className="inline-flex items-center justify-center rounded-lg px-3.5 py-2 text-sm font-medium text-slate-700 ring-1 ring-inset ring-slate-300 transition-colors hover:bg-slate-50"
+                    >
+                      Content
+                    </Link>
+                  </div>
                 </div>
               </Card>
             );
