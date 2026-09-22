@@ -32,6 +32,7 @@ import {
   moveItemAction,
   moveModuleAction,
   saveCourseworkAction,
+  saveFileItemAction,
   saveItemAction,
   saveModuleAction,
   saveVirtualClassAction,
@@ -128,6 +129,7 @@ export function ModuleBuilder({
     saveVirtualClassAction,
     {},
   );
+  const [fileState, addFile] = useActionState<LmsFormState, FormData>(saveFileItemAction, {});
   const [itemPublishState, publishItem] = useActionState<LmsFormState, FormData>(
     setItemPublishedAction,
     {},
@@ -145,6 +147,7 @@ export function ModuleBuilder({
   useResult(itemState, 'Item saved');
   useResult(courseworkState, 'Assignment saved');
   useResult(classState, 'Class scheduled');
+  useResult(fileState, 'File attached');
   useResult(itemPublishState, 'Done');
   useResult(itemRemoveState, 'Deleted');
   useResult(itemMoveState, 'Moved');
@@ -304,7 +307,59 @@ export function ModuleBuilder({
             )}
 
             <div className="border-t border-slate-100 px-5 py-3">
-              {openFor === module.id && kind === 'MEETING' ? (
+              {openFor === module.id && kind === 'FILE' ? (
+                <form action={addFile} className="space-y-3">
+                  <input type="hidden" name="offeringId" value={offeringId} />
+                  <input type="hidden" name="moduleId" value={module.id} />
+
+                  <div className="grid gap-3 sm:grid-cols-[10rem_1fr]">
+                    <Field label="Kind" htmlFor={`kind-${module.id}`} required>
+                      <Select
+                        id={`kind-${module.id}`}
+                        value={kind}
+                        onChange={(e) => setKind(e.target.value as ModuleItemKind)}
+                      >
+                        {MODULE_ITEM_KINDS.map((k) => (
+                          <option key={k} value={k}>
+                            {ITEM_KIND_LABELS[k]}
+                          </option>
+                        ))}
+                      </Select>
+                    </Field>
+                    <Field label="Title" htmlFor={`ftitle-${module.id}`} required>
+                      <Input
+                        id={`ftitle-${module.id}`}
+                        name="title"
+                        required
+                        placeholder="Lecture 3 slides"
+                      />
+                    </Field>
+                  </div>
+
+                  <Field
+                    label="File"
+                    htmlFor={`file-${module.id}`}
+                    required
+                    hint="PDF, Word, Excel, PowerPoint or an image, up to 20 MB. Only students on this course can download it."
+                  >
+                    <input
+                      id={`file-${module.id}`}
+                      type="file"
+                      name="file"
+                      required
+                      accept=".pdf,.docx,.xlsx,.pptx,.png,.jpg,.jpeg,.webp"
+                      className="block w-full text-xs text-slate-600 file:mr-3 file:h-9 file:cursor-pointer file:rounded-lg file:border-0 file:bg-slate-900 file:px-3 file:text-xs file:font-medium file:text-onInk hover:file:bg-slate-800"
+                    />
+                  </Field>
+
+                  <div className="flex gap-2">
+                    <Submit label="Attach the file" size="sm" />
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setOpenFor(null)}>
+                      Cancel
+                    </Button>
+                  </div>
+                </form>
+              ) : openFor === module.id && kind === 'MEETING' ? (
                 <form action={addClass} className="space-y-3">
                   <input type="hidden" name="offeringId" value={offeringId} />
                   <input type="hidden" name="moduleId" value={module.id} />
@@ -507,13 +562,6 @@ export function ModuleBuilder({
                     >
                       <Input id={`url-${module.id}`} name="externalUrl" placeholder="https://example.edu/reading" />
                     </Field>
-                  )}
-
-                  {kind === 'FILE' && (
-                    <Alert tone="info">
-                      File items arrive with the next piece of work, alongside assignments. Use a
-                      link for now.
-                    </Alert>
                   )}
 
                   <div className="flex gap-2">

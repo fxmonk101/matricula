@@ -118,6 +118,7 @@ export default async function StudentCoursePage({
               now,
             ) !== 'FINISHED'
           : false,
+        fileName: item.fileName,
         courseworkId: coursework?.id ?? null,
         dueLabel: coursework?.dueAt ? dueIn(coursework.dueAt, now) : null,
         stateLabel: coursework

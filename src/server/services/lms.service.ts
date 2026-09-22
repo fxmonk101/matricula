@@ -10,6 +10,13 @@ import {
   visibleToStudent,
   type ModuleItemKind,
 } from '@/lib/domain/lms';
+import {
+  SUBMISSION_LIMITS,
+  extensionOf,
+  sniffType,
+  validateUpload,
+} from '@/lib/domain/upload';
+import { buildKey, newObjectId, storage } from '@/server/storage';
 import { recordAudit } from './audit.service';
 
 /**
@@ -591,4 +598,153 @@ export async function enrolmentFor(params: {
     },
     select: { id: true, status: true },
   });
+}
+
+// -----------------------------------------------------------------------------
+// Files handed out
+// -----------------------------------------------------------------------------
+
+/**
+ * Attach a file to a module — a reading, a slide deck, a past paper.
+ *
+ * Shares the submission upload path exactly: sniff, validate, store private,
+ * serve only through a route that checks who is asking. Course material is not
+ * public: a past paper or an unreleased reading list is not something to leave
+ * at a guessable URL.
+ *
+ * NOT re-encoded, for the same reason submissions are not — a slide deck cannot
+ * be decoded to pixels and written out clean. What protects it instead is that
+ * it is never rendered: stored private, served as an attachment unless it is
+ * one of the few formats that cannot carry a surprise.
+ */
+export async function saveFileItem(params: {
+  schoolId: string;
+  moduleId: string;
+  title: string;
+  file: File;
+  actorUserId: string;
+}): Promise<LmsResult> {
+  const db = dbFor(params.schoolId);
+
+  const problems = validateItemDraft({ kind: 'FILE', title: params.title });
+  if (problems.length > 0) return { ok: false, message: problems.join(' ') };
+
+  if (!params.file || params.file.size === 0) {
+    return { ok: false, message: 'Choose a file to attach.' };
+  }
+
+  const module = await db.courseModule.findUnique({ where: { id: params.moduleId } });
+  if (!module) return { ok: false, message: 'That module is not part of this school.' };
+
+  const bytes = new Uint8Array(await params.file.arrayBuffer());
+  const verdict = validateUpload({
+    bytes,
+    fileName: params.file.name,
+    limits: SUBMISSION_LIMITS,
+  });
+  if (!verdict.ok) return { ok: false, message: verdict.message };
+
+  const type = sniffType(bytes, extensionOf(params.file.name)) ?? verdict.type;
+
+  const key = buildKey({
+    visibility: 'private',
+    schoolId: params.schoolId,
+    folder: 'material',
+    id: newObjectId(),
+    type,
+  });
+
+  await (await storage()).put({
+    key,
+    body: bytes,
+    mediaType: type.mediaType,
+    visibility: 'private',
+  });
+
+  try {
+    const siblings = await db.moduleItem.findMany({
+      where: { moduleId: module.id },
+      select: { position: true },
+    });
+
+    const item = await db.moduleItem.create({
+      data: {
+        schoolId: params.schoolId,
+        moduleId: module.id,
+        kind: 'FILE',
+        title: params.title.trim(),
+        position: nextPosition(siblings),
+        isPublished: false,
+        fileKey: key,
+        // The name the lecturer gave it, for display only. The stored name
+        // comes from the sniffed type, so nothing user-chosen reaches a path.
+        fileName: params.file.name.slice(0, 200),
+        fileSize: bytes.length,
+      },
+    });
+
+    void recordAudit({
+      schoolId: params.schoolId,
+      actorId: params.actorUserId,
+      action: 'lms.item.create',
+      entityType: 'ModuleItem',
+      entityId: item.id,
+      summary: `File "${params.title.trim()}" attached (${params.file.name}).`,
+    });
+
+    return { ok: true, message: 'File added as a draft.', id: item.id };
+  } catch (error) {
+    console.error('[lms] saveFileItem failed', error);
+    return { ok: false, message: 'Could not attach that file.' };
+  }
+}
+
+/**
+ * May this person download a piece of course material?
+ *
+ * Anybody enrolled on the course, plus whoever may author it. Published only —
+ * a lecturer who withdraws a reading expects that to stop people fetching it,
+ * and a file that stays reachable after withdrawal makes the button a lie.
+ */
+export async function mayReadMaterial(params: {
+  schoolId: string;
+  itemId: string;
+  userId: string;
+  role: string;
+  studentProfileId?: string | null;
+  instructorProfileId?: string | null;
+}): Promise<boolean> {
+  const db = dbFor(params.schoolId);
+
+  const item = await db.moduleItem.findUnique({
+    where: { id: params.itemId },
+    include: {
+      module: { include: { space: { select: { offeringId: true } } } },
+    },
+  });
+  if (!item?.fileKey) return false;
+
+  const offeringId = item.module.space.offeringId;
+  if (!offeringId) return false;
+
+  // The office and the lecturer of record see everything, drafts included —
+  // they are the people building it.
+  const mayAuthor = await mayAuthorOffering({
+    schoolId: params.schoolId,
+    offeringId,
+    instructorProfileId: params.instructorProfileId,
+    role: params.role,
+  });
+  if (mayAuthor) return true;
+
+  // Everybody else needs it published, in a published module.
+  if (!item.isPublished || !item.module.isPublished) return false;
+
+  if (!params.studentProfileId) return false;
+  const enrolment = await enrolmentFor({
+    schoolId: params.schoolId,
+    offeringId,
+    studentProfileId: params.studentProfileId,
+  });
+  return Boolean(enrolment);
 }

@@ -13,6 +13,7 @@ import {
   moveModule,
   saveItem,
   saveModule,
+  saveFileItem,
   setItemPublished,
   setModulePublished,
 } from '@/server/services/lms.service';
@@ -291,6 +292,29 @@ export async function saveCourseworkAction(
     allowsText: formData.get('allowsText') !== null,
     allowsFile: formData.get('allowsFile') !== null,
     acceptsLate: formData.get('acceptsLate') !== null,
+    actorUserId: ctx.session.sub,
+  });
+
+  refresh(offeringId);
+  return { ok: result.ok, message: result.message };
+}
+
+export async function saveFileItemAction(
+  _prev: LmsFormState,
+  formData: FormData,
+): Promise<LmsFormState> {
+  const offeringId = String(formData.get('offeringId') ?? '');
+  const { ctx, allowed } = await authorise(offeringId);
+  if (!allowed) return NOT_YOURS;
+
+  const file = formData.get('file');
+  if (!(file instanceof File)) return { ok: false, message: 'Choose a file to attach.' };
+
+  const result = await saveFileItem({
+    schoolId: ctx.schoolId,
+    moduleId: String(formData.get('moduleId') ?? ''),
+    title: String(formData.get('title') ?? ''),
+    file,
     actorUserId: ctx.session.sub,
   });
 

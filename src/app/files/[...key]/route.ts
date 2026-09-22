@@ -45,7 +45,7 @@ export async function GET(
   }
 
   /*
-   * SUBMISSIONS ARE NOT SERVED FROM HERE.
+   * SUBMISSIONS AND COURSE MATERIAL ARE NOT SERVED FROM HERE.
    *
    * This route authorises by session and tenant, which is right for a logo or
    * an avatar and nowhere near enough for assessed work — under it, every
@@ -56,7 +56,7 @@ export async function GET(
    * Refused HERE as well as routed elsewhere, because a key is guessable from
    * a screenshot or a proxy log and an alternative route is not a control.
    */
-  if (key.includes('/submission/')) {
+  if (key.includes('/submission/') || key.includes('/material/')) {
     return new NextResponse('Not found', { status: 404 });
   }
 

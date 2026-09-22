@@ -482,3 +482,123 @@ describe('deleting', () => {
     expect(await raw.moduleItem.findUnique({ where: { id: item.id! } })).toBeNull();
   });
 });
+
+describe('files handed out to a class', () => {
+  let fileItemId = '';
+
+  beforeAll(async () => {
+    const { saveFileItem } = await import('@/server/services/lms.service');
+    const { __setStorageDriver } = await import('@/server/storage');
+
+    const stored = new Map<string, { body: Uint8Array; mediaType: string }>();
+    __setStorageDriver({
+      async put({ key, body, mediaType }) {
+        stored.set(key, { body, mediaType });
+      },
+      async get(key) {
+        return stored.get(key) ?? null;
+      },
+      async delete(key) {
+        stored.delete(key);
+      },
+    });
+
+    const module = await raw.courseModule.findFirstOrThrow({
+      where: { spaceId, isPublished: true },
+    });
+
+    // A minimal PDF — sniffed by its leading bytes, not by its name.
+    const pdf = new Uint8Array([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x34]);
+    const result = await saveFileItem({
+      schoolId,
+      moduleId: module.id,
+      title: 'Lecture 3 slides',
+      file: new File([pdf.slice().buffer as ArrayBuffer], 'slides.pdf'),
+      actorUserId: ACTOR,
+    });
+    expect(result.ok).toBe(true);
+    fileItemId = result.id!;
+  });
+
+  it('stores a key rather than a URL, under the school', async () => {
+    const item = await raw.moduleItem.findUniqueOrThrow({ where: { id: fileItemId } });
+    expect(item.kind).toBe('FILE');
+    expect(item.fileKey).toMatch(/^private\//);
+    expect(item.fileKey).toContain('/material/');
+    expect(item.fileName).toBe('slides.pdf');
+  });
+
+  it('is a DRAFT until published, like every other item', async () => {
+    const item = await raw.moduleItem.findUniqueOrThrow({ where: { id: fileItemId } });
+    expect(item.isPublished).toBe(false);
+  });
+
+  it('REFUSES a student while it is still a draft', async () => {
+    const { mayReadMaterial } = await import('@/server/services/lms.service');
+    /*
+     * A withdrawn or unpublished reading must actually stop being fetchable.
+     * A file that stays reachable after withdrawal makes the button a lie.
+     */
+    expect(
+      await mayReadMaterial({
+        schoolId,
+        itemId: fileItemId,
+        userId: 'anyone',
+        role: 'STUDENT',
+        studentProfileId: enrolledStudentId,
+      }),
+    ).toBe(false);
+  });
+
+  it('lets the lecturer read their own draft', async () => {
+    const { mayReadMaterial } = await import('@/server/services/lms.service');
+    expect(
+      await mayReadMaterial({
+        schoolId,
+        itemId: fileItemId,
+        userId: 'lecturer',
+        role: 'INSTRUCTOR',
+        instructorProfileId: lecturerProfileId,
+      }),
+    ).toBe(true);
+  });
+
+  it('lets an ENROLLED student read it once published, and nobody else', async () => {
+    const { mayReadMaterial, setItemPublished } = await import('@/server/services/lms.service');
+    await setItemPublished({ schoolId, itemId: fileItemId, isPublished: true, actorUserId: ACTOR });
+
+    expect(
+      await mayReadMaterial({
+        schoolId,
+        itemId: fileItemId,
+        userId: 'x',
+        role: 'STUDENT',
+        studentProfileId: enrolledStudentId,
+      }),
+    ).toBe(true);
+
+    // The assertion that matters: course material is not school-wide.
+    expect(
+      await mayReadMaterial({
+        schoolId,
+        itemId: fileItemId,
+        userId: 'x',
+        role: 'STUDENT',
+        studentProfileId: outsiderStudentId,
+      }),
+    ).toBe(false);
+  });
+
+  it('refuses an item that carries no file', async () => {
+    const { mayReadMaterial } = await import('@/server/services/lms.service');
+    const page = await raw.moduleItem.findFirstOrThrow({ where: { schoolId, kind: 'PAGE' } });
+    expect(
+      await mayReadMaterial({
+        schoolId,
+        itemId: page.id,
+        userId: 'x',
+        role: 'ADMIN',
+      }),
+    ).toBe(false);
+  });
+});

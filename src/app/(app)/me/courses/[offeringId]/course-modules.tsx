@@ -32,6 +32,8 @@ export interface StudentItemView {
   /** MEETING items: how soon it starts, and whether it can be joined yet. */
   timingLabel: string | null;
   joinable: boolean;
+  /** FILE items: what was attached, for the download link. */
+  fileName: string | null;
 }
 
 export interface StudentModuleView {
@@ -131,6 +133,18 @@ export function CourseModules({
                           >
                             {item.title}
                           </button>
+                        ) : item.kind === 'FILE' ? (
+                          /*
+                            By ITEM, never by storage key — the route resolves
+                            the row and checks the reader is on this course.
+                          */
+                          <a
+                            href={`/materials/${item.id}/file`}
+                            className="block truncate text-sm font-medium text-sky-700 hover:underline"
+                          >
+                            {item.title}
+                            {item.fileName ? ` — ${item.fileName}` : ''}
+                          </a>
                         ) : item.kind === 'MEETING' ? (
                           item.joinable ? (
                             /*
