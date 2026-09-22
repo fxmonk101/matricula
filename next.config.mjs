@@ -66,14 +66,45 @@ const csp = [
  */
 const distDir = process.env.NEXT_DIST_DIR || '.next';
 
+/*
+ * The upload ceiling, in megabytes.
+ *
+ * Kept here rather than imported because a Next config is plain JavaScript
+ * loaded before the TypeScript pipeline exists. The duplication is real, so
+ * it is guarded by a test rather than by hope: `tests/upload-limits.test.ts`
+ * reads both this file and `src/lib/domain/upload.ts` and fails if this
+ * number ever drops below what the upload code promises to accept.
+ *
+ * A NOTE FOR SERVERLESS HOSTS. Raising this does not raise a platform's own
+ * request limit. Vercel caps a serverless function request body at about
+ * 4.5 MB and returns 413 before any of this runs, so a deployment there
+ * either lowers SUBMISSION_LIMITS to match and tells students the truth, or
+ * uploads bypass the server action and go straight to object storage with a
+ * presigned URL. Setting a bigger number here changes nothing about that.
+ */
+const UPLOAD_CEILING_MB = 24;
+
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   distDir,
   reactStrictMode: true,
   poweredByHeader: false,
   experimental: {
-    // bcryptjs / prisma must run on the Node runtime, never bundled for edge
-    serverActions: { bodySizeLimit: '2mb' },
+    /*
+     * How large a server action request may be.
+     *
+     * THIS IS THE CEILING ON EVERY UPLOAD, and it is not the one the upload
+     * code enforces. It sat at 2 MB while `SUBMISSION_LIMITS` in
+     * `src/lib/domain/upload.ts` allowed 20 MB and the hand-in form told
+     * students so. A 3 MB dissertation was accepted by the form, validated
+     * happily by the service in a test, and rejected by the framework in
+     * between — the one layer with no error message of its own.
+     *
+     * So it is derived from that constant plus headroom for the multipart
+     * envelope, and `tests/upload-limits.test.ts` fails if the two drift
+     * apart again.
+     */
+    serverActions: { bodySizeLimit: `${UPLOAD_CEILING_MB}mb` },
   },
   serverExternalPackages: ['@prisma/client', 'bcryptjs'],
   async headers() {

@@ -18,6 +18,7 @@ import {
 } from '@/components/ui';
 import { useToast } from '@/components/ui/overlays';
 import { ModuleItemIcon } from '@/components/module-item-icon';
+import { SUBMISSION_LIMITS, formatBytes } from '@/lib/domain/upload';
 import {
   ITEM_KIND_LABELS,
   MEETING_PROVIDERS,
@@ -340,7 +341,7 @@ export function ModuleBuilder({
                     label="File"
                     htmlFor={`file-${module.id}`}
                     required
-                    hint="PDF, Word, Excel, PowerPoint or an image, up to 20 MB. Only students on this course can download it."
+                    hint={`PDF, Word, Excel, PowerPoint or an image, up to ${formatBytes(SUBMISSION_LIMITS.maxBytes)}. Only students on this course can download it.`}
                   >
                     <input
                       id={`file-${module.id}`}

@@ -5,7 +5,7 @@ import { useFormStatus } from 'react-dom';
 
 import { Alert, Button, Card, CardBody, CardHeader, Field, Textarea } from '@/components/ui';
 import { useToast } from '@/components/ui/overlays';
-import { formatBytes } from '@/lib/domain/upload';
+import { SUBMISSION_LIMITS, formatBytes } from '@/lib/domain/upload';
 import { submitCourseworkAction, type SubmitFormState } from './actions';
 
 /**
@@ -16,7 +16,16 @@ import { submitCourseworkAction, type SubmitFormState } from './actions';
  * control is another thing to get wrong at ten to midnight.
  */
 
-const MAX_BYTES = 20 * 1024 * 1024;
+/*
+ * Taken from the rule the server enforces, never retyped.
+ *
+ * This number was written out by hand in four places — here, twice in the
+ * hint text, and once in the module builder — while next.config.mjs capped
+ * server actions at 2 MB. A student picking a 3 MB PDF was told it was fine,
+ * and the hand-in then failed in the framework before any of this code ran.
+ */
+const MAX_BYTES = SUBMISSION_LIMITS.maxBytes;
+const MAX_LABEL = formatBytes(MAX_BYTES);
 
 function Submit({ label }: { label: string }) {
   const { pending } = useFormStatus();
@@ -99,7 +108,7 @@ export function SubmitForm({
             <Field
               label="Attach a file"
               htmlFor="file"
-              hint="PDF, Word, Excel, PowerPoint or an image, up to 20 MB."
+              hint={`PDF, Word, Excel, PowerPoint or an image, up to ${MAX_LABEL}.`}
             >
               <input
                 id="file"
@@ -115,7 +124,7 @@ export function SubmitForm({
           {chosen && (
             <p className={tooBig ? 'text-xs text-rose-700' : 'text-xs text-slate-500'}>
               {chosen.name} — {formatBytes(chosen.size)}
-              {tooBig && ' · too large, the limit is 20 MB'}
+              {tooBig && ` · too large, the limit is ${MAX_LABEL}`}
             </p>
           )}
 
