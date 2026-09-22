@@ -425,6 +425,9 @@ export const NOTIFICATION_KINDS = [
   'APPLICATION_DECIDED',
   'INVOICE_ISSUED',
   'ANNOUNCEMENT',
+  // A live class has been put on the timetable. The column is a String, so
+  // adding a kind needs no migration — only this union.
+  'MEETING_SCHEDULED',
 ] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 

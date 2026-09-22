@@ -6,6 +6,7 @@ import { requireRoute } from '@/server/tenant-context';
 import { enrolmentFor, loadSpaceForStudent } from '@/server/services/lms.service';
 import type { ModuleItemKind } from '@/lib/domain/lms';
 import { STATE_LABELS, dueIn, submissionState } from '@/lib/domain/coursework';
+import { classTiming, startsIn } from '@/lib/domain/lms';
 import { renderMarkdown } from '@/lib/domain/markdown';
 import { Alert, Badge, Card, CardHeader, EmptyState, PageHeader } from '@/components/ui';
 import { CourseModules, type StudentModuleView } from './course-modules';
@@ -104,6 +105,19 @@ export default async function StudentCoursePage({
         // to the browser is already safe HTML rather than somebody's markdown.
         bodyHtml:
           item.kind === 'PAGE' && item.bodyMarkdown ? renderMarkdown(item.bodyMarkdown) : null,
+        // A class can be joined from a little before it starts until it ends.
+        // Fifteen minutes of grace, because students arrive early and a link
+        // that refuses them until the exact second is simply annoying.
+        timingLabel: item.virtualClass
+          ? startsIn(item.virtualClass.startsAt, item.virtualClass.endsAt, now)
+          : null,
+        joinable: item.virtualClass
+          ? classTiming(
+              new Date(item.virtualClass.startsAt.getTime() - 15 * 60_000),
+              item.virtualClass.endsAt,
+              now,
+            ) !== 'FINISHED'
+          : false,
         courseworkId: coursework?.id ?? null,
         dueLabel: coursework?.dueAt ? dueIn(coursework.dueAt, now) : null,
         stateLabel: coursework

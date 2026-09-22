@@ -29,6 +29,9 @@ export interface StudentItemView {
   courseworkId: string | null;
   dueLabel: string | null;
   stateLabel: string | null;
+  /** MEETING items: how soon it starts, and whether it can be joined yet. */
+  timingLabel: string | null;
+  joinable: boolean;
 }
 
 export interface StudentModuleView {
@@ -128,6 +131,27 @@ export function CourseModules({
                           >
                             {item.title}
                           </button>
+                        ) : item.kind === 'MEETING' ? (
+                          item.joinable ? (
+                            /*
+                              Through a redirect rather than straight to the
+                              provider, so joining is something the system can
+                              observe — and so the join link is never in the
+                              page for somebody to copy out of a screenshot.
+                            */
+                            <a
+                              href={`/me/courses/${offeringId}/join?item=${item.id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="block truncate text-sm font-medium text-violet-700 hover:underline"
+                            >
+                              {item.title} ↗
+                            </a>
+                          ) : (
+                            <span className="block truncate text-sm text-slate-900">
+                              {item.title}
+                            </span>
+                          )
                         ) : item.kind === 'COURSEWORK' && item.courseworkId ? (
                           <Link
                             href={`/me/courses/${offeringId}/${item.courseworkId}`}
@@ -142,6 +166,7 @@ export function CourseModules({
                         <span className="block text-[11px] text-slate-500">
                           {ITEM_KIND_LABELS[item.kind]}
                           {item.dueLabel && ` · ${item.dueLabel}`}
+                          {item.timingLabel && ` · ${item.timingLabel}`}
                         </span>
                       </span>
 
@@ -163,7 +188,9 @@ export function CourseModules({
                         </Badge>
                       )}
 
-                      {item.kind === 'MEETING' && <Badge tone="neutral">Coming soon</Badge>}
+                      {item.kind === 'MEETING' && item.joinable && (
+                        <Badge tone="success">Join</Badge>
+                      )}
                     </div>
 
                     {item.kind === 'PAGE' && reading === item.id && item.bodyHtml && (

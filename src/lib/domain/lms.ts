@@ -280,3 +280,110 @@ export function summariseSpace(modules: readonly ModuleSummaryRow[]): SpaceSumma
     allDraft: modules.length > 0 && publishedItems === 0,
   };
 }
+
+// -----------------------------------------------------------------------------
+// Virtual classes
+// -----------------------------------------------------------------------------
+
+/**
+ * The longest a single virtual class may run.
+ *
+ * Four hours covers a double lecture, a practical and an exam review. Beyond
+ * that it is a mistyped end time — most often a date a day out, which would
+ * otherwise sit in the module claiming the class runs until tomorrow.
+ */
+export const MAX_CLASS_MINUTES = 4 * 60;
+
+export interface VirtualClassDraft {
+  title: string;
+  provider: string;
+  /** Required for MANUAL; supplied by the provider otherwise. */
+  joinUrl?: string | null;
+  startsAt: Date | null;
+  endsAt: Date | null;
+}
+
+/**
+ * Check a virtual class before anything is created in somebody else's system.
+ *
+ * Validated BEFORE the provider is called, deliberately. Creating a Teams
+ * meeting and then rejecting the form leaves a real meeting in the school's
+ * tenant that nothing in this system points at, and nobody will ever find it to
+ * cancel it.
+ */
+export function validateVirtualClass(draft: VirtualClassDraft, now: Date): string[] {
+  const problems: string[] = [];
+
+  if (!draft.title.trim()) problems.push('Give the class a title.');
+  else if (draft.title.length > TITLE_MAX) problems.push('That title is too long.');
+
+  if (!isMeetingProvider(draft.provider)) problems.push('Choose where the class will be held.');
+
+  if (!draft.startsAt || Number.isNaN(draft.startsAt.getTime())) {
+    problems.push('Say when the class starts.');
+  }
+  if (!draft.endsAt || Number.isNaN(draft.endsAt.getTime())) {
+    problems.push('Say when the class ends.');
+  }
+
+  if (draft.startsAt && draft.endsAt && !Number.isNaN(draft.startsAt.getTime()) && !Number.isNaN(draft.endsAt.getTime())) {
+    const minutes = (draft.endsAt.getTime() - draft.startsAt.getTime()) / 60_000;
+
+    if (minutes <= 0) problems.push('The class must end after it starts.');
+    else if (minutes < 5) problems.push('That is under five minutes — check the times.');
+    else if (minutes > MAX_CLASS_MINUTES) {
+      problems.push('That is longer than four hours. Check the end time, and the date.');
+    }
+
+    /*
+     * A class scheduled in the past is ALLOWED. Recording a session that
+     * already happened, so its recording link sits with the right week, is a
+     * real thing teachers do — and a year is where it stops being that and
+     * starts being a mistyped year.
+     */
+    if (draft.startsAt.getTime() < now.getTime() - 365 * 86_400_000) {
+      problems.push('That start date is more than a year ago. Check the year.');
+    }
+  }
+
+  // Only MANUAL carries its own URL; the others are told one by the provider.
+  if (draft.provider === 'MANUAL') {
+    const reason = linkRejectionReason(draft.joinUrl ?? '');
+    if (reason) problems.push(reason === 'Enter the address to link to.' ? 'Paste the link students should join with.' : reason);
+  }
+
+  return problems;
+}
+
+/** Where a class sits relative to now, for the badge a student sees. */
+export type ClassTiming = 'UPCOMING' | 'LIVE' | 'FINISHED';
+
+export function classTiming(startsAt: Date, endsAt: Date, now: Date): ClassTiming {
+  if (now.getTime() < startsAt.getTime()) return 'UPCOMING';
+  if (now.getTime() <= endsAt.getTime()) return 'LIVE';
+  return 'FINISHED';
+}
+
+export const TIMING_LABELS: Record<ClassTiming, string> = {
+  UPCOMING: 'Upcoming',
+  LIVE: 'Live now',
+  FINISHED: 'Finished',
+};
+
+/**
+ * How soon a class starts, in words.
+ *
+ * "Live now" wins over any countdown: a student looking at a class that has
+ * already begun needs to join it, not to be told it started nine minutes ago.
+ */
+export function startsIn(startsAt: Date, endsAt: Date, now: Date): string {
+  const timing = classTiming(startsAt, endsAt, now);
+  if (timing === 'LIVE') return 'Live now';
+  if (timing === 'FINISHED') return 'Finished';
+
+  const minutes = Math.round((startsAt.getTime() - now.getTime()) / 60_000);
+  if (minutes < 60) return `Starts in ${minutes} minute${minutes === 1 ? '' : 's'}`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 48) return `Starts in ${hours} hour${hours === 1 ? '' : 's'}`;
+  return `Starts in ${Math.floor(hours / 24)} days`;
+}

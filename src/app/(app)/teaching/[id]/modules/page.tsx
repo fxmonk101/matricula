@@ -10,6 +10,7 @@ import {
   mayAuthorOffering,
 } from '@/server/services/lms.service';
 import { summariseSpace, type ModuleItemKind } from '@/lib/domain/lms';
+import { automaticProvidersAvailable } from '@/server/meetings';
 import { Alert, PageHeader, StatTile } from '@/components/ui';
 import { ModuleBuilder, type ModuleView } from './module-builder';
 
@@ -134,6 +135,9 @@ export default async function CourseContentPage({
           spaceId={space?.id ?? null}
           modules={modules}
           mayPublish={mayPublish}
+          // Resolved on the SERVER: the UI offers only what this deployment can
+          // actually do, rather than promising Teams and producing a form.
+          automaticProviders={automaticProvidersAvailable()}
         />
       </div>
     </>

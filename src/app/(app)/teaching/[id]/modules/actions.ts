@@ -17,6 +17,10 @@ import {
   setModulePublished,
 } from '@/server/services/lms.service';
 import { saveCoursework } from '@/server/services/coursework.service';
+import {
+  announceVirtualClass,
+  saveVirtualClass,
+} from '@/server/services/virtual-class.service';
 
 /**
  * Authoring a course's content.
@@ -192,12 +196,29 @@ export async function setItemPublishedAction(
   if (!allowed) return NOT_YOURS;
   assertCan(ctx.role, 'lms:publish');
 
+  const itemId = String(formData.get('itemId') ?? '');
+  const isPublished = formData.get('isPublished') === 'true';
+
   const result = await setItemPublished({
     schoolId: ctx.schoolId,
-    itemId: String(formData.get('itemId') ?? ''),
-    isPublished: formData.get('isPublished') === 'true',
+    itemId,
+    isPublished,
     actorUserId: ctx.session.sub,
   });
+
+  /*
+   * A class is announced on PUBLISH, not on creation. A draft is not news, and
+   * telling a class about one would announce a session the lecturer has not
+   * committed to. Fire-and-forget: a failed notification must never be the
+   * reason a publish fails.
+   */
+  if (result.ok && isPublished) {
+    void announceVirtualClass({
+      schoolId: ctx.schoolId,
+      itemId,
+      actorMembershipId: ctx.membershipId,
+    });
+  }
 
   refresh(offeringId);
   return { ok: result.ok, message: result.message };
@@ -270,6 +291,45 @@ export async function saveCourseworkAction(
     allowsText: formData.get('allowsText') !== null,
     allowsFile: formData.get('allowsFile') !== null,
     acceptsLate: formData.get('acceptsLate') !== null,
+    actorUserId: ctx.session.sub,
+  });
+
+  refresh(offeringId);
+  return { ok: result.ok, message: result.message };
+}
+
+// -----------------------------------------------------------------------------
+// Virtual classes
+// -----------------------------------------------------------------------------
+
+export async function saveVirtualClassAction(
+  _prev: LmsFormState,
+  formData: FormData,
+): Promise<LmsFormState> {
+  const offeringId = String(formData.get('offeringId') ?? '');
+  const { ctx, allowed } = await authorise(offeringId);
+  if (!allowed) return NOT_YOURS;
+
+  /*
+   * The organiser's email is resolved from the SESSION, never taken from the
+   * form. A provider that can make somebody the host of a meeting must not
+   * accept a posted address for it.
+   */
+  const me = await ctx.db.membership.findUnique({
+    where: { id: ctx.membershipId },
+    include: { user: { select: { email: true } } },
+  });
+
+  const result = await saveVirtualClass({
+    schoolId: ctx.schoolId,
+    moduleId: String(formData.get('moduleId') ?? ''),
+    title: String(formData.get('title') ?? ''),
+    provider: String(formData.get('provider') ?? 'MANUAL'),
+    joinUrl: String(formData.get('joinUrl') ?? '') || null,
+    startsAt: instantOf(String(formData.get('startsAt') ?? '')),
+    endsAt: instantOf(String(formData.get('endsAt') ?? '')),
+    organiserMembershipId: ctx.membershipId,
+    organiserEmail: me?.user.email ?? null,
     actorUserId: ctx.session.sub,
   });
 

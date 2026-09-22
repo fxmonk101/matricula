@@ -18,7 +18,14 @@ import {
 } from '@/components/ui';
 import { useToast } from '@/components/ui/overlays';
 import { ModuleItemIcon } from '@/components/module-item-icon';
-import { ITEM_KIND_LABELS, MODULE_ITEM_KINDS, type ModuleItemKind } from '@/lib/domain/lms';
+import {
+  ITEM_KIND_LABELS,
+  MEETING_PROVIDERS,
+  MODULE_ITEM_KINDS,
+  PROVIDER_LABELS,
+  type MeetingProvider,
+  type ModuleItemKind,
+} from '@/lib/domain/lms';
 import {
   deleteItemAction,
   deleteModuleAction,
@@ -27,6 +34,7 @@ import {
   saveCourseworkAction,
   saveItemAction,
   saveModuleAction,
+  saveVirtualClassAction,
   setItemPublishedAction,
   setModulePublishedAction,
   type LmsFormState,
@@ -92,11 +100,14 @@ export function ModuleBuilder({
   spaceId,
   modules,
   mayPublish,
+  automaticProviders,
 }: {
   offeringId: string;
   spaceId: string | null;
   modules: ModuleView[];
   mayPublish: boolean;
+  /** Providers that can actually create a meeting on this deployment. */
+  automaticProviders: string[];
 }) {
   const [addState, addModule] = useActionState<LmsFormState, FormData>(saveModuleAction, {});
   const [publishState, publishModule] = useActionState<LmsFormState, FormData>(
@@ -111,6 +122,10 @@ export function ModuleBuilder({
   const [itemState, addItem] = useActionState<LmsFormState, FormData>(saveItemAction, {});
   const [courseworkState, addCoursework] = useActionState<LmsFormState, FormData>(
     saveCourseworkAction,
+    {},
+  );
+  const [classState, addClass] = useActionState<LmsFormState, FormData>(
+    saveVirtualClassAction,
     {},
   );
   const [itemPublishState, publishItem] = useActionState<LmsFormState, FormData>(
@@ -129,6 +144,7 @@ export function ModuleBuilder({
   useResult(moveState, 'Moved');
   useResult(itemState, 'Item saved');
   useResult(courseworkState, 'Assignment saved');
+  useResult(classState, 'Class scheduled');
   useResult(itemPublishState, 'Done');
   useResult(itemRemoveState, 'Deleted');
   useResult(itemMoveState, 'Moved');
@@ -137,6 +153,7 @@ export function ModuleBuilder({
   // not become a wall of identical forms.
   const [openFor, setOpenFor] = useState<string | null>(null);
   const [kind, setKind] = useState<ModuleItemKind>('PAGE');
+  const [provider, setProvider] = useState<MeetingProvider>('MANUAL');
 
   return (
     <div className="space-y-4">
@@ -287,7 +304,93 @@ export function ModuleBuilder({
             )}
 
             <div className="border-t border-slate-100 px-5 py-3">
-              {openFor === module.id && kind === 'COURSEWORK' ? (
+              {openFor === module.id && kind === 'MEETING' ? (
+                <form action={addClass} className="space-y-3">
+                  <input type="hidden" name="offeringId" value={offeringId} />
+                  <input type="hidden" name="moduleId" value={module.id} />
+
+                  <div className="grid gap-3 sm:grid-cols-[10rem_1fr]">
+                    <Field label="Kind" htmlFor={`kind-${module.id}`} required>
+                      <Select
+                        id={`kind-${module.id}`}
+                        value={kind}
+                        onChange={(e) => setKind(e.target.value as ModuleItemKind)}
+                      >
+                        {MODULE_ITEM_KINDS.map((k) => (
+                          <option key={k} value={k}>
+                            {ITEM_KIND_LABELS[k]}
+                          </option>
+                        ))}
+                      </Select>
+                    </Field>
+                    <Field label="Title" htmlFor={`mtitle-${module.id}`} required>
+                      <Input id={`mtitle-${module.id}`} name="title" required placeholder="Week 3 lecture" />
+                    </Field>
+                  </div>
+
+                  <Field label="Held on" htmlFor={`provider-${module.id}`} required>
+                    <Select
+                      id={`provider-${module.id}`}
+                      name="provider"
+                      value={provider}
+                      onChange={(e) => setProvider(e.target.value as MeetingProvider)}
+                    >
+                      {MEETING_PROVIDERS.map((p) => (
+                        <option
+                          key={p}
+                          value={p}
+                          disabled={p !== 'MANUAL' && !automaticProviders.includes(p)}
+                        >
+                          {PROVIDER_LABELS[p]}
+                          {p !== 'MANUAL' && !automaticProviders.includes(p)
+                            ? ' — not connected'
+                            : ''}
+                        </option>
+                      ))}
+                    </Select>
+                  </Field>
+
+                  {provider === 'MANUAL' ? (
+                    <Field
+                      label="Join link"
+                      htmlFor={`joinUrl-${module.id}`}
+                      required
+                      hint="Paste the link from Teams, Zoom, Meet or whatever you use."
+                    >
+                      <Input
+                        id={`joinUrl-${module.id}`}
+                        name="joinUrl"
+                        required
+                        placeholder="https://teams.microsoft.com/l/meetup-join/..."
+                      />
+                    </Field>
+                  ) : (
+                    <Alert tone="info">
+                      The meeting will be created for you and the link saved here.
+                    </Alert>
+                  )}
+
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Field label="Starts" htmlFor={`startsAt-${module.id}`} required>
+                      <Input id={`startsAt-${module.id}`} name="startsAt" type="datetime-local" required />
+                    </Field>
+                    <Field label="Ends" htmlFor={`endsAt-${module.id}`} required>
+                      <Input id={`endsAt-${module.id}`} name="endsAt" type="datetime-local" required />
+                    </Field>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Submit label="Schedule the class" size="sm" />
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setOpenFor(null)}>
+                      Cancel
+                    </Button>
+                  </div>
+
+                  <p className="text-[11px] text-slate-500">
+                    Students are told about it when you publish it, not now.
+                  </p>
+                </form>
+              ) : openFor === module.id && kind === 'COURSEWORK' ? (
                 <form action={addCoursework} className="space-y-3">
                   <input type="hidden" name="offeringId" value={offeringId} />
                   <input type="hidden" name="moduleId" value={module.id} />
@@ -300,9 +403,8 @@ export function ModuleBuilder({
                         onChange={(e) => setKind(e.target.value as ModuleItemKind)}
                       >
                         {MODULE_ITEM_KINDS.map((k) => (
-                          <option key={k} value={k} disabled={k === 'MEETING'}>
+                          <option key={k} value={k}>
                             {ITEM_KIND_LABELS[k]}
-                            {k === 'MEETING' && ' — coming next'}
                           </option>
                         ))}
                       </Select>
@@ -374,9 +476,8 @@ export function ModuleBuilder({
                         onChange={(e) => setKind(e.target.value as ModuleItemKind)}
                       >
                         {MODULE_ITEM_KINDS.map((k) => (
-                          <option key={k} value={k} disabled={k === 'MEETING'}>
+                          <option key={k} value={k}>
                             {ITEM_KIND_LABELS[k]}
-                            {k === 'MEETING' && ' — coming next'}
                           </option>
                         ))}
                       </Select>
