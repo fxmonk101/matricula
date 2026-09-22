@@ -1,67 +1,87 @@
+import Image from 'next/image';
+
 import { cn } from '@/lib/utils';
+
+import lockupDark from '../../public/logo/matricula-lockup-dark.png';
+import lockupLight from '../../public/logo/matricula-lockup.png';
+import markDark from '../../public/logo/matricula-mark-dark.png';
+import markLight from '../../public/logo/matricula-mark.png';
 
 /**
  * =============================================================================
  * THE MARK
  * =============================================================================
  *
- * "Many records, one spine."
+ * The Matricula crest: a shield, an M cut from it, an arrow rising out of the
+ * top right, and a single gold facet.
  *
- * A single vertical stroke binds three staggered bars. The bars are the things
- * a university keeps separately today — the admissions sheet, the registry
- * list, the departmental mark book, the bursary ledger — at different widths
- * because they never quite agree. The spine is the product's whole claim: one
- * authoritative record running through all of them.
+ * WHY TWO FILES RATHER THAN ONE THAT INHERITS `currentColor`. The mark that
+ * stood here before was a placeholder drawn in code, and being drawn in code it
+ * could take any colour it was given. The real artwork cannot: it is three
+ * colours whose relationship IS the brand — navy structure, a white field, one
+ * gold facet. Recolouring it with CSS would either flatten it to a silhouette
+ * or leave the navy invisible on the ink panels the operator console uses.
  *
- * Drawn on a 32-unit grid with 4-unit rhythm so every edge lands on a whole
- * pixel at 16, 32, 48 and 64. A mark that is only crisp at its design size is a
- * mark that looks broken in a browser tab, which is where most people will meet
- * it.
+ * So there are two renderings of the same artwork, and `tone` picks between
+ * them:
  *
- * Rendered inline rather than as an <img> so it inherits `currentColor` — the
- * same component then works on white, on the ink panel, and on a school's own
- * brand colour without three files to keep in step.
+ *   tone="light"  navy structure on a white field — for white and tinted pages
+ *   tone="ink"    the structure reversed to white, gold kept — for dark panels
+ *
+ * The gold survives both, because it is the one element that reads against
+ * either background and it is what stops the reversed mark looking like a
+ * generic white badge.
+ *
+ * SOURCE. Rebuilt from `public/logo/matricula-original.jpg`, which is an 887 x
+ * 287 JPEG — the only copy available. The background was cut by flooding in
+ * from the edges (so the shield's own white field survived, which a colour key
+ * would have punched through), and the wordmark was rebuilt from its darkness
+ * so the enclosed counters of A, R and O came out clean. It is faithful at the
+ * sizes below and it is NOT a vector: anything above roughly 280px wide, and
+ * anything going to print, wants the original artwork from whoever drew it.
  */
+
+const SOURCES = {
+  light: { mark: markLight, lockup: lockupLight },
+  ink: { mark: markDark, lockup: lockupDark },
+} as const;
+
+export type LogoTone = keyof typeof SOURCES;
 
 export function LogoMark({
   className,
   title,
+  tone = 'light',
 }: {
   className?: string;
   /** Omit inside a lockup that already carries the name in text. */
   title?: string;
+  tone?: LogoTone;
 }) {
   return (
-    <svg
-      viewBox="0 0 32 32"
-      fill="none"
-      role={title ? 'img' : 'presentation'}
+    <Image
+      src={SOURCES[tone].mark}
+      alt={title ?? ''}
+      /*
+       * An empty alt with aria-hidden is the correct pairing for decoration:
+       * a mark sitting next to the word "Matricula" announced as "Matricula
+       * Matricula" is worse than one not announced at all.
+       */
       aria-hidden={title ? undefined : true}
-      className={cn('h-8 w-8', className)}
-    >
-      {title ? <title>{title}</title> : null}
-
-      {/* The tile. `currentColor` so the mark takes the colour it is given. */}
-      <rect width="32" height="32" rx="8" fill="currentColor" />
-
-      {/* The spine: one unbroken stroke, full height of the content area. */}
-      <rect x="8" y="8" width="3" height="16" rx="1.5" className="fill-white" />
-
-      {/* Three records, staggered. Widths deliberately unequal — they are not
-          the same document, which is the point being made. */}
-      <rect x="13" y="8" width="11" height="3" rx="1.5" className="fill-white" />
-      <rect x="13" y="14.5" width="7" height="3" rx="1.5" className="fill-white/75" />
-      <rect x="13" y="21" width="9" height="3" rx="1.5" className="fill-white/55" />
-    </svg>
+      priority
+      className={cn('h-8 w-auto select-none', className)}
+    />
   );
 }
 
 /**
  * Mark plus name.
  *
- * The wordmark is set in the product's own typeface rather than drawn as
- * outlines: it stays legible at any size, it can be selected and read by a
- * screen reader, and it costs nothing to change when the name does.
+ * The name is set in the product's own typeface rather than taken from the
+ * artwork, for three reasons that all still hold: it stays sharp at any size,
+ * it can be selected and read aloud, and a school's portal sometimes needs the
+ * school's name here instead — which `name` allows and a baked-in wordmark
+ * would not.
  */
 export function Logo({
   className,
@@ -69,16 +89,21 @@ export function Logo({
   name = 'Matricula',
   tagline,
   compact,
+  tone = 'light',
 }: {
   className?: string;
   markClassName?: string;
   name?: string;
   tagline?: string;
   compact?: boolean;
+  tone?: LogoTone;
 }) {
   return (
     <span className={cn('inline-flex items-center gap-2.5', className)}>
-      <LogoMark className={cn(compact ? 'h-7 w-7' : 'h-8 w-8', markClassName)} />
+      <LogoMark
+        tone={tone}
+        className={cn(compact ? 'h-7 w-auto' : 'h-8 w-auto', markClassName)}
+      />
       <span className="flex flex-col leading-none">
         <span
           className={cn(
@@ -95,5 +120,31 @@ export function Logo({
         ) : null}
       </span>
     </span>
+  );
+}
+
+/**
+ * The full artwork — crest, wordmark and strapline as drawn.
+ *
+ * For the few places that should show the brand rather than label a page: the
+ * marketing hero, a sign-in card, the head of a printed report. Everywhere
+ * else wants `Logo`, which stays legible at nav size and lets the name change.
+ */
+export function LogoLockup({
+  className,
+  tone = 'light',
+  priority,
+}: {
+  className?: string;
+  tone?: LogoTone;
+  priority?: boolean;
+}) {
+  return (
+    <Image
+      src={SOURCES[tone].lockup}
+      alt="Matricula — empowering modern education"
+      priority={priority}
+      className={cn('h-12 w-auto select-none', className)}
+    />
   );
 }

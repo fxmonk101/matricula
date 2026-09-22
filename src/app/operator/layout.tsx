@@ -38,7 +38,7 @@ export default async function OperatorLayout({ children }: { children: React.Rea
           <div className="mx-auto flex max-w-7xl items-center justify-between gap-4 px-5 py-3 sm:px-8">
             <div className="flex items-center gap-6">
               <Link href="/operator" className="flex items-center gap-2.5">
-                <LogoMark className="h-7 w-7 text-brand-600" />
+                <LogoMark tone="ink" className="h-7" />
                 <span className="text-sm font-semibold text-onInk">Operator console</span>
               </Link>
 

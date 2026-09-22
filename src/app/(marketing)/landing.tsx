@@ -89,7 +89,7 @@ export function Landing() {
             className="text-slate-900 transition-opacity hover:opacity-80"
             aria-label="Matricula — home"
           >
-            <Logo compact className="text-slate-900" markClassName="text-brand-600" />
+            <Logo compact className="text-slate-900" />
           </Link>
 
           <div className="flex items-center gap-1">
@@ -371,7 +371,7 @@ export function Landing() {
         <div className="mx-auto max-w-6xl px-5 py-16 sm:px-8 lg:py-20">
           <Reveal>
             <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-brand-600 to-brand-700 px-8 py-12 text-center shadow-lg shadow-brand-900/10 sm:px-12">
-              <LogoMark className="mx-auto h-10 w-10 text-white/15" />
+              <LogoMark tone="ink" className="mx-auto h-10 opacity-90" />
               <h2 className="mt-5 text-2xl font-semibold tracking-tight text-onAccent sm:text-3xl">
                 Bring your institution onto one system.
               </h2>
@@ -405,7 +405,6 @@ export function Landing() {
             <Logo
               compact
               className="text-slate-900"
-              markClassName="text-slate-900"
               tagline="School management for universities"
             />
             <p className="text-xs text-slate-400">Authorised users only. All access is logged.</p>

@@ -40,7 +40,7 @@ export default async function OperatorLoginPage({
     <div className="flex min-h-screen items-center justify-center bg-ink px-4 py-12">
       <div className="w-full max-w-sm">
         <div className="mb-8 flex items-center gap-3">
-          <LogoMark className="h-10 w-10 text-brand-600" />
+          <LogoMark tone="ink" className="h-10" />
           <div>
             <p className="text-sm font-semibold text-onInk">Operator console</p>
             <p className="text-[11px] text-slate-400">Platform administration</p>
