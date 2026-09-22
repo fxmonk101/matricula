@@ -1,4 +1,5 @@
 import { consoleMailer } from './console-mailer';
+import { httpDriverNames, httpMailerFor } from './http-mailer';
 
 /**
  * =============================================================================
@@ -57,18 +58,24 @@ export async function mailer(): Promise<Mailer> {
   if (override) return override;
 
   const driver = (process.env.MAIL_DRIVER ?? 'console').toLowerCase();
-  switch (driver) {
-    case 'console':
-      return consoleMailer;
-    default:
-      // An unrecognised driver is a misconfiguration, and falling back silently
-      // to "console" in production would mean confirmation mails vanish while
-      // the application reports success.
-      console.error(
-        `[email] MAIL_DRIVER="${driver}" is not a driver this build knows. Falling back to the development mailer; NO REAL MAIL WILL BE SENT.`,
-      );
-      return consoleMailer;
-  }
+  if (driver === 'console') return consoleMailer;
+
+  const http = httpMailerFor(driver);
+  if (http) return http;
+
+  /*
+   * An unrecognised driver is a misconfiguration, and falling back silently to
+   * the development mailer in production would mean every confirmation and
+   * reset vanished while the application reported success. So it is loud, and
+   * it names the alternatives rather than leaving somebody to guess the
+   * spelling.
+   */
+  console.error(
+    `[email] MAIL_DRIVER="${driver}" is not a driver this build knows. Try one of: ` +
+      `console, ${httpDriverNames().join(', ')}. ` +
+      'Falling back to the development mailer; NO REAL MAIL WILL BE SENT.',
+  );
+  return consoleMailer;
 }
 
 /** Test seam, mirroring `__setStorageDriver`. */
@@ -85,5 +92,13 @@ export function __setMailer(next: Mailer | null): void {
  */
 export function mailIsDeliverable(): boolean {
   const driver = (process.env.MAIL_DRIVER ?? 'console').toLowerCase();
-  return driver !== 'console';
+  if (driver === 'console') return false;
+
+  /*
+   * A named driver with no credentials is NOT deliverable, and saying it is
+   * would be the worst of both: the UI promises "we have emailed you" and
+   * the send fails in a log nobody is reading.
+   */
+  if (!httpMailerFor(driver)) return false;
+  return Boolean(process.env.MAIL_API_KEY && process.env.MAIL_FROM);
 }
