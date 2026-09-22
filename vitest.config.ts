@@ -25,6 +25,15 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url)),
+      /*
+       * The `server-only` package throws on import by design, which is how it
+       * makes a client bundle fail. Vitest is neither a client nor a server
+       * bundle, so without this stub any test importing a guarded service dies
+       * before its first assertion. The guard still does its job at build time,
+       * and `tests/client-boundary.test.ts` separately asserts that no client
+       * component can reach a server module.
+       */
+      'server-only': fileURLToPath(new URL('./tests/stubs/server-only.ts', import.meta.url)),
     },
   },
 });

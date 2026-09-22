@@ -91,12 +91,20 @@ export default async function CourseContentPage({
         title="Course content"
         description={`${offering.course.code} ${offering.section} · ${offering.term.name} · ${school.shortName}`}
         actions={
-          <Link
-            href={`/teaching/${offering.id}`}
-            className="text-xs font-medium text-brand-700 hover:underline"
-          >
-            Gradesheet →
-          </Link>
+          <div className="flex items-center gap-3">
+            <Link
+              href={`/teaching/${offering.id}/coursework`}
+              className="text-xs font-medium text-brand-700 hover:underline"
+            >
+              Coursework →
+            </Link>
+            <Link
+              href={`/teaching/${offering.id}`}
+              className="text-xs font-medium text-brand-700 hover:underline"
+            >
+              Gradesheet →
+            </Link>
+          </div>
         }
       />
 

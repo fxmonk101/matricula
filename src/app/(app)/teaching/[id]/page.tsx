@@ -76,6 +76,12 @@ export default async function GradesheetPage({
         actions={
           <div className="flex items-center gap-3">
             <Link
+              href={`/teaching/${offering.id}/coursework`}
+              className="text-sm font-medium text-brand-700 hover:underline"
+            >
+              Coursework →
+            </Link>
+            <Link
               href={`/teaching/${offering.id}/modules`}
               className="text-sm font-medium text-brand-700 hover:underline"
             >

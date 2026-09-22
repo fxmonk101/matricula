@@ -6,6 +6,18 @@ import {
   type CourseworkDraft,
 } from '@/lib/domain/coursework';
 import { nextPosition, validateItemDraft } from '@/lib/domain/lms';
+import {
+  computeCaScore,
+  previewPost,
+  summarisePost,
+  validateMark,
+  type GradebookItem,
+  type PostPreviewRow,
+  type PostSummary,
+} from '@/lib/domain/gradebook';
+import { computeTotalScore, scoreToGrade } from '@/lib/domain/grading';
+import { loadSchoolConfig } from '@/server/school-config';
+import { recomputeStudentAcademics } from '@/server/academics';
 import { SUBMISSION_LIMITS, sniffType, validateUpload, extensionOf } from '@/lib/domain/upload';
 import { buildKey, newObjectId, storage } from '@/server/storage';
 import { recordAudit } from './audit.service';
@@ -447,4 +459,329 @@ export async function mayReadSubmission(params: {
   });
 
   return instructor?.userId === params.userId;
+}
+
+// -----------------------------------------------------------------------------
+// Marking
+// -----------------------------------------------------------------------------
+
+/**
+ * Mark one submission.
+ *
+ * The mark lands on the SUBMISSION, not on the enrolment. Nothing here touches
+ * a student's academic record: moving coursework marks into `caScore` is a
+ * separate, deliberate act (`postCourseworkToGradesheet` below), because a
+ * lecturer marking one essay at eleven at night has not decided to republish
+ * every student's continuous assessment.
+ */
+export async function markSubmission(params: {
+  schoolId: string;
+  submissionId: string;
+  score: number;
+  feedback?: string | null;
+  /** The marker's Membership id, for the audit trail. */
+  markedByMembershipId: string;
+  actorUserId: string;
+  now?: Date;
+}): Promise<CourseworkResult> {
+  const now = params.now ?? new Date();
+  const db = dbFor(params.schoolId);
+
+  const submission = await db.submission.findUnique({
+    where: { id: params.submissionId },
+    include: {
+      coursework: { include: { moduleItem: { select: { title: true } } } },
+      enrollment: { include: { student: { include: { user: true } } } },
+    },
+  });
+  if (!submission) return { ok: false, message: 'That submission no longer exists.' };
+
+  const problems = validateMark({
+    score: params.score,
+    pointsPossible: submission.coursework.pointsPossible,
+    feedback: params.feedback,
+  });
+  if (problems.length > 0) return { ok: false, message: problems.join(' ') };
+
+  await db.submission.update({
+    where: { id: submission.id },
+    data: {
+      score: params.score,
+      feedback: params.feedback?.trim() || null,
+      gradedById: params.markedByMembershipId,
+      gradedAt: now,
+    },
+  });
+
+  void recordAudit({
+    schoolId: params.schoolId,
+    actorId: params.actorUserId,
+    action: 'lms.submission.mark',
+    entityType: 'Submission',
+    entityId: submission.id,
+    summary: `${submission.enrollment.student.matricNumber} marked ${params.score}/${submission.coursework.pointsPossible} on "${submission.coursework.moduleItem.title}".`,
+    metadata: { score: params.score, pointsPossible: submission.coursework.pointsPossible },
+  });
+
+  return {
+    ok: true,
+    message: `Marked ${params.score} of ${submission.coursework.pointsPossible}.`,
+    id: submission.id,
+  };
+}
+
+// -----------------------------------------------------------------------------
+// The roll-up
+// -----------------------------------------------------------------------------
+
+export interface GradebookRow {
+  enrollmentId: string;
+  studentId: string;
+  studentName: string;
+  matricNumber: string;
+  existingCaScore: number | null;
+  examScore: number | null;
+  items: GradebookItem[];
+}
+
+/**
+ * Every student on the offering against every piece of coursework in it.
+ *
+ * Built from THREE queries rather than one per student: a class of two hundred
+ * against ten assignments is otherwise two thousand round trips to draw one
+ * table.
+ */
+export async function loadGradebook(params: { schoolId: string; offeringId: string }) {
+  const db = dbFor(params.schoolId);
+
+  const space = await db.courseSpace.findFirst({
+    where: { offeringId: params.offeringId },
+    include: {
+      modules: {
+        orderBy: { position: 'asc' },
+        include: {
+          items: {
+            where: { kind: 'COURSEWORK' },
+            orderBy: { position: 'asc' },
+            include: { coursework: true },
+          },
+        },
+      },
+    },
+  });
+
+  const coursework = (space?.modules ?? [])
+    .flatMap((module) => module.items)
+    .flatMap((item) => (item.coursework ? [{ ...item.coursework, title: item.title }] : []));
+
+  const [enrolments, submissions] = await Promise.all([
+    db.enrollment.findMany({
+      where: {
+        offeringId: params.offeringId,
+        status: { in: ['REGISTERED', 'COMPLETED'] },
+      },
+      include: { student: { include: { user: true } } },
+      orderBy: { student: { matricNumber: 'asc' } },
+    }),
+    coursework.length > 0
+      ? db.submission.findMany({
+          where: { courseworkId: { in: coursework.map((c) => c.id) } },
+          orderBy: { attempt: 'desc' },
+        })
+      : Promise.resolve([]),
+  ]);
+
+  /*
+   * ONLY THE LATEST ATTEMPT COUNTS. Submissions arrive newest-first, so the
+   * first one seen for a given (coursework, enrolment) pair is the one that
+   * stands — which is also what the student was told would happen.
+   */
+  const latest = new Map<string, (typeof submissions)[number]>();
+  for (const submission of submissions) {
+    const key = `${submission.courseworkId}:${submission.enrollmentId}`;
+    if (!latest.has(key)) latest.set(key, submission);
+  }
+
+  const rows: GradebookRow[] = enrolments.map((enrolment) => ({
+    enrollmentId: enrolment.id,
+    studentId: enrolment.studentId,
+    studentName: `${enrolment.student.user.firstName} ${enrolment.student.user.lastName}`,
+    matricNumber: enrolment.student.matricNumber,
+    existingCaScore: enrolment.caScore,
+    examScore: enrolment.examScore,
+    items: coursework.map((piece) => {
+      const submission = latest.get(`${piece.id}:${enrolment.id}`);
+      return {
+        courseworkId: piece.id,
+        title: piece.title,
+        pointsPossible: piece.pointsPossible,
+        score: submission?.score ?? null,
+        submitted: Boolean(submission),
+      };
+    }),
+  }));
+
+  return { coursework, rows };
+}
+
+export interface PostPreview {
+  rows: PostPreviewRow[];
+  summary: PostSummary;
+  caWeight: number;
+}
+
+/** What posting would do, computed but not applied. */
+export async function previewCourseworkPost(params: {
+  schoolId: string;
+  offeringId: string;
+  countMissingAsZero: boolean;
+}): Promise<PostPreview> {
+  const { grading } = await loadSchoolConfig(params.schoolId);
+  const caWeight = grading.assessmentWeights.ca;
+
+  const { rows } = await loadGradebook(params);
+
+  const previews: PostPreviewRow[] = rows.map((row) => {
+    const computed = computeCaScore({
+      items: row.items,
+      caWeight,
+      countMissingAsZero: params.countMissingAsZero,
+    });
+    return {
+      enrollmentId: row.enrollmentId,
+      studentName: row.studentName,
+      matricNumber: row.matricNumber,
+      computed,
+      existingCaScore: row.existingCaScore,
+      outcome: previewPost({ computed, existingCaScore: row.existingCaScore }),
+    };
+  });
+
+  return { rows: previews, summary: summarisePost(previews), caWeight };
+}
+
+export interface PostResult {
+  ok: boolean;
+  message: string;
+  written?: number;
+  skipped?: number;
+}
+
+/**
+ * Write computed coursework marks onto the enrolments as `caScore`.
+ *
+ * DELIBERATELY NOT `submitGrade`, and that distinction matters. `submitGrade`
+ * requires an exam score, sets the letter grade and marks the enrolment
+ * COMPLETED — which is correct at the end of a course and catastrophic in week
+ * six: every student would be "completed" with a grade computed against an exam
+ * that has not happened. This writes `caScore` and nothing else.
+ *
+ * Where an exam mark IS already present the total, letter and point are
+ * recomputed, through the same pure functions the gradesheet uses, so the two
+ * paths can never disagree about what a score means.
+ *
+ * Overwriting a `caScore` somebody typed requires `overwriteExisting`. That
+ * figure may be a viva mark or an agreed adjustment, and replacing it silently
+ * destroys a human judgement with no record that it existed.
+ */
+export async function postCourseworkToGradesheet(params: {
+  schoolId: string;
+  offeringId: string;
+  countMissingAsZero: boolean;
+  overwriteExisting: boolean;
+  actorUserId: string;
+}): Promise<PostResult> {
+  const db = dbFor(params.schoolId);
+  const { grading } = await loadSchoolConfig(params.schoolId);
+
+  const preview = await previewCourseworkPost(params);
+
+  const toWrite = preview.rows.filter(
+    (row) =>
+      row.outcome === 'WOULD_SET' ||
+      (row.outcome === 'WOULD_OVERWRITE' && params.overwriteExisting),
+  );
+  // Hand-entered marks left alone, which is all of them unless asked.
+  const skipped = params.overwriteExisting ? 0 : preview.summary.toOverwrite;
+
+  if (toWrite.length === 0) {
+    return {
+      ok: false,
+      written: 0,
+      skipped,
+      message:
+        preview.summary.toOverwrite > 0 && !params.overwriteExisting
+          ? `Nothing written. ${preview.summary.toOverwrite} student${preview.summary.toOverwrite === 1 ? ' has' : 's have'} a CA mark entered by hand — tick the overwrite box if you mean to replace it.`
+          : 'Nothing to post. No coursework has been marked yet.',
+    };
+  }
+
+  const enrolments = await db.enrollment.findMany({
+    where: { id: { in: toWrite.map((r) => r.enrollmentId) } },
+    select: { id: true, examScore: true, studentId: true },
+  });
+  const byId = new Map(enrolments.map((e) => [e.id, e]));
+
+  const touchedStudents = new Set<string>();
+
+  await db.$transaction(
+    toWrite.map((row) => {
+      const enrolment = byId.get(row.enrollmentId);
+      const caScore = row.computed.caScore!;
+      touchedStudents.add(enrolment!.studentId);
+
+      // With an exam mark already in, the derived fields move with the CA.
+      // Without one they stay untouched: there is no total yet to compute.
+      if (enrolment?.examScore !== null && enrolment?.examScore !== undefined) {
+        const total = computeTotalScore(caScore, enrolment.examScore, grading.assessmentWeights);
+        const band = scoreToGrade(total, grading.scale);
+        return db.enrollment.update({
+          where: { id: row.enrollmentId },
+          data: {
+            caScore,
+            totalScore: total,
+            letterGrade: band.letter,
+            gradePoint: band.point,
+          },
+        });
+      }
+
+      return db.enrollment.update({ where: { id: row.enrollmentId }, data: { caScore } });
+    }),
+  );
+
+  /*
+   * Aggregates are recomputed for every student whose derived grade moved. The
+   * full CGPA is rebuilt rather than adjusted, for the reason `submitGrade`
+   * documents: an incremental total drifts, and once it has drifted there is no
+   * way to tell which of the two figures is wrong.
+   */
+  for (const studentId of touchedStudents) {
+    await recomputeStudentAcademics(params.schoolId, studentId);
+  }
+
+  void recordAudit({
+    schoolId: params.schoolId,
+    actorId: params.actorUserId,
+    action: 'lms.coursework.post',
+    entityType: 'CourseOffering',
+    entityId: params.offeringId,
+    summary: `Coursework posted to continuous assessment for ${toWrite.length} student(s)${params.countMissingAsZero ? ', missing work counted as zero' : ''}${params.overwriteExisting ? ', overwriting hand-entered marks' : ''}.`,
+    metadata: {
+      written: toWrite.length,
+      caWeight: preview.caWeight,
+      countMissingAsZero: params.countMissingAsZero,
+      overwriteExisting: params.overwriteExisting,
+    },
+  });
+
+  return {
+    ok: true,
+    written: toWrite.length,
+    skipped,
+    message:
+      skipped > 0
+        ? `Posted for ${toWrite.length} student${toWrite.length === 1 ? '' : 's'}. ${skipped} left alone because their CA was entered by hand.`
+        : `Posted for ${toWrite.length} student${toWrite.length === 1 ? '' : 's'}.`,
+  };
 }
