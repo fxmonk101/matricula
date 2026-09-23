@@ -82,6 +82,12 @@ export default async function GradesheetPage({
               Coursework →
             </Link>
             <Link
+              href={`/teaching/${offering.id}/attendance`}
+              className="text-xs font-medium text-brand-700 hover:underline"
+            >
+              Attendance →
+            </Link>
+            <Link
               href={`/teaching/${offering.id}/modules`}
               className="text-sm font-medium text-brand-700 hover:underline"
             >

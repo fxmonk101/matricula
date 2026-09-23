@@ -75,7 +75,12 @@ export const NAV_SECTIONS: NavSection[] = [
       { href: '/timetable', label: 'Timetable', roles: ['ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'INSTRUCTOR', 'STUDENT'], models: ['HIGHER_ED'], icon: 'grid' },
       { href: '/classes', label: 'Classes', roles: ['ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'INSTRUCTOR'], models: ['K12'], icon: 'grid' },
       { href: '/reports', label: 'Report Cards', roles: ['ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'INSTRUCTOR'], models: ['K12'], icon: 'doc' },
-      { href: '/teaching', label: 'My Teaching', roles: ['INSTRUCTOR', 'HOD', 'ADMIN'], icon: 'book' },
+      // DEAN included: deans hold sections of their own, and the page lists
+      // what you actually teach — so it is empty rather than wrong for one
+      // who does not. REGISTRAR is deliberately NOT offered here: they may
+      // reach the pages to administer them, but they teach nothing and an
+      // empty list in their sidebar would read as a fault.
+      { href: '/teaching', label: 'My Teaching', roles: ['INSTRUCTOR', 'HOD', 'DEAN', 'ADMIN'], icon: 'book' },
       { href: '/me/registration', label: 'Registration', roles: ['STUDENT'], icon: 'check' },
       { href: '/admissions', label: 'Admissions', roles: ['ADMIN', 'ADMISSIONS', 'REGISTRAR'], icon: 'doc' },
     ],

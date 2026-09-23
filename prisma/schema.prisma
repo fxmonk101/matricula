@@ -105,6 +105,7 @@ model School {
   coursework        Coursework[]
   submissions       Submission[]
   virtualClasses    VirtualClass[]
+  classAttendance   ClassAttendance[]
 
   @@index([status])
   @@map("schools")
@@ -137,6 +138,14 @@ model SchoolConfig {
   /// K-12 policy: promotion thresholds, behaviour traits, report-card settings.
   /// Nullable because a higher-education school never reads it.
   k12Json                String?
+
+  /// Attendance: the percentage of classes a student must attend to sit the
+  /// examination, and whether that rule is enforced at all.
+  ///
+  /// Nullable, and the default it falls back to has enforcement OFF. A school
+  /// that has just been provisioned has an empty register, and a 75% rule
+  /// applied to an empty register bars the entire cohort on day one.
+  attendanceJson String?
 
   updatedAt DateTime @updatedAt
 
@@ -203,6 +212,7 @@ model Membership {
   // --- the learning management layer ---
   submissionsGraded   Submission[]         @relation("SubmissionGrader")
   virtualClasses      VirtualClass[]       @relation("VirtualClassOrganiser")
+  attendanceMarked    ClassAttendance[]    @relation("AttendanceMarker")
 
   @@unique([userId, schoolId])
   @@index([schoolId, role])
@@ -855,11 +865,12 @@ model Enrollment {
   /// under the "best attempt" policy).
   isRepeatSuperseded Boolean @default(false)
 
-  enrolledAt  DateTime     @default(now())
+  enrolledAt  DateTime          @default(now())
   droppedAt   DateTime?
   gradedAt    DateTime?
-  updatedAt   DateTime     @updatedAt
+  updatedAt   DateTime          @updatedAt
   submissions Submission[]
+  attendance  ClassAttendance[]
 
   @@unique([studentId, offeringId])
   @@index([schoolId])
@@ -1490,6 +1501,8 @@ model TeachingLog {
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+
+  attendance ClassAttendance[]
 
   @@index([schoolId, localDate])
   @@index([membershipId, localDate])
@@ -2482,6 +2495,64 @@ model Submission {
   @@index([schoolId, courseworkId])
   @@index([enrollmentId])
   @@map("submissions")
+}
+
+/// Who was in the room, for one session of one section.
+///
+/// `TeachingLog.attended` already holds a HEADCOUNT, which answers "did this
+/// class run and roughly how full was it" and cannot answer the question
+/// universities in this market actually act on: may this student sit the
+/// examination. That rule — commonly 75% of classes attended — needs one row
+/// per student per session, which is this table.
+///
+/// Anchored on the TEACHING LOG rather than on a date, because the teaching log
+/// is already the record that a class happened, who taught it, and whether it
+/// was delivered or cancelled. Anchoring anywhere else would create a second,
+/// competing answer to "was there a class on Tuesday".
+model ClassAttendance {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+
+  teachingLogId String
+  teachingLog   TeachingLog @relation(fields: [teachingLogId], references: [id], onDelete: Cascade)
+
+  /// THE ENROLMENT, not the student — the same reasoning as Submission.
+  ///
+  /// The roster is Enrollment, unique on [studentId, offeringId]. Keying here
+  /// means a student's attendance belongs to the registration it was earned
+  /// under, so withdrawing and re-registering does not silently merge two
+  /// terms' attendance into one percentage.
+  enrollmentId String
+  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  /// ClassAttendanceStatus: PRESENT | ABSENT | LATE | EXCUSED
+  ///
+  /// The domain module owns what each one MEANS for a percentage: LATE counts
+  /// as attended, EXCUSED leaves the calculation altogether. Those are
+  /// judgements about people and they live in one place, not at every call site.
+  status String
+
+  /// Why, for an EXCUSED mark especially. A bar from an examination has to be
+  /// answerable months later, and "excused" with no reason attached is not an
+  /// answer anybody can defend.
+  note String?
+
+  /// Who marked it. NOT the same as who taught — an office may enter a register
+  /// from a paper sheet for a lecturer who has none.
+  markedById String?
+  markedBy   Membership? @relation("AttendanceMarker", fields: [markedById], references: [id], onDelete: SetNull)
+  markedAt   DateTime    @default(now())
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  /// One mark per student per session. A register saved twice CORRECTS the
+  /// first; it does not append a second opinion.
+  @@unique([teachingLogId, enrollmentId])
+  @@index([schoolId, teachingLogId])
+  @@index([enrollmentId])
+  @@map("class_attendance")
 }
 
 /// A virtual class: a join link with a time on it.

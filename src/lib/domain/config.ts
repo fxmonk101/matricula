@@ -1,5 +1,15 @@
 import { z } from 'zod';
 
+import { DEFAULT_ATTENDANCE_POLICY, type AttendancePolicyInput } from './attendance';
+
+/*
+ * The attendance policy is DEFINED in ./attendance, next to the functions that
+ * act on it, and only wired into the bundle here. Duplicating the shape would
+ * mean a school could save a threshold the eligibility maths never reads.
+ */
+export type { AttendancePolicyInput };
+export { DEFAULT_ATTENDANCE_POLICY };
+
 /**
  * =============================================================================
  * SCHOOL CONFIGURATION
@@ -209,6 +219,7 @@ export interface SchoolConfigBundle {
   locale: LocaleConfig;
   registrationPortal: RegistrationPortalConfig;
   k12: K12Config;
+  attendance: AttendancePolicyInput;
 }
 
 // -----------------------------------------------------------------------------
@@ -398,6 +409,22 @@ const gradeBandZ = z.object({
   description: z.string().max(60),
 });
 
+export const AttendancePolicyZ = z
+  .object({
+    examEligibilityThreshold: z.number().min(0).max(100),
+    warningThreshold: z.number().min(0).max(100),
+    enforced: z.boolean(),
+  })
+  /*
+   * The warning line cannot sit BELOW the bar. If it did, a student would be
+   * barred from the examination without ever having been shown the warning
+   * state that exists to give them time to do something about it.
+   */
+  .refine((p) => p.warningThreshold >= p.examEligibilityThreshold, {
+    message: 'The warning level must be at or above the level that bars a student.',
+    path: ['warningThreshold'],
+  });
+
 export const GradingConfigZ = z.object({
   maxGradePoint: z.number().positive().max(100),
   scale: z.array(gradeBandZ).min(2).max(20),
@@ -575,6 +602,7 @@ function parseColumn<T>(raw: string | null | undefined, schema: z.ZodType<T>, fa
 }
 
 export interface RawSchoolConfig {
+  attendanceJson?: string | null;
   k12Json?: string | null;
   gradingJson?: string | null;
   enrollmentJson?: string | null;
@@ -604,6 +632,12 @@ export function parseSchoolConfig(
       'registrationPortal',
     ),
     k12: parseColumn(raw?.k12Json, K12ConfigZ, DEFAULT_K12_CONFIG, 'k12'),
+    attendance: parseColumn(
+      raw?.attendanceJson,
+      AttendancePolicyZ,
+      DEFAULT_ATTENDANCE_POLICY,
+      'attendance',
+    ),
   };
 }
 
@@ -623,5 +657,6 @@ export function defaultConfigBundle(defaults: {
     locale: DEFAULT_LOCALE_CONFIG,
     registrationPortal: DEFAULT_REGISTRATION_PORTAL_CONFIG,
     k12: DEFAULT_K12_CONFIG,
+    attendance: DEFAULT_ATTENDANCE_POLICY,
   };
 }

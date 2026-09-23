@@ -397,8 +397,21 @@ export const ROUTE_GUARDS: RouteGuard[] = [
   { prefix: '/offerings', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'INSTRUCTOR', 'STUDENT'] },
   { prefix: '/admissions', roles: ['OWNER', 'ADMIN', 'ADMISSIONS', 'REGISTRAR'] },
   { prefix: '/finance', roles: ['OWNER', 'ADMIN', 'FINANCE', 'REGISTRAR'] },
-  // A head of department lectures too, which is why HOD is here.
-  { prefix: '/teaching', roles: ['INSTRUCTOR', 'HOD', 'ADMIN'] },
+  /*
+   * Everyone who can be an INSTRUCTOR OF RECORD, plus the offices that
+   * oversee them.
+   *
+   * DEAN and REGISTRAR are here because every page under this prefix already
+   * admits them and `mayAuthorOffering` already trusts them — the guard was
+   * the only layer that disagreed, and it silently won. In the demo school
+   * that locked a dean out of the five sections they teach: the nav item was
+   * missing and the URL bounced to /forbidden, so their own gradesheet,
+   * course content and register were unreachable.
+   *
+   * Senior academics teach. A guard that assumes otherwise is wrong about
+   * universities, not about permissions.
+   */
+  { prefix: '/teaching', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'INSTRUCTOR'] },
   { prefix: '/me', roles: ['STUDENT'] },
   // Course content a student is enrolled on. Under /me rather than /courses
   // because that guard admits ADMISSIONS, who have no business reading

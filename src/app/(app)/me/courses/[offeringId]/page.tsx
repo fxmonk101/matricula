@@ -9,6 +9,8 @@ import { STATE_LABELS, dueIn, submissionState } from '@/lib/domain/coursework';
 import { classTiming, startsIn } from '@/lib/domain/lms';
 import { renderMarkdown } from '@/lib/domain/markdown';
 import { Alert, Badge, Card, CardHeader, EmptyState, PageHeader } from '@/components/ui';
+import { attendanceForEnrolment } from '@/server/services/attendance.service';
+import { classesNeededToClear, formatRate } from '@/lib/domain/attendance';
 import { CourseModules, type StudentModuleView } from './course-modules';
 
 export const metadata: Metadata = { title: 'Course' };
@@ -30,7 +32,7 @@ export default async function StudentCoursePage({
 }: {
   params: Promise<{ offeringId: string }>;
 }) {
-  const { db, schoolId, session, school } = await requireRoute('/me/courses');
+  const { db, schoolId, session, school, config } = await requireRoute('/me/courses');
   const { offeringId } = await params;
 
   const offering = await db.courseOffering.findUnique({
@@ -63,6 +65,29 @@ export default async function StudentCoursePage({
 
   const now = new Date();
   const space = await loadSpaceForStudent({ schoolId, offeringId, now });
+
+  /*
+   * Their own attendance, and the verdict under THIS school’s policy.
+   *
+   * Shown to the student rather than only to the lecturer, because the whole
+   * value of an attendance rule is that somebody can act on it while there is
+   * still term left. A student who first learns they are barred in the week of
+   * the examination has been failed by the system, not by the rule.
+   */
+  const attendance = await attendanceForEnrolment({
+    schoolId,
+    enrollmentId: enrolment.id,
+    policy: config.attendance,
+  });
+
+  /*
+   * The actionable number: how many classes in a row would clear the bar.
+   *
+   * “You are below 75%” tells a student they have a problem. “Attending the
+   * next four would fix it” tells them what to do about it, which is the only
+   * reason to show them any of this while there is still term left.
+   */
+  const needed = classesNeededToClear(attendance, config.attendance);
 
   /*
    * This student's own latest attempt at each piece of coursework, fetched in
@@ -174,6 +199,76 @@ export default async function StudentCoursePage({
           </Link>
         }
       />
+
+      {/*
+        Attendance sits ABOVE the course content, not in a tab.
+
+        A student who is short of the threshold needs to see it without going
+        looking, and the only useful time to see it is while there are still
+        classes left to attend.
+      */}
+      {attendance.percentage !== null && (
+        <Card className="mb-4">
+          <div className="flex flex-wrap items-center gap-4 px-5 py-4">
+            <span className="min-w-0 flex-1">
+              <span className="block text-xs font-medium text-slate-500">Your attendance</span>
+              <span className="mt-0.5 block text-lg font-semibold tabular-nums text-slate-900">
+                {formatRate(attendance)}
+                <span className="ml-2 text-xs font-normal text-slate-500">
+                  {attendance.attended} of {attendance.counted} classes
+                  {attendance.excused > 0 ? ` · ${attendance.excused} excused` : ''}
+                </span>
+              </span>
+            </span>
+
+            <Badge
+              tone={
+                attendance.verdict === 'BARRED' || attendance.verdict === 'BELOW'
+                  ? 'danger'
+                  : attendance.verdict === 'AT_RISK'
+                    ? 'warning'
+                    : 'success'
+              }
+            >
+              {attendance.verdict === 'BARRED' || attendance.verdict === 'BELOW'
+                ? 'Below the requirement'
+                : attendance.verdict === 'AT_RISK'
+                  ? 'Close to the limit'
+                  : 'Meeting the requirement'}
+            </Badge>
+          </div>
+
+          {/*
+            BARRED and BELOW are the same shortfall; only the consequence
+            differs. Both say so plainly, and neither is told they are
+            “close to” a figure they are nowhere near — a student on 0% read
+            that before this was split, and false reassurance is the one
+            thing that would stop them acting while there is term left.
+          */}
+          {(attendance.verdict === 'BARRED' || attendance.verdict === 'BELOW') && (
+            <Alert tone="danger" className="mx-5 mb-5">
+              You have attended {attendance.attended} of {attendance.counted} classes, below the{' '}
+              {config.attendance.examEligibilityThreshold}% this school requires to sit the
+              examination.
+              {needed !== null && needed > 0 && (
+                <>
+                  {' '}Attending the next {needed} {needed === 1 ? 'class' : 'classes'} would
+                  bring you back above it.
+                </>
+              )}{' '}
+              Speak to your lecturer or the faculty office — there may be absences that should
+              have been recorded as excused.
+            </Alert>
+          )}
+
+          {attendance.verdict === 'AT_RISK' && (
+            <Alert tone="warning" className="mx-5 mb-5">
+              You are close to the {config.attendance.examEligibilityThreshold}% this school
+              requires to sit the examination. Missing more classes puts that at risk.
+            </Alert>
+          )}
+        </Card>
+      )}
 
       {modules.length === 0 && locked.length === 0 ? (
         <Card>
