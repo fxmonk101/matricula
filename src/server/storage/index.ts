@@ -109,15 +109,35 @@ let driver: StorageDriver | null = null;
 export async function storage(): Promise<StorageDriver> {
   if (driver) return driver;
 
-  const kind = process.env.STORAGE_DRIVER ?? 'local';
+  const kind = (process.env.STORAGE_DRIVER ?? 'local').toLowerCase();
+
   if (kind === 'local') {
+    /*
+     * Refused in production rather than merely discouraged. On a serverless or
+     * container host the local disk is either read-only or discarded on the
+     * next deploy, so this driver does not fail — it accepts every upload and
+     * loses it, which is the worst possible way to be wrong about a student's
+     * submission. Better to refuse to start.
+     */
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(
+        'STORAGE_DRIVER is "local" in production. Uploads would be accepted and then lost ' +
+          'on the next deploy. Set STORAGE_DRIVER="s3" and the S3_* variables.',
+      );
+    }
     const { LocalDiskDriver } = await import('./local-disk');
     driver = new LocalDiskDriver(process.env.STORAGE_ROOT ?? '.storage');
     return driver;
   }
 
+  if (kind === 's3' || kind === 'r2') {
+    const { S3Driver, s3ConfigFromEnv } = await import('./s3');
+    driver = new S3Driver(s3ConfigFromEnv());
+    return driver;
+  }
+
   throw new Error(
-    `STORAGE_DRIVER="${kind}" is not implemented. Use "local", or add the S3 driver before deploying.`,
+    `STORAGE_DRIVER="${kind}" is not a driver this build knows. Use "local" or "s3".`,
   );
 }
 

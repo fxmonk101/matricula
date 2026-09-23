@@ -11,28 +11,21 @@ and the application will not start until all three exist.
 
 ---
 
-## 0. Read this first — two things are not ready
-
-**The R2 storage driver has not been written.** `src/server/storage/` contains
-the interface and a local-disk implementation only, and the resolver throws for
-anything else:
-
-```
-STORAGE_DRIVER="s3" is not implemented. Use "local", or add the S3 driver before deploying.
-```
-
-Vercel's filesystem is read-only apart from `/tmp`, which is per-instance and
-discarded. Deploying without the driver means every avatar, course material and
-student submission uploads successfully and is gone by the next request — which
-is worse than failing, because it looks like it worked. **Section 2 sets up the
-bucket; the driver is still owed.**
+## 0. Read this first
 
 **The upload ceiling needs a decision.** Vercel refuses a serverless request
 body over roughly 4.5 MB at the platform edge, before any application code runs.
 `SUBMISSION_LIMITS` in `src/lib/domain/upload.ts` currently allows 20 MB. See
-§5.3 for the two ways out.
+§5.3 for the two ways out. Nothing else here is blocked.
 
-Everything else below is ready and has been checked against the code.
+**The S3 driver has never run against Cloudflare.** It is written
+(`src/server/storage/s3.ts`), and its request signing is checked against AWS's
+own published Signature Version 4 test vectors — the end-to-end `get-vanilla`
+signature matches exactly. That is strong evidence and it is not a 200 from R2.
+The first real upload is the test that counts; if signing is wrong the error
+will be `SignatureDoesNotMatch`. Do §6's upload check before you let a school in.
+
+Everything else below has been checked against the code.
 
 ---
 
@@ -166,10 +159,20 @@ R2 ignores the region but the S3 protocol requires the field.
 
 ### 2.3 The driver
 
-As flagged in §0, `src/server/storage/` has no S3 implementation yet. The
-interface is three methods — `put`, `get`, `delete` — and all six call sites go
-through it, so this is a contained piece of work and nothing else changes. Until
-it exists, the variables above have nothing reading them.
+Written and wired: `src/server/storage/s3.ts`, selected by `STORAGE_DRIVER=s3`.
+
+Two things about it worth knowing before you deploy:
+
+- **It ignores the public/private distinction on purpose**, and stores
+  everything in a private bucket. The distinction still exists — it is in the
+  key — but it is enforced by the route handlers, not by an ACL. See §2.1.
+- **`local` is now refused when `NODE_ENV=production`.** The app will not start
+  rather than accept uploads onto a disk that is about to vanish.
+
+It signs its own requests rather than pulling in `@aws-sdk/client-s3`, which
+would add roughly two megabytes of cold start per instance to make three calls.
+The signing is covered by `tests/sigv4.test.ts` against AWS's published vectors,
+and the driver by `tests/storage-s3.test.ts` against an injected transport.
 
 ---
 
