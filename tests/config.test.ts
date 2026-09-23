@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import {
+  AttendancePolicyZ,
   ConfigError,
   DEFAULT_ADMISSIONS_CONFIG,
+  DEFAULT_ATTENDANCE_POLICY,
   DEFAULT_GRADING_CONFIG,
   GRADING_PRESETS,
   assertAdmissionsConfigWellFormed,
@@ -254,5 +256,54 @@ describe('parsing a stored config', () => {
     const bundle = defaultConfigBundle(BRANDING);
     expect(bundle.branding.name).toBe('Test School');
     expect(bundle.grading.maxGradePoint).toBe(4);
+  });
+});
+
+// -----------------------------------------------------------------------------
+// Attendance policy
+// -----------------------------------------------------------------------------
+
+describe('the attendance policy', () => {
+  it('is off by default, so a fresh school bars nobody', () => {
+    expect(DEFAULT_ATTENDANCE_POLICY.enforced).toBe(false);
+    expect(defaultConfigBundle(BRANDING).attendance.enforced).toBe(false);
+  });
+
+  it('REFUSES a warning line below the bar that bars a student', () => {
+    /*
+     * If the warning sat below the bar, a student would be barred from an
+     * examination without ever having been shown the warning state that exists
+     * to give them time to do something about it. The rule is therefore a
+     * property of the policy, not of the form that edits it.
+     */
+    expect(() =>
+      AttendancePolicyZ.parse({ examEligibilityThreshold: 75, warningThreshold: 70, enforced: true }),
+    ).toThrow();
+
+    expect(() =>
+      AttendancePolicyZ.parse({ examEligibilityThreshold: 75, warningThreshold: 75, enforced: true }),
+    ).not.toThrow();
+  });
+
+  it('keeps percentages inside 0–100', () => {
+    expect(() =>
+      AttendancePolicyZ.parse({ examEligibilityThreshold: 120, warningThreshold: 130, enforced: false }),
+    ).toThrow();
+  });
+
+  it('survives a round trip through the stored column', () => {
+    const policy = { examEligibilityThreshold: 70, warningThreshold: 80, enforced: true };
+    const parsed = parseSchoolConfig(
+      { attendanceJson: JSON.stringify(policy) },
+      BRANDING,
+    );
+    expect(parsed.attendance).toEqual(policy);
+  });
+
+  it('falls back to the safe default when the column is nonsense', () => {
+    // A corrupt column must not enforce a rule nobody configured.
+    const parsed = parseSchoolConfig({ attendanceJson: '{ not json' }, BRANDING);
+    expect(parsed.attendance).toEqual(DEFAULT_ATTENDANCE_POLICY);
+    expect(parsed.attendance.enforced).toBe(false);
   });
 });

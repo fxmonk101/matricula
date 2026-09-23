@@ -21,6 +21,21 @@ interface Row {
   enrollmentId: string;
   matricNumber: string;
   name: string;
+  /**
+   * Set only when this school ENFORCES its attendance rule and this student
+   * is below it.
+   *
+   * Shown here rather than made into a Hold, because a Hold is a fact about a
+   * STUDENT that blocks registration and a bar from an examination is a fact
+   * about one COURSE. Conflating them would stop somebody registering for next
+   * term because they missed lectures in one subject this one.
+   *
+   * And shown rather than enforced: the lecturer entering the mark is the
+   * person who knows whether the register is complete and whether an appeal is
+   * running. A field that refuses the number would be worked around by typing
+   * it somewhere else.
+   */
+  attendanceBar?: { percentage: number; threshold: number } | null;
   caScore: number | null;
   examScore: number | null;
   totalScore: number | null;
@@ -145,6 +160,12 @@ export function Gradesheet({
                   <Td className="font-mono text-xs">{row.matricNumber}</Td>
                   <Td className="font-medium text-slate-900">
                     {row.name}
+                    {row.attendanceBar ? (
+                      <div className="mt-0.5 text-[11px] font-normal text-rose-700">
+                        Attendance {row.attendanceBar.percentage.toFixed(0)}% — below the{' '}
+                        {row.attendanceBar.threshold}% needed to sit
+                      </div>
+                    ) : null}
                     {error ? <div className="text-[11px] text-rose-600">{error}</div> : null}
                   </Td>
                   <Td>

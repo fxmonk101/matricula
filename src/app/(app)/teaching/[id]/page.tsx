@@ -5,6 +5,7 @@ import { notFound, redirect } from 'next/navigation';
 import { requireTenantRole } from '@/server/tenant-context';
 import { ASSESSMENT_WEIGHTS, GRADE_SCALE, computeGpa } from '@/lib/domain/grading';
 import { Alert, Card, CardHeader, EmptyState, PageHeader, StatTile } from '@/components/ui';
+import { attendanceForOffering } from '@/server/services/attendance.service';
 import { Gradesheet } from './gradesheet';
 
 export const metadata: Metadata = { title: 'Gradesheet' };
@@ -14,7 +15,13 @@ export default async function GradesheetPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { db, school, schoolId, session } = await requireTenantRole('INSTRUCTOR', 'ADMIN', 'REGISTRAR');
+  const { db, school, schoolId, session, config } = await requireTenantRole(
+    'INSTRUCTOR',
+    'HOD',
+    'DEAN',
+    'ADMIN',
+    'REGISTRAR',
+  );
   const { id } = await params;
 
   const offering = await db.courseOffering.findUnique({
@@ -36,6 +43,30 @@ export default async function GradesheetPage({
   if (session.role === 'INSTRUCTOR' && offering.instructorId !== session.pid) {
     redirect('/forbidden');
   }
+
+  /*
+   * The attendance bar, fetched ONLY when this school enforces one.
+   *
+   * A school that has not turned the rule on gets no query and no column:
+   * showing a percentage nobody has agreed to act on, beside the box where
+   * a mark is typed, would read as an instruction.
+   */
+  const barred = config.attendance.enforced
+    ? await attendanceForOffering({
+        schoolId,
+        offeringId: offering.id,
+        policy: config.attendance,
+      })
+    : null;
+
+  const barsByEnrolment = new Map(
+    (barred?.students ?? [])
+      .filter((s) => s.verdict === 'BARRED' && s.percentage !== null)
+      .map((s) => [
+        s.enrollmentId,
+        { percentage: s.percentage!, threshold: config.attendance.examEligibilityThreshold },
+      ]),
+  );
 
   const graded = offering.enrollments.filter((e) => e.gradePoint !== null);
 
@@ -178,6 +209,7 @@ export default async function GradesheetPage({
               totalScore: e.totalScore,
               letterGrade: e.letterGrade,
               gradePoint: e.gradePoint,
+              attendanceBar: barsByEnrolment.get(e.id) ?? null,
             }))}
           />
         )}

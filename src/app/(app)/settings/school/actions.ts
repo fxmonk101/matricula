@@ -10,6 +10,7 @@ import { recomputeStudentAcademics } from '@/server/academics';
 import { recordAudit } from '@/server/services/audit.service';
 import {
   AdmissionsConfigZ,
+  AttendancePolicyZ,
   BrandingConfigZ,
   ConfigError,
   EnrollmentPolicyZ,
@@ -203,6 +204,51 @@ export async function saveEnrollmentAction(
 
     revalidatePath('/settings/school');
     return { ok: true, message: 'Enrolment rules saved. They apply to the next registration.' };
+  } catch (error) {
+    return fail(error);
+  }
+}
+
+// -----------------------------------------------------------------------------
+// Admissions
+// -----------------------------------------------------------------------------
+
+/**
+ * Attendance.
+ *
+ * The only setting in here that can take something away from a student, so
+ * the audit line records whether enforcement was switched on or off as well
+ * as the numbers. "Who barred the third years?" has to be answerable.
+ */
+export async function saveAttendanceAction(
+  _prev: SettingsState,
+  formData: FormData,
+): Promise<SettingsState> {
+  const { schoolId, session } = await requireTenantRole('ADMIN');
+
+  try {
+    const policy = AttendancePolicyZ.parse({
+      examEligibilityThreshold: Number(formData.get('examEligibilityThreshold')),
+      warningThreshold: Number(formData.get('warningThreshold')),
+      enforced: formData.get('enforced') === 'on',
+    });
+
+    await writeColumn(
+      schoolId,
+      'attendanceJson',
+      policy,
+      session.sub,
+      `Attendance: ${policy.examEligibilityThreshold}% required, ` +
+        `${policy.enforced ? 'ENFORCED' : 'not enforced'}.`,
+    );
+
+    revalidatePath('/settings/school');
+    return {
+      ok: true,
+      message: policy.enforced
+        ? `Saved. Students below ${policy.examEligibilityThreshold}% are now barred from examinations.`
+        : 'Saved. Attendance is recorded and shown, and nobody is barred.',
+    };
   } catch (error) {
     return fail(error);
   }

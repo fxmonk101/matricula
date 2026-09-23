@@ -8,6 +8,7 @@ import { Card, CardBody, CardHeader, PageHeader } from '@/components/ui';
 import { cn } from '@/lib/utils';
 import {
   AdmissionsForm,
+  AttendanceForm,
   BrandingForm,
   EnrollmentForm,
   GradingForm,
@@ -19,6 +20,7 @@ const TABS = [
   { key: 'grading', label: 'Grading' },
   { key: 'enrolment', label: 'Enrolment rules' },
   { key: 'admissions', label: 'Admissions rubric' },
+  { key: 'attendance', label: 'Attendance' },
   { key: 'branding', label: 'Branding' },
 ] as const;
 
@@ -115,6 +117,18 @@ export default async function SchoolSetupPage({
               />
               <CardBody>
                 <AdmissionsForm config={config.admissions} />
+              </CardBody>
+            </Card>
+          ) : null}
+
+          {active === 'attendance' ? (
+            <Card>
+              <CardHeader
+                title="Attendance"
+                description="How much of a course a student must attend to sit its examination, and whether that rule is enforced."
+              />
+              <CardBody>
+                <AttendanceForm config={config.attendance} />
               </CardBody>
             </Card>
           ) : null}

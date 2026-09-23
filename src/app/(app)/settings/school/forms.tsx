@@ -7,6 +7,7 @@ import { Alert, Badge, Button, Field, Input, Table, Td, Th } from '@/components/
 import { scoreToGrade } from '@/lib/domain/grading';
 import type {
   AdmissionsConfig,
+  AttendancePolicyInput,
   BrandingConfig,
   EnrollmentPolicy,
   GradeBand,
@@ -14,6 +15,7 @@ import type {
 } from '@/lib/domain/config';
 import {
   saveAdmissionsAction,
+  saveAttendanceAction,
   saveBrandingAction,
   saveEnrollmentAction,
   saveGradingAction,
@@ -309,6 +311,95 @@ export function EnrollmentForm({
             type="number" min={0} defaultValue={config.outstandingBalanceToleranceMinor}
             className="tabular-nums" />
         </Field>
+      </div>
+
+      <Save />
+    </form>
+  );
+}
+
+// -----------------------------------------------------------------------------
+// Attendance
+// -----------------------------------------------------------------------------
+
+/**
+ * The only setting on this page that can take something away from a student.
+ *
+ * So enforcement is a switch of its own, off by default, with the consequence
+ * spelled out beside it rather than implied by the label. A school that turns
+ * this on before its lecturers are reliably taking registers bars students for
+ * classes nobody marked, and will not find out until the examination hall.
+ */
+export function AttendanceForm({ config }: { config: AttendancePolicyInput }) {
+  const [state, action] = useActionState<SettingsState, FormData>(saveAttendanceAction, {});
+  const [enforced, setEnforced] = useState(config.enforced);
+
+  return (
+    <form action={action} className="space-y-4">
+      <Result state={state} />
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <Field
+          label="Attendance required to sit an examination (%)"
+          htmlFor="examEligibilityThreshold"
+          hint="75% is the usual figure"
+        >
+          <Input
+            id="examEligibilityThreshold"
+            name="examEligibilityThreshold"
+            type="number"
+            min={0}
+            max={100}
+            defaultValue={config.examEligibilityThreshold}
+            className="tabular-nums"
+          />
+        </Field>
+
+        <Field
+          label="Warn a student below (%)"
+          htmlFor="warningThreshold"
+          hint="Must be at or above the figure that bars them"
+        >
+          <Input
+            id="warningThreshold"
+            name="warningThreshold"
+            type="number"
+            min={0}
+            max={100}
+            defaultValue={config.warningThreshold}
+            className="tabular-nums"
+          />
+        </Field>
+      </div>
+
+      <div className="rounded-xl border border-slate-200 p-4">
+        <label className="flex cursor-pointer items-start gap-3">
+          <input
+            type="checkbox"
+            name="enforced"
+            defaultChecked={config.enforced}
+            onChange={(e) => setEnforced(e.target.checked)}
+            className="mt-0.5 h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+          />
+          <span>
+            <span className="block text-sm font-medium text-slate-900">
+              Enforce this rule
+            </span>
+            <span className="mt-0.5 block text-xs text-slate-600">
+              With this off, attendance is recorded and shown to lecturers and students, and
+              nobody is barred from anything.
+            </span>
+          </span>
+        </label>
+
+        {enforced && !config.enforced && (
+          <Alert tone="warning" className="mt-3">
+            Turning this on bars students below the threshold from their examinations, using the
+            registers your lecturers have taken so far. If registers have been missed, those
+            classes count towards nobody &mdash; check the attendance page of a few sections
+            before saving.
+          </Alert>
+        )}
       </div>
 
       <Save />
