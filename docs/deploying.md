@@ -180,8 +180,11 @@ and the driver by `tests/storage-s3.test.ts` against an injected transport.
 
 ### 3.1 Import the repository
 
-1. Push the repository to GitHub.
+1. The repository is already on GitHub, private:
+   **https://github.com/fxmonk101/matricula**
 2. Sign up at **vercel.com** and **Add New → Project**, then import it.
+   Vercel will ask for access to the GitHub account; a private repository is
+   fine and needs no change of visibility.
 3. Framework preset: **Next.js** (detected automatically).
 4. Do not deploy yet — set the environment variables first, or the first build
    will fail in a way that is tedious to read.
