@@ -6,8 +6,10 @@
  * outside a React Server Component graph.
  */
 
-import { dbFor } from '@/lib/tenant';
+import { dbFor, platformDb } from '@/lib/tenant';
 import type { NotificationKind } from '@/lib/domain/enums';
+import { emails, renderNotificationEmail } from '@/lib/domain/notify-policy';
+import { mailIsDeliverable, mailer } from '@/server/email';
 
 export interface NotifyInput {
   schoolId: string;
@@ -60,6 +62,88 @@ export async function notify(input: NotifyInput): Promise<void> {
     });
   } catch (error) {
     console.error('[notify] fan-out failed', input.kind, error);
+    // The bell is the record. If it failed there is nothing to email about.
+    return;
+  }
+
+  /*
+   * Email, for the kinds worth it, and NOT AWAITED.
+   *
+   * A grade posting that notifies four hundred students must not spend four
+   * hundred HTTP round trips inside the request that posted the grades. The
+   * bell row is already committed and is the durable record; the email is a
+   * courtesy about it, exactly as the bell is a courtesy about the action.
+   *
+   * `void` rather than `await`, and the helper swallows its own failures, so
+   * this can never become the reason a grade submission fails.
+   */
+  if (emails(input.kind) && mailIsDeliverable()) {
+    void emailRecipients(input, recipients);
+  }
+}
+
+/** How many messages are in flight at once. */
+const EMAIL_CONCURRENCY = 5;
+
+/**
+ * Send one notification to everybody who should get it by email.
+ *
+ * Addresses are read here rather than passed in, because the caller has
+ * membership ids and no business assembling a recipient list. Anybody without
+ * an email address is skipped silently: a username-only account is normal in
+ * this market and is not an error.
+ */
+async function emailRecipients(input: NotifyInput, recipients: string[]): Promise<void> {
+  try {
+    const [people, school] = await Promise.all([
+      dbFor(input.schoolId).membership.findMany({
+        where: { id: { in: recipients }, status: 'ACTIVE' },
+        select: { user: { select: { email: true, firstName: true } } },
+      }),
+      platformDb.school.findUnique({
+        where: { id: input.schoolId },
+        select: { name: true },
+      }),
+    ]);
+
+    const targets = people
+      .map((m) => m.user)
+      .filter((u): u is { email: string; firstName: string } => Boolean(u.email));
+    if (targets.length === 0) return;
+
+    const transport = await mailer();
+    const base = process.env.APP_URL?.replace(/\/+$/, '') ?? null;
+    const url = base && input.href ? `${base}${input.href}` : null;
+
+    /*
+     * A small fixed window rather than Promise.all over the lot. Four hundred
+     * simultaneous requests is how a provider decides you are abusive, and
+     * the 429 that follows loses the messages for everybody.
+     */
+    for (let i = 0; i < targets.length; i += EMAIL_CONCURRENCY) {
+      const slice = targets.slice(i, i + EMAIL_CONCURRENCY);
+      await Promise.all(
+        slice.map(async (person) => {
+          const message = renderNotificationEmail({
+            schoolName: school?.name ?? 'Your school',
+            recipientName: person.firstName,
+            title: input.title,
+            body: input.body,
+            url,
+          });
+          const sent = await transport.send({
+            to: person.email,
+            subject: message.subject,
+            body: message.body,
+          });
+          if (!sent.ok) {
+            console.error('[notify] email failed', input.kind, sent.error);
+          }
+        }),
+      );
+    }
+  } catch (error) {
+    console.error('[notify] email fan-out failed', input.kind, error);
   }
 }
 

@@ -89,6 +89,16 @@ export async function middleware(request: NextRequest) {
    * The cookie is scoped to /operator, so the browser does not even send it to
    * a school's pages — a bug in tenant code cannot read it.
    */
+  /*
+   * Scheduled jobs carry no session and must not be sent to a login page.
+   *
+   * These routes authenticate THEMSELVES against a shared secret, because
+   * the caller is a scheduler rather than a person and there is no cookie to
+   * check. Scoped to /api/cron rather than the whole of /api so that a future
+   * API route does not inherit an exemption nobody meant to give it.
+   */
+  if (pathname.startsWith('/api/cron/')) return NextResponse.next();
+
   if (pathname === '/operator' || pathname.startsWith('/operator/')) {
     if (pathname === '/operator/login') return NextResponse.next();
 
