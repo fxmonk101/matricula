@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import Link from 'next/link';
 
 import { requireTenantRole } from '@/server/tenant-context';
 import { listPeople, peopleSummary } from '@/server/services/people.service';
@@ -66,6 +67,14 @@ export default async function PeoplePage({
       <PageHeader
         title="People"
         description={`Everybody with an account at ${school.shortName}. Suspending somebody here removes their access to this school only — their account, and any membership they hold elsewhere, is untouched.`}
+        actions={
+          <Link
+            href="/people/import"
+            className="text-xs font-medium text-brand-700 hover:underline"
+          >
+            Import from a spreadsheet →
+          </Link>
+        }
       />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

@@ -121,6 +121,10 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { href: '/setup', label: 'Get Started', roles: ['ADMIN'], icon: 'check' },
       { href: '/people', label: 'People', roles: ['ADMIN', 'REGISTRAR'], icon: 'team' },
+      // The way a real intake actually arrives. Offered beside People rather
+      // than buried inside it, because a registry looking for it on day one
+      // is looking for the words "import", not for a person.
+      { href: '/people/import', label: 'Import People', roles: ['ADMIN', 'REGISTRAR'], icon: 'team' },
       { href: '/settings/school', label: 'Settings', roles: ['ADMIN'], icon: 'cog' },
       { href: '/admin/audit', label: 'Audit Log', roles: ['ADMIN'], icon: 'doc' },
     ],
