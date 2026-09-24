@@ -217,7 +217,8 @@ to work (give Preview its own Neon branch rather than pointing it at production)
 | `MAIL_DRIVER` | `resend` | Or `brevo` |
 | `MAIL_API_KEY` | from §4 | |
 | `MAIL_FROM` | `Matricula <portal@yourdomain.com>` | Must be on a **verified** domain |
-| `CRON_SECRET` | 32 random bytes | §3.6 |
+| `CRON_SECRET` | 32 random bytes | §3.6. The cron route REFUSES to run without it |
+| `APP_URL` | `https://yourdomain.com` | Turns a notification link into one that works in an email |
 
 Generate the secrets:
 
@@ -298,7 +299,12 @@ never signed out. It is written and tested but **nothing currently calls it**,
 so without this step those sessions stay open indefinitely and the attendance
 records are wrong.
 
-Create `vercel.json` in the repository root:
+`vercel.json` is already in the repository with the schedule below, and the
+route it calls is `src/app/api/cron/sweep-presence/route.ts`. It sweeps every
+school in one pass, and authenticates against `CRON_SECRET` in constant time —
+answering 404 rather than 401, so probing it reveals nothing.
+
+For reference:
 
 ```json
 {
@@ -308,10 +314,14 @@ Create `vercel.json` in the repository root:
 }
 ```
 
-That runs at 22:00 UTC — 23:00 in Lagos, after the teaching day. The route
-handler it calls still needs writing, and it must check the
-`Authorization: Bearer <CRON_SECRET>` header that Vercel sends, or anyone who
-finds the URL can close everybody's sessions.
+That runs at 22:00 UTC — 23:00 in Lagos, after the teaching day. Vercel sends
+`Authorization: Bearer <CRON_SECRET>`, which is what the route checks.
+
+On any other host, any scheduler that can send that header will do:
+
+```bash
+curl -H "Authorization: Bearer $CRON_SECRET" https://yourdomain.com/api/cron/sweep-presence
+```
 
 ---
 
@@ -389,6 +399,20 @@ Check these in order. Each one has failed in testing at some point.
       student on the same course gets a 404 on that submission's file URL.
 - [ ] Trigger a password reset and confirm the email arrives.
 - [ ] Confirm the favicon and logo are the Matricula crest, not a placeholder.
+- [ ] Import a few students from a CSV at `/people/import`, checking the preview
+      counts before confirming. Download the passwords — they cannot be shown again.
+- [ ] Post an announcement to one role only, then sign in as a different role and
+      confirm it is not visible.
+- [ ] Set a quiz with a time limit, sit it as a student, and check the network tab:
+      the paper must carry no `isCorrect` anywhere.
+- [ ] Take a register, then confirm the percentage appears on that student’s own
+      course page.
+- [ ] `curl -I https://yourdomain.com` and confirm exactly ONE
+      `content-security-policy` header carrying a `nonce-` that CHANGES between
+      requests. Two headers means the browser enforces their intersection and
+      something will be silently blocked.
+- [ ] Call the cron route with a wrong secret (expect 404) and the right one
+      (expect 200, and a JSON body naming how many sessions it closed).
 
 The seventh is the one to do properly. It is the only check here that catches a
 tenancy or authorisation failure, and those are silent.
