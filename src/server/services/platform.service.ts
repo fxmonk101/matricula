@@ -250,6 +250,23 @@ export async function provisionSchool(params: {
         },
       });
 
+      /*
+       * A starter programme, for the reason stated on `StarterUnit`:
+       * `Student.programId` is required, so without one a freshly provisioned
+       * school cannot create a single student. A K-12 school would never
+       * think to make one, and would simply find that nothing worked.
+       */
+      await tx.program.create({
+        data: {
+          schoolId: school.id,
+          departmentId: department.id,
+          code: unit.programCode,
+          name: unit.programName,
+          degreeType: unit.programDegreeType,
+          durationTerms: unit.programDurationTerms,
+        },
+      });
+
       // Org units mirror the academic structure, and the presence roll-up reads
       // them — so they are created together or the two disagree from day one.
       const facultyUnit = await tx.orgUnit.create({

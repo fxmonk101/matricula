@@ -153,12 +153,20 @@ export default async function ClassDetailPage({
                         </div>
                       </Td>
                       <Td className="text-right">
-                        <Link
-                          href={`/classes/${id}/marks/${a.id}`}
-                          className="text-xs font-medium text-brand-700 hover:underline"
-                        >
-                          {complete ? 'Review' : 'Enter'}
-                        </Link>
+                        <span className="inline-flex items-center gap-3">
+                          <Link
+                            href={`/classes/${id}/subjects/${a.id}`}
+                            className="text-xs font-medium text-brand-700 hover:underline"
+                          >
+                            Content
+                          </Link>
+                          <Link
+                            href={`/classes/${id}/marks/${a.id}`}
+                            className="text-xs font-medium text-brand-700 hover:underline"
+                          >
+                            {complete ? 'Review' : 'Enter'}
+                          </Link>
+                        </span>
                       </Td>
                     </tr>
                   );

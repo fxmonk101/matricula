@@ -417,6 +417,9 @@ export const ROUTE_GUARDS: RouteGuard[] = [
   // because that guard admits ADMISSIONS, who have no business reading
   // coursework, and because this is the student's own view of their own course.
   { prefix: '/me/courses', roles: ['STUDENT'] },
+  // The K-12 counterpart. A pupil does not register for subjects — they are
+  // in a form class and the class has subjects — but the audience is the same.
+  { prefix: '/me/subjects', roles: ['STUDENT'] },
   { prefix: '/portal', roles: ['APPLICANT'] },
   { prefix: '/classes', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'INSTRUCTOR'] },
   { prefix: '/reports', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'INSTRUCTOR'] },

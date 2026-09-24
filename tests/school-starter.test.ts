@@ -149,3 +149,40 @@ describe('the codes provisioning writes', () => {
     }
   });
 });
+
+describe('a starter programme', () => {
+  it('exists for both academic models', () => {
+    /*
+     * `Student.programId` is required, so a school with no programme cannot
+     * create a single student. Provisioning creates a faculty and a department
+     * for staff and used to stop there — which meant a newly provisioned school
+     * could take on teachers and then find it could not enrol anybody.
+     */
+    for (const model of ['HIGHER_ED', 'K12']) {
+      const unit = starterUnitFor(model);
+      expect(unit.programCode).toBeTruthy();
+      expect(unit.programName).toBeTruthy();
+      expect(unit.programDurationTerms).toBeGreaterThan(0);
+    }
+  });
+
+  it('does not collide with the faculty or department code', () => {
+    /*
+     * The same class of bug as the faculty/department code collision that
+     * already rolled a whole provisioning transaction back: distinct tables
+     * here, but a reader comparing three codes should not have to check.
+     */
+    for (const model of ['HIGHER_ED', 'K12']) {
+      const unit = starterUnitFor(model);
+      const codes = [unit.facultyCode, unit.departmentCode, unit.programCode];
+      expect(new Set(codes).size).toBe(codes.length);
+    }
+  });
+
+  it('calls the K-12 one something a secondary school will understand', () => {
+    // "BSc General Studies" on a JSS 1 pupil's record is worse than nothing.
+    const k12 = starterUnitFor('K12');
+    expect(k12.programName.toLowerCase()).toContain('pupil');
+    expect(k12.programDegreeType).not.toBe('BSC');
+  });
+});

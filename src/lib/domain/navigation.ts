@@ -97,10 +97,15 @@ export const NAV_SECTIONS: NavSection[] = [
     items: [
       { href: '/presence', label: 'Sign In / Out', roles: ['ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'FINANCE', 'ADMISSIONS', 'INSTRUCTOR', 'LIBRARIAN', 'STAFF', 'STUDENT'], icon: 'check' },
       { href: '/presence/teaching', label: 'Teaching Log', roles: ['INSTRUCTOR', 'HOD', 'DEAN', 'ADMIN', 'REGISTRAR'], icon: 'book' },
-      // A student's own courses. HIGHER_ED only for now: a K-12 pupil's subjects
-      // hang off SubjectAssignment, which the content layer is shaped for but
-      // does not yet serve.
+      // A student's own courses, and a pupil's own subjects. They are separate
+      // entries rather than one because they read from different roster models
+      // — Enrollment for a university, ClassEnrolment for a form class — and a
+      // single page branching on the academic model would be two pages sharing
+      // a URL.
       { href: '/me/courses', label: 'My Courses', roles: ['STUDENT'], models: ['HIGHER_ED'], icon: 'book' },
+      // And the K-12 one, which is why the comment above no longer says the
+      // content layer does not serve a form class. It does now.
+      { href: '/me/subjects', label: 'My Subjects', roles: ['STUDENT'], models: ['K12'], icon: 'book' },
       // Offered only to the roles that actually oversee somebody. A lecturer
       // following this to an empty table would reasonably conclude it is broken.
       { href: '/presence/team', label: 'Team Register', roles: ['ADMIN', 'REGISTRAR', 'DEAN', 'HOD'], icon: 'team' },

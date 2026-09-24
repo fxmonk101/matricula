@@ -123,6 +123,18 @@ export interface StarterUnit {
   facultyName: string;
   departmentCode: string;
   departmentName: string;
+  /**
+   * A starter programme.
+   *
+   * `Student.programId` is REQUIRED, so a school with no programme cannot
+   * create a single student — and a secondary school will never think to make
+   * one, because a pupil is in a form class rather than reading for a degree.
+   * A new K-12 school could not enrol anybody at all until this existed.
+   */
+  programCode: string;
+  programName: string;
+  programDegreeType: string;
+  programDurationTerms: number;
 }
 
 /**
@@ -151,6 +163,16 @@ export const STARTER_UNIT: StarterUnit = {
    */
   departmentCode: 'GST',
   departmentName: 'General Studies',
+  /*
+   * Named so a registrar renames it rather than wondering what it is for.
+   * Four years is the commonest Nigerian first degree; a school that runs
+   * five- or six-year programmes edits this before its first intake, which
+   * it would be doing anyway.
+   */
+  programCode: 'GEN-PROG',
+  programName: 'General Programme',
+  programDegreeType: 'BSC',
+  programDurationTerms: 8,
 };
 
 /** The K-12 equivalent: a school has forms, not faculties. */
@@ -159,6 +181,16 @@ export const STARTER_UNIT_K12: StarterUnit = {
   facultyName: 'The School',
   departmentCode: 'GEN',
   departmentName: 'General',
+  /*
+   * A secondary school has no programmes, and this one exists only because
+   * the Student row cannot be written without it. Named plainly so nobody
+   * spends an afternoon working out what it means: pupils are organised by
+   * form class, which is what the school actually uses.
+   */
+  programCode: 'GEN-PUPIL',
+  programName: 'General (pupils)',
+  programDegreeType: 'CERTIFICATE',
+  programDurationTerms: 6,
 };
 
 export function starterUnitFor(academicModel: string): StarterUnit {
