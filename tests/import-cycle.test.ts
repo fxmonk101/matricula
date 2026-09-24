@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { PrismaClient } from '@prisma/client';
 
 import { planImport, runImport } from '@/server/services/import.service';
+import { verifyPassword } from '@/lib/auth/password';
 
 /**
  * =============================================================================
@@ -270,5 +271,57 @@ describe('tenancy', () => {
     } finally {
       await raw.school.deleteMany({ where: { id: other.id } });
     }
+  });
+});
+
+describe('the password the import hands out', () => {
+  it('ACTUALLY SIGNS IN — otherwise the whole feature is decorative', async () => {
+    /*
+     * The chain nobody checks until a registry has distributed two thousand
+     * slips of paper. The importer returns a password, the account stores only
+     * a hash of it, and if those two ever disagree the failure surfaces as
+     * hundreds of students who "cannot log in" with no way to tell which half
+     * is wrong.
+     */
+    const result = await runImport({
+      ...actor(),
+      kind: 'STUDENT',
+      text: STUDENT_HEADER + `Signin,Probe,signin-${SUFFIX}@x.test,,BSC-CSC,100\n`,
+    });
+
+    expect(result.created).toBe(1);
+    const credential = result.credentials[0];
+    expect(credential.password.length).toBeGreaterThan(8);
+
+    const user = await raw.user.findFirstOrThrow({
+      where: { email: `signin-${SUFFIX}@x.test` },
+    });
+
+    expect(await verifyPassword(credential.password, user.passwordHash)).toBe(true);
+
+    // A wrong password must NOT verify, or the assertion above proves nothing.
+    expect(await verifyPassword(`${credential.password}x`, user.passwordHash)).toBe(false);
+
+    /*
+     * And they are made to change it. A one-time password that stays valid
+     * forever is a shared secret written on a slip of paper in a hall.
+     */
+    expect(user.mustChangePassword).toBe(true);
+  });
+
+  it('gives them an identifier they can type from memory', async () => {
+    // The matriculation number, not a cuid: it is the string a student still
+    // knows in third year, long after they have forgotten anything else.
+    const result = await runImport({
+      ...actor(),
+      kind: 'STUDENT',
+      text: STUDENT_HEADER + `Identifier,Probe,ident-${SUFFIX}@x.test,,BSC-CSC,100\n`,
+    });
+
+    expect(result.credentials[0].identifier).toBeTruthy();
+    const student = await raw.student.findFirstOrThrow({
+      where: { user: { email: `ident-${SUFFIX}@x.test` } },
+    });
+    expect(result.credentials[0].identifier).toBe(student.matricNumber);
   });
 });

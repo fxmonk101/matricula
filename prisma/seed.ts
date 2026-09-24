@@ -1235,6 +1235,26 @@ async function main() {
   );
   console.log(`  MIT  ${mitLib.added} resources (${mitLib.refused} refused) · ${mitLib.views} views`);
 
+  // --- course content, a quiz and a register ---------------------------------
+  /*
+   * Previously absent, and its absence was the worst first impression the
+   * demo could make: a school with students, staff, fees, tasks, forums and a
+   * library, and every LMS, quiz and attendance screen EMPTY — the half of the
+   * product a university actually asks to see.
+   */
+  console.log('\nSeeding course content, a quiz and registers…');
+  const { seedTeaching } = await import('./seed-teaching');
+  for (const s of [geu, mit]) {
+    const taught = await seedTeaching(db, s.schoolId, day(0));
+    console.log(
+      taught.skipped
+        ? `  ${s.school.code}: already seeded, left alone`
+        : `  ${s.school.code}: ${taught.modules} modules · ${taught.items} items · `
+          + `${taught.quizzes} quiz (${taught.attempts} sat) · ${taught.sessions} classes · `
+          + `${taught.marks} attendance marks`,
+    );
+  }
+
   // An escalation sweep, so overdue work has actually escalated and the bell
   // has something in it on first sign-in.
   const { runEscalationSweep } = await import('../src/server/services/task.service');
