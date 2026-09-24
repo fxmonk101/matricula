@@ -166,6 +166,18 @@ export function CourseModules({
                               {item.title}
                             </span>
                           )
+                        ) : item.kind === 'QUIZ' ? (
+                          /*
+                            By ITEM, not by coursework: the quiz route needs
+                            the module item so it can check the item and its
+                            module are both published before opening a paper.
+                          */
+                          <Link
+                            href={`/me/courses/${offeringId}/quiz/${item.id}`}
+                            className="block truncate text-sm font-medium text-violet-700 hover:underline"
+                          >
+                            {item.title}
+                          </Link>
                         ) : item.kind === 'COURSEWORK' && item.courseworkId ? (
                           <Link
                             href={`/me/courses/${offeringId}/${item.courseworkId}`}

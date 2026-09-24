@@ -35,7 +35,9 @@ const EARLIER = new Date('2026-09-14T09:00:00.000Z');
 describe('vocabulary', () => {
   it('knows its own item kinds', () => {
     for (const kind of MODULE_ITEM_KINDS) expect(isModuleItemKind(kind)).toBe(true);
-    expect(isModuleItemKind('QUIZ')).toBe(false);
+    // QUIZ used to sit here as the example of a kind that does not exist. It
+    // does now, which is exactly the kind of drift this loop is for.
+    expect(isModuleItemKind('PODCAST')).toBe(false);
     expect(isModuleItemKind('')).toBe(false);
   });
 
@@ -189,7 +191,7 @@ describe('validating an item', () => {
   });
 
   it('refuses a kind it does not recognise', () => {
-    expect(validateItemDraft({ kind: 'QUIZ', title: 'Test' }).join(' ')).toMatch(/what kind/);
+    expect(validateItemDraft({ kind: 'PODCAST', title: 'Test' }).join(' ')).toMatch(/what kind/);
   });
 
   it('reports every problem at once', () => {

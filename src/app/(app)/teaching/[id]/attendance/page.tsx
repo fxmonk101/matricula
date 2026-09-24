@@ -108,6 +108,12 @@ export default async function AttendancePage({
         actions={
           <div className="flex items-center gap-3">
             <Link
+              href={`/teaching/${offeringId}/quizzes`}
+              className="text-xs font-medium text-brand-700 hover:underline"
+            >
+              Quizzes →
+            </Link>
+            <Link
               href={`/teaching/${offeringId}/modules`}
               className="text-xs font-medium text-brand-700 hover:underline"
             >

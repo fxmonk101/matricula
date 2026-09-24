@@ -18,7 +18,14 @@
 // Vocabulary
 // -----------------------------------------------------------------------------
 
-export const MODULE_ITEM_KINDS = ['PAGE', 'FILE', 'LINK', 'COURSEWORK', 'MEETING'] as const;
+export const MODULE_ITEM_KINDS = [
+  'PAGE',
+  'FILE',
+  'LINK',
+  'COURSEWORK',
+  'QUIZ',
+  'MEETING',
+] as const;
 export type ModuleItemKind = (typeof MODULE_ITEM_KINDS)[number];
 
 export const ITEM_KIND_LABELS: Record<ModuleItemKind, string> = {
@@ -26,8 +33,22 @@ export const ITEM_KIND_LABELS: Record<ModuleItemKind, string> = {
   FILE: 'File',
   LINK: 'Link',
   COURSEWORK: 'Assignment',
+  QUIZ: 'Quiz',
   MEETING: 'Virtual class',
 };
+
+/**
+ * A QUIZ is a COURSEWORK that marks itself.
+ *
+ * Both kinds carry a `Coursework` row and both produce a `Submission`; the
+ * quiz adds a paper and an automatic marking pass. Keeping them separate
+ * KINDS rather than a flag on one is what lets a student see at a glance
+ * whether an item is something to write or something to sit, which is the
+ * distinction they care about on a module list.
+ */
+export function isGradedKind(kind: ModuleItemKind): boolean {
+  return kind === 'COURSEWORK' || kind === 'QUIZ';
+}
 
 /**
  * `COURSEWORK` is labelled "Assignment" because that is what a lecturer calls

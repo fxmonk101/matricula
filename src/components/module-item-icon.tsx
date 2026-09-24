@@ -48,6 +48,18 @@ export function ModuleItemIcon({ kind }: { kind: ModuleItemKind }) {
         </span>
       );
 
+    case 'QUIZ':
+      // A checklist with a clock face, so a quiz reads as timed at a glance
+      // and is never mistaken for an essay on a list of twenty items.
+      return (
+        <span className="grid h-7 w-7 shrink-0 place-items-center rounded-md bg-violet-50 text-violet-700">
+          <svg viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.6" className={common} aria-hidden>
+            <circle cx="10" cy="10" r="6.5" />
+            <path d="M10 6.5V10l2.2 1.6" strokeLinecap="round" strokeLinejoin="round" />
+          </svg>
+        </span>
+      );
+
     case 'COURSEWORK':
       // A clipboard — the PRD's own choice, and the conventional one.
       return (

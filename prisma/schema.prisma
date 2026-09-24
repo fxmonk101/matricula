@@ -106,6 +106,10 @@ model School {
   submissions       Submission[]
   virtualClasses    VirtualClass[]
   classAttendance   ClassAttendance[]
+  quizzes           Quiz[]
+  quizQuestions     QuizQuestion[]
+  quizOptions       QuizOption[]
+  quizAttempts      QuizAttempt[]
 
   @@index([status])
   @@map("schools")
@@ -865,12 +869,13 @@ model Enrollment {
   /// under the "best attempt" policy).
   isRepeatSuperseded Boolean @default(false)
 
-  enrolledAt  DateTime          @default(now())
-  droppedAt   DateTime?
-  gradedAt    DateTime?
-  updatedAt   DateTime          @updatedAt
-  submissions Submission[]
-  attendance  ClassAttendance[]
+  enrolledAt   DateTime          @default(now())
+  droppedAt    DateTime?
+  gradedAt     DateTime?
+  updatedAt    DateTime          @updatedAt
+  submissions  Submission[]
+  attendance   ClassAttendance[]
+  quizAttempts QuizAttempt[]
 
   @@unique([studentId, offeringId])
   @@index([schoolId])
@@ -2443,6 +2448,7 @@ model Coursework {
   updatedAt DateTime @updatedAt
 
   submissions Submission[]
+  quiz        Quiz?
 
   @@index([schoolId])
   @@map("coursework")
@@ -2553,6 +2559,146 @@ model ClassAttendance {
   @@index([schoolId, teachingLogId])
   @@index([enrollmentId])
   @@map("class_attendance")
+}
+
+/// A quiz: a piece of coursework that marks itself.
+///
+/// Hangs off COURSEWORK rather than standing alone, and that is the whole
+/// design. A quiz with its own scores and its own roll-up would mean two
+/// answers to "what is this student's continuous assessment", and one day a
+/// lecturer would find them disagreeing. This way the gradebook, the CA
+/// weighting, due dates, late handling and the student's course page all work
+/// on a quiz without being told it is one.
+model Quiz {
+  id           String     @id @default(cuid())
+  schoolId     String
+  school       School     @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  courseworkId String     @unique
+  coursework   Coursework @relation(fields: [courseworkId], references: [id], onDelete: Cascade)
+
+  /// Null means untimed. The coursework's own due date still applies.
+  timeLimitMinutes Int?
+  maxAttempts      Int  @default(1)
+
+  shuffleQuestions Boolean @default(false)
+  shuffleOptions   Boolean @default(false)
+
+  /// RevealPolicy: NEVER | AFTER_SUBMIT | AFTER_DUE
+  ///
+  /// AFTER_DUE exists because AFTER_SUBMIT leaks a paper: on a quiz a class
+  /// sits over a week, the first student to finish can hand the answers to
+  /// everybody who has not started.
+  reveal String @default("AFTER_DUE")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  questions QuizQuestion[]
+  attempts  QuizAttempt[]
+
+  @@index([schoolId])
+  @@map("quizzes")
+}
+
+model QuizQuestion {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  quizId   String
+  quiz     Quiz   @relation(fields: [quizId], references: [id], onDelete: Cascade)
+
+  /// Sparse, like module items: reordering rewrites one row, not the paper.
+  position Int
+
+  /// QuestionKind: SINGLE_CHOICE | MULTI_CHOICE | TRUE_FALSE | SHORT_ANSWER
+  kind   String
+  prompt String
+
+  /// Marks for THIS question. The quiz is worth their sum, which is what the
+  /// coursework's pointsPossible is kept equal to.
+  points Float @default(1)
+
+  /// SHORT_ANSWER only: accepted answers, one per line, matched after
+  /// normalising case and whitespace. A question with none cannot be marked
+  /// and is refused before the paper can be published.
+  acceptedAnswers String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  options QuizOption[]
+
+  @@unique([quizId, position])
+  @@index([schoolId, quizId])
+  @@map("quiz_questions")
+}
+
+model QuizOption {
+  id         String       @id @default(cuid())
+  schoolId   String
+  school     School       @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  questionId String
+  question   QuizQuestion @relation(fields: [questionId], references: [id], onDelete: Cascade)
+
+  position  Int
+  text      String
+  isCorrect Boolean @default(false)
+
+  @@unique([questionId, position])
+  @@index([schoolId, questionId])
+  @@map("quiz_options")
+}
+
+/// One sitting of a quiz by one student.
+///
+/// ANSWERS ARE JSON, deliberately. They are written whole on every autosave and
+/// read whole when marking, never queried by their parts — so a row per answer
+/// would cost two joins and a great many writes to buy nothing. Item analysis
+/// ("which question did the cohort fail?") is computed in memory from these,
+/// which for a cohort of four hundred is one query.
+model QuizAttempt {
+  id       String @id @default(cuid())
+  schoolId String
+  school   School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  quizId   String
+  quiz     Quiz   @relation(fields: [quizId], references: [id], onDelete: Cascade)
+
+  /// The enrolment, not the student — as everywhere else in this package.
+  enrollmentId String
+  enrollment   Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+
+  /// Lines up with Submission.attempt, so the two describe the same sitting.
+  attempt Int @default(1)
+
+  startedAt   DateTime  @default(now())
+  submittedAt DateTime?
+
+  /// The question order THIS student saw, frozen at the start.
+  ///
+  /// Stored rather than recomputed, so a refresh cannot reshuffle the paper
+  /// under somebody halfway through it.
+  orderJson String
+
+  /// Answers as given. Overwritten on every autosave.
+  answersJson String @default("[]")
+
+  /// Marks from the automatic pass. Kept separate from the Submission's score
+  /// so that a lecturer overriding a mark does not erase what the machine said.
+  autoScore Float?
+
+  /// True when a typed answer did not match and a person must look.
+  needsReview Boolean @default(false)
+
+  /// The Submission this sitting produced, once handed in.
+  submissionId String? @unique
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([quizId, enrollmentId, attempt])
+  @@index([schoolId, quizId])
+  @@index([enrollmentId])
+  @@map("quiz_attempts")
 }
 
 /// A virtual class: a join link with a time on it.
