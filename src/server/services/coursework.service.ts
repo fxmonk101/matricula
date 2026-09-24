@@ -5,7 +5,7 @@ import {
   validateSubmission,
   type CourseworkDraft,
 } from '@/lib/domain/coursework';
-import { nextPosition, validateItemDraft } from '@/lib/domain/lms';
+import { GRADED_ITEM_KINDS, nextPosition, validateItemDraft } from '@/lib/domain/lms';
 import {
   computeCaScore,
   previewPost,
@@ -561,7 +561,12 @@ export async function loadGradebook(params: { schoolId: string; offeringId: stri
         orderBy: { position: 'asc' },
         include: {
           items: {
-            where: { kind: 'COURSEWORK' },
+            /*
+             * Both graded kinds. A quiz IS a piece of coursework — it carries a
+             * Coursework row and writes a Submission — so leaving it out here
+             * meant it was marked and then quietly dropped from the CA roll-up.
+             */
+            where: { kind: { in: [...GRADED_ITEM_KINDS] } },
             orderBy: { position: 'asc' },
             include: { coursework: true },
           },

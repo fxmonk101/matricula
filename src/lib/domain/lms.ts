@@ -46,8 +46,20 @@ export const ITEM_KIND_LABELS: Record<ModuleItemKind, string> = {
  * whether an item is something to write or something to sit, which is the
  * distinction they care about on a module list.
  */
+/**
+ * The kinds that carry a Coursework row, and therefore a mark.
+ *
+ * A LIST rather than only a predicate, because the query that feeds the
+ * gradebook has to filter on it and a Prisma `where` cannot call a function.
+ * That mattered: the gradebook filtered on the literal `COURSEWORK` and a quiz
+ * was invisible to it — sat, marked, a Submission written, and left out of
+ * continuous assessment entirely. A student who did a quiz and an essay had
+ * only the essay counted.
+ */
+export const GRADED_ITEM_KINDS = ['COURSEWORK', 'QUIZ'] as const satisfies readonly ModuleItemKind[];
+
 export function isGradedKind(kind: ModuleItemKind): boolean {
-  return kind === 'COURSEWORK' || kind === 'QUIZ';
+  return (GRADED_ITEM_KINDS as readonly ModuleItemKind[]).includes(kind);
 }
 
 /**
