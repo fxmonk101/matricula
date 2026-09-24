@@ -1,55 +1,25 @@
 /**
- * Content-Security-Policy notes
- * -----------------------------
- * Forums make this necessary rather than merely good practice: from Phase 4
- * onwards one user's text is rendered in another user's browser. The renderer
- * in `src/lib/domain/markdown.ts` is the primary defence — it escapes before it
- * transforms, so user input cannot become markup. CSP is the second line, for
- * the day a bug gets past the first.
+ * Content-Security-Policy
+ * -----------------------
+ * THE POLICY NOW LIVES IN `src/middleware.ts`, not here.
  *
- * `'unsafe-inline'` on script-src is present and NOT accidental. Next.js App
- * Router streams RSC payloads and its bootstrap through inline `<script>` tags,
- * and removing it breaks hydration outright. The correct fix is per-request
- * nonces, which means generating one in middleware and threading it through the
- * document — worth doing, but it is a change to every rendered page rather than
- * a config line, so it is recorded here as owed rather than pretended away.
+ * It had to move because the useful version carries a per-request nonce, and
+ * a header configured in this file is the same bytes for every response —
+ * which is the definition of a nonce that is not one.
  *
- * What this policy DOES buy, today:
+ * What that bought: `script-src 'unsafe-inline'` is gone. It was noted here as
+ * owed rather than pretended away, and it mattered because forums, module
+ * pages and announcements render one person's text in another person's
+ * browser. The markdown renderer escapes before it transforms, so user input
+ * cannot become markup — but CSP is the second line for the day a bug gets
+ * past the first, and with 'unsafe-inline' that second line did nothing.
  *
- *   - `object-src 'none'` kills <object>/<embed> plugin vectors outright.
- *   - `base-uri 'self'` stops an injected <base> rewriting every relative URL
- *     on the page to an attacker's origin.
- *   - `form-action 'self'` stops an injected form posting credentials offsite.
- *   - `frame-ancestors 'none'` blocks clickjacking (and supersedes the older
- *     X-Frame-Options header, which is kept for ancient browsers).
- *   - `connect-src 'self'` means injected script cannot exfiltrate to a remote
- *     endpoint — which removes most of the value of an XSS even if one lands.
+ * Deliberately NOT duplicated here. Two policies on one response means the
+ * browser enforces the INTERSECTION, and a stale copy in this file would
+ * silently block the nonced scripts the middleware just allowed.
  *
- * In development the policy is relaxed: the dev server needs `'unsafe-eval'`
- * for React Fast Refresh and a websocket for HMR. Shipping those to production
- * would be a real weakening, so the split is explicit.
+ * The headers below are the ones that do not vary per request.
  */
-const isDev = process.env.NODE_ENV === 'development';
-
-const csp = [
-  "default-src 'self'",
-  `script-src 'self' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ''}`,
-  // Tailwind injects styles at build time, but styled-jsx and inline style
-  // attributes (school brand colours) need this.
-  "style-src 'self' 'unsafe-inline'",
-  // data: for inlined icons; blob: for anything generated client-side.
-  "img-src 'self' data: blob:",
-  "font-src 'self' data:",
-  `connect-src 'self'${isDev ? ' ws: wss:' : ''}`,
-  "object-src 'none'",
-  "base-uri 'self'",
-  "form-action 'self'",
-  "frame-ancestors 'none'",
-  "manifest-src 'self'",
-  // Nothing in this app is framed, and no plugin content is loaded.
-  "child-src 'none'",
-  ...(isDev ? [] : ['upgrade-insecure-requests']),
-].join('; ');
 
 /*
  * Build output directory
@@ -112,7 +82,6 @@ const nextConfig = {
       {
         source: '/:path*',
         headers: [
-          { key: 'Content-Security-Policy', value: csp },
           { key: 'X-Content-Type-Options', value: 'nosniff' },
           // Superseded by frame-ancestors above, kept for older browsers.
           { key: 'X-Frame-Options', value: 'DENY' },

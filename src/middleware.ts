@@ -75,7 +75,112 @@ function tenantSlug(pathname: string, host: string | null): string | null {
   });
 }
 
+/**
+ * =============================================================================
+ * CONTENT-SECURITY-POLICY NONCES
+ * =============================================================================
+ *
+ * `script-src 'unsafe-inline'` was recorded in next.config.mjs as owed rather
+ * than pretended away, and this is the payment.
+ *
+ * It mattered because forums, module pages and announcements all render one
+ * person's text in another person's browser. The markdown renderer escapes
+ * before it transforms, so user input cannot become markup — but CSP is the
+ * second line for the day a bug gets past the first, and with 'unsafe-inline'
+ * that second line did nothing against injected script.
+ *
+ * HOW IT WORKS. A fresh nonce per request goes into the CSP header on the
+ * REQUEST, which is where Next.js looks for it: it reads the policy, takes the
+ * nonce, and stamps it on every inline script it emits for hydration and RSC
+ * streaming. Anything it did not emit has no nonce and does not run.
+ *
+ * The nonce MUST be unpredictable and MUST NOT repeat — a reused nonce is a
+ * static allow-list with extra steps — so it comes from `crypto.getRandomValues`,
+ * which is available on the Edge runtime where `node:crypto` is not.
+ */
+function makeNonce(): string {
+  const bytes = new Uint8Array(16);
+  crypto.getRandomValues(bytes);
+  let binary = "";
+  for (const byte of bytes) binary += String.fromCharCode(byte);
+  return btoa(binary);
+}
+
+const isDev = process.env.NODE_ENV === "development";
+
+function cspFor(nonce: string): string {
+  return [
+    "default-src 'self'",
+    /*
+     * 'strict-dynamic' lets a nonced script load the chunks it needs without
+     * every chunk URL being listed. Without it, Next’s bootstrap runs and then
+     * fails to pull in the application, which is a blank page rather than a
+     * visible error.
+     *
+     * The 'unsafe-inline' below is IGNORED by any browser that understands
+     * nonces; it is there so an older one still gets a working page rather
+     * than a broken one. Dev additionally needs eval for Fast Refresh.
+     */
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' 'unsafe-inline'${isDev ? " 'unsafe-eval'" : ""}`,
+    /*
+     * Styles keep 'unsafe-inline' and that is a deliberate, stated limit.
+     * Tailwind emits a stylesheet, but a school’s brand colour is applied as an
+     * inline style attribute, and nonces do not cover attributes at all. The
+     * exposure is CSS injection, not script execution.
+     */
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "font-src 'self' data:",
+    `connect-src 'self'${isDev ? " ws: wss:" : ""}`,
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+    "manifest-src 'self'",
+    "child-src 'none'",
+    ...(isDev ? [] : ["upgrade-insecure-requests"]),
+  ].join("; ");
+}
+
+/**
+ * Continue, carrying the nonce.
+ *
+ * Every path through this file goes through here or through `finish`, because
+ * a response that escaped without the header would silently fall back to the
+ * weaker static policy in next.config.mjs and nobody would notice.
+ */
+function pass(request: NextRequest, headers?: Headers): NextResponse {
+  const nonce = request.headers.get("x-nonce") ?? makeNonce();
+  const forward = headers ?? new Headers(request.headers);
+  forward.set("x-nonce", nonce);
+  forward.set("content-security-policy", cspFor(nonce));
+
+  const response = NextResponse.next({ request: { headers: forward } });
+  response.headers.set("content-security-policy", cspFor(nonce));
+  return response;
+}
+
 export async function middleware(request: NextRequest) {
+  /*
+   * Minted once per request, before anything branches, and put on the request
+   * so every later `pass()` reuses it rather than minting a second one that
+   * would not match what was already sent.
+   */
+  request.headers.set("x-nonce", makeNonce());
+  const response = await route(request);
+
+  // Redirects and rewrites render nothing, but they still carry the policy:
+  // a rewrite serves HTML from another path, and it needs the same nonce.
+  if (!response.headers.has("content-security-policy")) {
+    response.headers.set(
+      "content-security-policy",
+      cspFor(request.headers.get("x-nonce") ?? ""),
+    );
+  }
+  return response;
+}
+
+async function route(request: NextRequest): Promise<NextResponse> {
   const { pathname } = request.nextUrl;
 
   /*
@@ -97,10 +202,10 @@ export async function middleware(request: NextRequest) {
    * check. Scoped to /api/cron rather than the whole of /api so that a future
    * API route does not inherit an exemption nobody meant to give it.
    */
-  if (pathname.startsWith('/api/cron/')) return NextResponse.next();
+  if (pathname.startsWith('/api/cron/')) return pass(request);
 
   if (pathname === '/operator' || pathname.startsWith('/operator/')) {
-    if (pathname === '/operator/login') return NextResponse.next();
+    if (pathname === '/operator/login') return pass(request);
 
     const operator = await verifyOperatorSession(
       request.cookies.get(OPERATOR_COOKIE)?.value,
@@ -108,7 +213,7 @@ export async function middleware(request: NextRequest) {
     if (!operator) {
       return NextResponse.redirect(new URL('/operator/login', request.url));
     }
-    return NextResponse.next();
+    return pass(request);
   }
 
   const host = request.headers.get('host');
@@ -130,9 +235,9 @@ export async function middleware(request: NextRequest) {
     if (slug) {
       const headers = new Headers(request.headers);
       headers.set('x-school-slug', slug);
-      return NextResponse.next({ request: { headers } });
+      return pass(request, headers);
     }
-    return NextResponse.next();
+    return pass(request);
   }
 
   /*
@@ -171,7 +276,7 @@ export async function middleware(request: NextRequest) {
   }
 
   const guard = guardForPath(pathname);
-  if (!guard) return NextResponse.next();
+  if (!guard) return pass(request);
 
   if (!session) {
     const loginUrl = new URL('/login', request.url);
@@ -186,7 +291,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(new URL('/forbidden', request.url));
   }
 
-  return NextResponse.next();
+  return pass(request);
 }
 
 export const config = {

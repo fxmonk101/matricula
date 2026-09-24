@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from 'next';
+import { headers } from 'next/headers';
 import { Inter } from 'next/font/google';
 import './globals.css';
 import { THEME_BOOT_SCRIPT } from '@/components/theme-toggle';
@@ -41,7 +42,19 @@ export const viewport: Viewport = {
   initialScale: 1,
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  /*
+   * The nonce the middleware minted for THIS request.
+   *
+   * Next stamps its own inline scripts automatically once it sees the nonce
+   * in the CSP header, but this layout writes a script of its own and Next
+   * knows nothing about it — so it has to be stamped by hand. Missing it does
+   * not throw: the page renders and the theme silently stops applying before
+   * paint, which is a flash of the wrong colour nobody traces back to a
+   * header.
+   */
+  const nonce = (await headers()).get('x-nonce') ?? undefined;
+
   return (
     <html lang="en" className={inter.variable} suppressHydrationWarning>
       <head>
@@ -57,7 +70,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
          * mutates the element's class list before React reconciles it, and
          * React would otherwise report the mismatch it caused itself.
          */}
-        <script dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: THEME_BOOT_SCRIPT }} />
 
         {/*
          * Scroll-reveal is a progressive enhancement, and this is what makes
