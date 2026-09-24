@@ -442,6 +442,15 @@ export const ROUTE_GUARDS: RouteGuard[] = [
   // through the family portal.
   { prefix: '/library', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'FINANCE', 'ADMISSIONS', 'INSTRUCTOR', 'LIBRARIAN', 'STAFF', 'STUDENT'] },
   { prefix: '/library/manage', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'DEAN', 'LIBRARIAN'] },
+  // Everybody who signs in can read a notice; writing one is gated by
+  // `announcement:write` inside the page, not by the route.
+  {
+    prefix: '/announcements',
+    roles: [
+      'OWNER', 'ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'FINANCE', 'ADMISSIONS',
+      'INSTRUCTOR', 'LIBRARIAN', 'STAFF', 'STUDENT', 'GUARDIAN',
+    ],
+  },
   { prefix: '/forums', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'FINANCE', 'ADMISSIONS', 'INSTRUCTOR', 'LIBRARIAN', 'STAFF', 'STUDENT'] },
   { prefix: '/people', roles: ['OWNER', 'ADMIN', 'REGISTRAR'] },
   { prefix: '/structure', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'DEAN', 'HOD'] },

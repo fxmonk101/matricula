@@ -118,6 +118,7 @@ export const NAV_SECTIONS: NavSection[] = [
     heading: 'Community',
     items: [
       { href: '/library', label: 'Library', roles: ['ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'FINANCE', 'ADMISSIONS', 'INSTRUCTOR', 'LIBRARIAN', 'STAFF', 'STUDENT'], icon: 'library' },
+      { href: '/announcements', label: 'Announcements', roles: ['ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'FINANCE', 'ADMISSIONS', 'INSTRUCTOR', 'LIBRARIAN', 'STAFF', 'STUDENT', 'GUARDIAN'], icon: 'chat' },
       { href: '/forums', label: 'Forums', roles: ['ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'FINANCE', 'ADMISSIONS', 'INSTRUCTOR', 'LIBRARIAN', 'STAFF', 'STUDENT'], icon: 'chat' },
     ],
   },
