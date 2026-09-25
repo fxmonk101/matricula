@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 
 import { requireTenantRole } from '@/server/tenant-context';
 import { getStudentAccount } from '@/server/services/finance.service';
+import { carryoverReport, retakeOptions } from '@/server/services/carryover.service';
 import { REGISTRATION_POLICY, checkPrerequisites, detectTimetableConflicts } from '@/lib/domain/enrollment';
 import { DAY_NAMES } from '@/lib/domain/enums';
 import { formatDate, formatMinutes, titleCase } from '@/lib/utils';
@@ -155,6 +156,19 @@ export default async function RegistrationPage() {
     return { offering: o, issues, isFull, alreadyIn, blocked: blockers.length > 0 };
   });
 
+  /*
+   * What this student still owes.
+   *
+   * On the REGISTRATION page rather than only on their record, because this
+   * is the screen where knowing it changes what they do. A carryover list a
+   * student has to go looking for is one they find after the window closes.
+   */
+  const owed = session.pid
+    ? await carryoverReport({ schoolId, studentId: session.pid })
+    : null;
+  const retakes = session.pid ? await retakeOptions({ schoolId, studentId: session.pid }) : [];
+  const carried = owed?.courses.filter((c) => c.reason === 'FAILED') ?? [];
+
   const loadPct = (registeredCredits / REGISTRATION_POLICY.maxCreditsPerTerm) * 100;
 
   return (
@@ -163,6 +177,50 @@ export default async function RegistrationPage() {
         title="Course registration"
         description={`${term.name} · window ${formatDate(term.registrationOpensAt)} – ${formatDate(term.registrationClosesAt)} · add/drop ends ${formatDate(term.addDropDeadline)}`}
       />
+
+      {carried.length > 0 && (
+        <Alert
+          tone={owed!.summary.heavy ? 'danger' : 'warning'}
+          title={`You have ${carried.length} ${carried.length === 1 ? 'carryover' : 'carryovers'} to retake`}
+          className="mb-4"
+        >
+          <ul className="mt-1 space-y-1">
+            {carried.map((course) => {
+              const running = retakes.find((r) => r.courseId === course.courseId);
+              const sections = running?.offerings ?? [];
+              return (
+                <li key={course.courseId} className="text-xs">
+                  <strong>{course.courseCode}</strong> {course.courseTitle} —{' '}
+                  {course.creditHours} credits, last graded {course.lastGrade ?? '—'}
+                  {course.attempts > 1 ? ` after ${course.attempts} attempts` : ''}.{' '}
+                  {/*
+                    Where to get it, not only that it is owed. Saying what is
+                    outstanding without saying where to register it sends the
+                    student to the department to ask, which is what this
+                    feature exists to stop.
+                  */}
+                  {sections.length > 0 ? (
+                    <span className="font-medium text-emerald-800">
+                      Running this term — register it below.
+                    </span>
+                  ) : (
+                    <span className="opacity-75">Not offered this term.</span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+
+          {owed!.spillover?.atRisk && (
+            <p className="mt-2 text-xs">
+              At this rate you would need {owed!.spillover.termsNeeded}{' '}
+              more {owed!.spillover.termsNeeded === 1 ? 'semester' : 'semesters'} to finish, and
+              your programme has {owed!.spillover.termsRemaining} left. Speak to your head of
+              department about an extra session.
+            </p>
+          )}
+        </Alert>
+      )}
 
       {blockers.length > 0 ? (
         <Alert tone="danger" title="You cannot register at the moment" className="mb-4">

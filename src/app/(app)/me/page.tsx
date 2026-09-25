@@ -2,6 +2,8 @@ import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 
 import { requireTenantRole } from '@/server/tenant-context';
+import { describe as describeLoad } from '@/lib/domain/carryover';
+import { carryoverReport } from '@/server/services/carryover.service';
 import { buildTranscript } from '@/server/services/gpa.service';
 import { getStudentAccount } from '@/server/services/finance.service';
 import { auditGraduation, classifyDegree, STANDING_THRESHOLDS } from '@/lib/domain/grading';
@@ -40,7 +42,7 @@ export default async function MyRecordPage() {
 
   if (!student) redirect('/forbidden');
 
-  const [transcript, account, passed, currentRegistrations] = await Promise.all([
+  const [transcript, account, passed, currentRegistrations, owed] = await Promise.all([
     buildTranscript(schoolId, student.id),
     getStudentAccount(schoolId, student.id),
     db.enrollment.findMany({
@@ -51,6 +53,7 @@ export default async function MyRecordPage() {
       where: { studentId: student.id, status: { in: ['REGISTERED', 'WAITLISTED'] } },
       include: { offering: { include: { course: true, term: true } } },
     }),
+    carryoverReport({ schoolId, studentId: student.id }),
   ]);
 
   const graduation = auditGraduation({
@@ -130,6 +133,45 @@ export default async function MyRecordPage() {
           tone={account.summary.hasOverdue ? 'danger' : account.summary.outstandingMinor > 0 ? 'warning' : 'success'}
         />
       </div>
+
+      {/*
+        What is still owed, above the progress bar rather than below it.
+        "You have two carryovers" is the thing a student opens this page to
+        find out, and a credits-earned bar does not tell them.
+      */}
+      {owed && owed.summary.outstandingCount > 0 && (
+        <Card className="mt-4">
+          <CardHeader
+            title="Still outstanding"
+            description={describeLoad(owed.summary)}
+          />
+          <CardBody>
+            <ul className="space-y-1.5">
+              {owed.courses.slice(0, 12).map((course) => (
+                <li key={course.courseId} className="flex flex-wrap items-center gap-2 text-xs">
+                  <Badge tone={course.reason === 'FAILED' ? 'danger' : 'neutral'}>
+                    {course.reason === 'FAILED' ? 'Carryover' : 'To take'}
+                  </Badge>
+                  <span className="font-medium text-slate-900">{course.courseCode}</span>
+                  <span className="min-w-0 flex-1 truncate text-slate-600">
+                    {course.courseTitle}
+                  </span>
+                  <span className="tabular-nums text-slate-500">
+                    {course.creditHours} cr
+                    {course.lastGrade ? ` · last ${course.lastGrade}` : ''}
+                  </span>
+                </li>
+              ))}
+            </ul>
+
+            {owed.courses.length > 12 && (
+              <p className="mt-2 text-[11px] text-slate-500">
+                and {owed.courses.length - 12} more.
+              </p>
+            )}
+          </CardBody>
+        </Card>
+      )}
 
       <div className="mt-4 grid gap-4 lg:grid-cols-3">
         <div className="space-y-4">
