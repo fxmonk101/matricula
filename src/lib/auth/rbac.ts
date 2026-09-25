@@ -412,6 +412,13 @@ export const ROUTE_GUARDS: RouteGuard[] = [
    * universities, not about permissions.
    */
   { prefix: '/teaching', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'DEAN', 'HOD', 'INSTRUCTOR'] },
+  /*
+   * The approval queue. INSTRUCTOR is absent: a lecturer submits results and
+   * has no stage of their own to act on, and a page that showed them other
+   * departments' marks with every button disabled would be a leak dressed as
+   * a courtesy.
+   */
+  { prefix: '/results', roles: ['OWNER', 'ADMIN', 'REGISTRAR', 'DEAN', 'HOD'] },
   { prefix: '/me', roles: ['STUDENT'] },
   // Course content a student is enrolled on. Under /me rather than /courses
   // because that guard admits ADMISSIONS, who have no business reading

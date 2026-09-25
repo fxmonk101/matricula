@@ -1,14 +1,18 @@
 import { z } from 'zod';
 
 import { DEFAULT_ATTENDANCE_POLICY, type AttendancePolicyInput } from './attendance';
+import {
+  DEFAULT_RESULT_WORKFLOW,
+  type ResultWorkflowPolicy,
+} from './result-workflow';
 
 /*
  * The attendance policy is DEFINED in ./attendance, next to the functions that
  * act on it, and only wired into the bundle here. Duplicating the shape would
  * mean a school could save a threshold the eligibility maths never reads.
  */
-export type { AttendancePolicyInput };
-export { DEFAULT_ATTENDANCE_POLICY };
+export type { AttendancePolicyInput, ResultWorkflowPolicy };
+export { DEFAULT_ATTENDANCE_POLICY, DEFAULT_RESULT_WORKFLOW };
 
 /**
  * =============================================================================
@@ -220,6 +224,7 @@ export interface SchoolConfigBundle {
   registrationPortal: RegistrationPortalConfig;
   k12: K12Config;
   attendance: AttendancePolicyInput;
+  resultWorkflow: ResultWorkflowPolicy;
 }
 
 // -----------------------------------------------------------------------------
@@ -407,6 +412,12 @@ const gradeBandZ = z.object({
   letter: z.string().min(1).max(4),
   point: z.number().min(0).max(100),
   description: z.string().max(60),
+});
+
+export const ResultWorkflowPolicyZ = z.object({
+  requireHod: z.boolean(),
+  requireFaculty: z.boolean(),
+  requireSenate: z.boolean(),
 });
 
 export const AttendancePolicyZ = z
@@ -603,6 +614,7 @@ function parseColumn<T>(raw: string | null | undefined, schema: z.ZodType<T>, fa
 
 export interface RawSchoolConfig {
   attendanceJson?: string | null;
+  resultWorkflowJson?: string | null;
   k12Json?: string | null;
   gradingJson?: string | null;
   enrollmentJson?: string | null;
@@ -638,6 +650,12 @@ export function parseSchoolConfig(
       DEFAULT_ATTENDANCE_POLICY,
       'attendance',
     ),
+    resultWorkflow: parseColumn(
+      raw?.resultWorkflowJson,
+      ResultWorkflowPolicyZ,
+      DEFAULT_RESULT_WORKFLOW,
+      'resultWorkflow',
+    ),
   };
 }
 
@@ -658,5 +676,6 @@ export function defaultConfigBundle(defaults: {
     registrationPortal: DEFAULT_REGISTRATION_PORTAL_CONFIG,
     k12: DEFAULT_K12_CONFIG,
     attendance: DEFAULT_ATTENDANCE_POLICY,
+    resultWorkflow: DEFAULT_RESULT_WORKFLOW,
   };
 }

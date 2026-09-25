@@ -20,15 +20,26 @@ import { recordAudit } from './audit.service';
 export { recomputeStudentAcademics, buildTranscript };
 
 /**
- * Grade a single enrollment. Score -> total -> letter -> point, then the
- * student's aggregates are recomputed.
+ * Record a mark against one enrolment. Score -> total -> letter -> point.
  *
- * The full CGPA is recomputed rather than incrementally adjusted. An
- * incremental update is O(1) instead of O(n), but it makes the stored CGPA a
- * running total that can drift permanently from the underlying records — and
- * once it drifts there is no way to tell which of the two is wrong. A student
- * has on the order of 40 graded enrollments; a full recompute is a few
- * milliseconds and is always correct by construction.
+ * THIS NO LONGER MAKES THE MARK PART OF THE ACADEMIC RECORD, and that is the
+ * most consequential line in this file.
+ *
+ * It used to set `status: COMPLETED` and recompute the CGPA in the same
+ * request — so a lecturer typing a score published a degree classification,
+ * and a typo in week six was on a transcript before anybody had looked at it.
+ * The enrolment now stays REGISTERED and carries the numbers; it becomes
+ * COMPLETED only in `releaseResults`, at the end of the approval chain.
+ *
+ * WHY HERE RATHER THAN IN THE TRANSCRIPT. Gating the transcript on the
+ * approval stage would have left the CGPA, the academic standing and the
+ * graduation audit all quietly counting unapproved marks, because every one
+ * of those reads the ENROLMENT and not the sheet. There is one status, and it
+ * is what "released" means.
+ *
+ * The aggregates are still recomputed, for the case that matters: a mark
+ * CORRECTED after release, where the enrolment is already COMPLETED and the
+ * CGPA must follow the correction.
  */
 export async function submitGrade(params: {
   schoolId: string;
@@ -51,8 +62,12 @@ export async function submitGrade(params: {
       totalScore: total,
       letterGrade: band.letter,
       gradePoint: band.point,
-      status: 'COMPLETED',
       gradedAt: new Date(),
+      /*
+       * `status` is deliberately ABSENT. Setting it here is what used to make
+       * a typed mark a published result. `releaseResults` sets it, once the
+       * approval chain is done.
+       */
     },
     include: { offering: { include: { course: true } } },
   });
@@ -69,6 +84,6 @@ export async function submitGrade(params: {
     metadata: { caScore: params.caScore, examScore: params.examScore, total, letter: band.letter },
   });
 
-  return { ok: true, message: `Grade recorded: ${band.letter} (${total.toFixed(1)}).` };
+  return { ok: true, message: `Mark recorded: ${band.letter} (${total.toFixed(1)}).` };
 }
 

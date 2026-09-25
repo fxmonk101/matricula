@@ -16,6 +16,7 @@ import {
   setModulePublished,
 } from '@/server/services/lms.service';
 import { submitGrade } from '@/server/services/gpa.service';
+import { ensureSheet, releaseResults } from '@/server/services/result-workflow.service';
 
 /**
  * =============================================================================
@@ -389,15 +390,50 @@ describe('when an exam mark already exists', () => {
     expect(after.gradePoint).not.toBeNull();
   });
 
-  it('LEAVES THE TERM GPA CORRECT, not merely the enrolment row', async () => {
+  it('keeps a mark OFF the record until it is released', async () => {
+    /*
+     * The inversion the approval chain introduced. A typed mark used to set
+     * the enrolment COMPLETED and recompute the CGPA in the same request, so a
+     * typo in week six was a published degree classification.
+     */
+    const bola = students.get('bola')!;
+
+    const entered = await raw.enrollment.findUniqueOrThrow({ where: { id: bola.enrollmentId } });
+    expect(entered.gradePoint).not.toBeNull();
+    expect(entered.status).toBe('REGISTERED');
+
+    // And nothing has reached the aggregates.
+    expect(await raw.termGpa.count({ where: { studentId: bola.studentId } })).toBe(0);
+  });
+
+  it('LEAVES THE TERM GPA CORRECT once released, not merely the enrolment row', async () => {
     /*
      * The assertion this whole file exists for. A caScore that updates its own
      * row and leaves TermGpa stale produces a transcript that disagrees with
      * the grades it is made of, and nothing in the UI would show it.
+     *
+     * It now runs the FULL chain — mark, release, aggregate — because that is
+     * what a student actually ends up with.
      */
     const bola = students.get('bola')!;
 
+    // A sheet must exist: releaseResults refuses to release what was never
+    // submitted, which is the whole point of the chain.
+    await ensureSheet({ schoolId, offeringId });
+
+    const released = await releaseResults({
+      schoolId,
+      offeringId,
+      actor: {
+        role: 'REGISTRAR',
+        membershipId: markerMembershipId,
+        userId: ACTOR,
+      },
+    });
+    expect(released.ok).toBe(true);
+
     const enrolment = await raw.enrollment.findUniqueOrThrow({ where: { id: bola.enrollmentId } });
+    expect(enrolment.status).toBe('COMPLETED');
     const termGpa = await raw.termGpa.findFirstOrThrow({ where: { studentId: bola.studentId } });
     const student = await raw.student.findUniqueOrThrow({ where: { id: bola.studentId } });
 

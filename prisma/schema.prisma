@@ -110,6 +110,8 @@ model School {
   quizQuestions     QuizQuestion[]
   quizOptions       QuizOption[]
   quizAttempts      QuizAttempt[]
+  resultSheets      ResultSheet[]
+  resultSteps       ResultStep[]
 
   @@index([status])
   @@map("schools")
@@ -150,6 +152,15 @@ model SchoolConfig {
   /// that has just been provisioned has an empty register, and a 75% rule
   /// applied to an empty register bars the entire cohort on day one.
   attendanceJson String?
+
+  /// Which offices a set of marks passes through before it is released.
+  ///
+  /// Nullable, and the default it falls back to requires EVERY stage. The safe
+  /// direction for an approval chain is more approval rather than less: a school
+  /// that quietly skipped Senate because a column was empty would be publishing
+  /// unapproved results and would not find out until somebody asked for the
+  /// minutes.
+  resultWorkflowJson String?
 
   updatedAt DateTime @updatedAt
 
@@ -217,6 +228,7 @@ model Membership {
   submissionsGraded   Submission[]         @relation("SubmissionGrader")
   virtualClasses      VirtualClass[]       @relation("VirtualClassOrganiser")
   attendanceMarked    ClassAttendance[]    @relation("AttendanceMarker")
+  resultDecisions     ResultStep[]         @relation("ResultDecider")
 
   @@unique([userId, schoolId])
   @@index([schoolId, role])
@@ -619,6 +631,7 @@ model CourseOffering {
   enrollments  Enrollment[]
   teachingLogs TeachingLog[]
   space        CourseSpace?
+  resultSheet  ResultSheet?
 
   @@unique([courseId, termId, section])
   @@index([schoolId])
@@ -2559,6 +2572,77 @@ model ClassAttendance {
   @@index([schoolId, teachingLogId])
   @@index([enrollmentId])
   @@map("class_attendance")
+}
+
+/// The approval a set of marks has to pass through before it is a result.
+///
+/// Before this existed, a lecturer typing a score set the enrolment to
+/// COMPLETED, recomputed the CGPA and put the grade on the transcript in the
+/// same request — so a typo in week six was a published degree classification
+/// and no one ever decided results were ready.
+///
+/// One sheet per section. The chain is a property of the SECTION rather than of
+/// each student, because that is how it is actually reviewed: an HOD vets a
+/// spread of marks across a class, not forty individual enrolments.
+model ResultSheet {
+  id         String         @id @default(cuid())
+  schoolId   String
+  school     School         @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  offeringId String         @unique
+  offering   CourseOffering @relation(fields: [offeringId], references: [id], onDelete: Cascade)
+
+  /// ResultStage: DRAFT | HOD_REVIEW | FACULTY_REVIEW | SENATE_REVIEW | RELEASED
+  ///
+  /// Only RELEASED counts. The transcript, the CGPA and the student's own page
+  /// all ask that one question, and `isReleased` in the domain answers it once
+  /// so three screens cannot disagree.
+  stage String @default("DRAFT")
+
+  /// Why it was last sent back, shown to the lecturer who has to act on it.
+  /// Kept after resubmission: "what did the HOD object to" is a question asked
+  /// weeks later.
+  returnedReason String?
+
+  /// When the marks actually reached the students.
+  releasedAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  steps ResultStep[]
+
+  @@index([schoolId, stage])
+  @@map("result_sheets")
+}
+
+/// One decision on a sheet: who, when, and what they said.
+///
+/// Append-only. A sheet returned twice and approved on the third pass has all
+/// three rows, because "this result was queried by the HOD before it was
+/// approved" is exactly what somebody needs months later when a mark is
+/// disputed — and a status column alone cannot answer it.
+model ResultStep {
+  id       String      @id @default(cuid())
+  schoolId String
+  school   School      @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  sheetId  String
+  sheet    ResultSheet @relation(fields: [sheetId], references: [id], onDelete: Cascade)
+
+  /// The stage the sheet was AT when this decision was taken.
+  stage String
+
+  /// ResultDecision: SUBMITTED | APPROVED | RETURNED | RELEASED
+  decision String
+
+  /// Null only when the actor's membership has since been deleted.
+  byId String?
+  by   Membership? @relation("ResultDecider", fields: [byId], references: [id], onDelete: SetNull)
+
+  note String?
+  at   DateTime @default(now())
+
+  @@index([schoolId, sheetId])
+  @@map("result_steps")
 }
 
 /// A quiz: a piece of coursework that marks itself.

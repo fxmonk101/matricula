@@ -5,6 +5,7 @@ import { z } from 'zod';
 
 import { requireTenantRole } from '@/server/tenant-context';
 import { submitGrade } from '@/server/services/gpa.service';
+import { submitResults } from '@/server/services/result-workflow.service';
 import { ASSESSMENT_WEIGHTS } from '@/lib/domain/grading';
 import { recordAudit } from '@/server/services/audit.service';
 
@@ -109,60 +110,42 @@ export async function saveGradesheetAction(
 }
 
 /**
- * Post grades — the point at which results become visible to students and the
- * section is closed to further routine editing.
+ * Submit the marks for approval.
  *
- * Refuses to post an incomplete gradesheet. Publishing partial results is worse
- * than publishing none: a student with a blank cannot tell whether they failed,
- * were missed, or are still being marked.
+ * This used to be "post grades", and it used to be the whole story: it set a
+ * flag, closed the section, and the marks — already COMPLETED by the
+ * gradesheet save — were on students’ transcripts.
+ *
+ * It now starts the approval chain. The lecturer says the marking is done;
+ * the head of department, the faculty board and Senate each have to agree
+ * before anything reaches a student. A school that convenes none of those
+ * releases on submission, which is what it has configured.
  */
-export async function postGradesAction(
+export async function submitResultsAction(
   _prev: GradeFormState,
   formData: FormData,
 ): Promise<GradeFormState> {
-  const { db, schoolId, session } = await requireTenantRole('INSTRUCTOR', 'ADMIN', 'REGISTRAR');
+  const ctx = await requireTenantRole('INSTRUCTOR', 'HOD', 'DEAN', 'ADMIN', 'REGISTRAR');
   const offeringId = String(formData.get('offeringId') ?? '');
 
-  const offering = await db.courseOffering.findUnique({
-    where: { id: offeringId },
-    include: {
-      course: true,
-      enrollments: {
-        where: { status: { in: ['REGISTERED', 'COMPLETED'] } },
-        select: { id: true, gradePoint: true },
-      },
+  const result = await submitResults({
+    schoolId: ctx.schoolId,
+    offeringId,
+    policy: ctx.config.resultWorkflow,
+    actor: {
+      role: ctx.role,
+      membershipId: ctx.membershipId,
+      userId: ctx.session.sub,
+      instructorProfileId: ctx.session.pid,
     },
   });
-  if (!offering) return { ok: false, message: 'Section not found.' };
 
-  if (session.role === 'INSTRUCTOR' && offering.instructorId !== session.pid) {
-    return { ok: false, message: 'You are not the instructor of record for this section.' };
+  if (result.ok) {
+    revalidatePath(`/teaching/${offeringId}`);
+    revalidatePath('/teaching');
+    revalidatePath('/results');
+    revalidatePath('/me');
   }
 
-  const ungraded = offering.enrollments.filter((e) => e.gradePoint === null).length;
-  if (ungraded > 0) {
-    return {
-      ok: false,
-      message: `${ungraded} student${ungraded === 1 ? ' is' : 's are'} still ungraded. Complete the gradesheet before posting.`,
-    };
-  }
-
-  await db.courseOffering.update({
-    where: { id: offeringId },
-    data: { gradesPosted: true, status: 'CLOSED' },
-  });
-
-  void recordAudit({
-    schoolId,
-    actorId: session.sub,
-    action: 'grade.post',
-    entityType: 'CourseOffering',
-    entityId: offeringId,
-    summary: `Grades posted for ${offering.course.code}-${offering.section} (${offering.enrollments.length} students).`,
-  });
-
-  revalidatePath(`/teaching/${offeringId}`);
-  revalidatePath('/teaching');
-
-  return { ok: true, message: 'Grades posted. Students can now see their results.' };
+  return { ok: result.ok, message: result.message };
 }

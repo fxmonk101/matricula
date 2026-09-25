@@ -15,7 +15,7 @@ import {
   Th,
 } from '@/components/ui';
 import { ASSESSMENT_WEIGHTS, scoreToGrade } from '@/lib/domain/grading';
-import { saveGradesheetAction, postGradesAction, type GradeFormState } from './actions';
+import { saveGradesheetAction, submitResultsAction, type GradeFormState } from './actions';
 
 interface Row {
   enrollmentId: string;
@@ -52,11 +52,20 @@ function SaveButton({ locked }: { locked: boolean }) {
   );
 }
 
+/**
+ * Submit, not publish.
+ *
+ * The wording matters more than it looks. This button used to say "Post
+ * grades to students" and that is what it did — the marks went straight onto
+ * transcripts. It now hands them to the head of department, and a lecturer
+ * who thinks they have published when they have not will chase the wrong
+ * office when a student complains their result is missing.
+ */
 function PostButton({ disabled }: { disabled: boolean }) {
   const { pending } = useFormStatus();
   return (
     <Button type="submit" variant="success" disabled={pending || disabled}>
-      {pending ? 'Posting…' : 'Post grades to students'}
+      {pending ? 'Submitting…' : 'Submit for approval'}
     </Button>
   );
 }
@@ -74,7 +83,7 @@ export function Gradesheet({
     saveGradesheetAction,
     {},
   );
-  const [postState, postAction] = useActionState<GradeFormState, FormData>(postGradesAction, {});
+  const [postState, postAction] = useActionState<GradeFormState, FormData>(submitResultsAction, {});
 
   /*
    * Local draft state exists purely so the letter grade updates as the

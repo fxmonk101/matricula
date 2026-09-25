@@ -6,6 +6,8 @@ import { requireTenantRole } from '@/server/tenant-context';
 import { ASSESSMENT_WEIGHTS, GRADE_SCALE, computeGpa } from '@/lib/domain/grading';
 import { Alert, Card, CardHeader, EmptyState, PageHeader, StatTile } from '@/components/ui';
 import { attendanceForOffering } from '@/server/services/attendance.service';
+import { STAGE_LABELS, isEditable, waitingOn } from '@/lib/domain/result-workflow';
+import { sheetFor } from '@/server/services/result-workflow.service';
 import { Gradesheet } from './gradesheet';
 
 export const metadata: Metadata = { title: 'Gradesheet' };
@@ -67,6 +69,16 @@ export default async function GradesheetPage({
         { percentage: s.percentage!, threshold: config.attendance.examEligibilityThreshold },
       ]),
   );
+
+  /*
+   * Where these marks are in the approval chain.
+   *
+   * A lecturer who has submitted and hears nothing assumes it published. The
+   * stage, and who is being waited on, are the two facts that stop them
+   * chasing the wrong office when a student says a result is missing.
+   */
+  const sheet = await sheetFor({ schoolId, offeringId: offering.id });
+  const stage = sheet?.stage ?? 'DRAFT';
 
   const graded = offering.enrollments.filter((e) => e.gradePoint !== null);
 
@@ -194,6 +206,24 @@ export default async function GradesheetPage({
         </Card>
       ) : null}
 
+      {sheet && stage !== 'DRAFT' && (
+        <Alert
+          tone={stage === 'RELEASED' ? 'success' : 'info'}
+          title={STAGE_LABELS[stage]}
+          className="mt-4"
+        >
+          {stage === 'RELEASED'
+            ? 'These results are on students’ records and count towards their CGPA.'
+            : `Submitted and waiting on the ${waitingOn(stage)}. The marks cannot be changed while they are under review.`}
+        </Alert>
+      )}
+
+      {sheet?.returnedReason && (
+        <Alert tone="warning" title="These results were sent back" className="mt-4">
+          {sheet.returnedReason}
+        </Alert>
+      )}
+
       <div className="mt-4">
         {offering.enrollments.length === 0 ? (
           <Card>
@@ -205,7 +235,12 @@ export default async function GradesheetPage({
         ) : (
           <Gradesheet
             offeringId={offering.id}
-            locked={offering.gradesPosted && session.role === 'INSTRUCTOR'}
+            /*
+             * Locked once submitted, for everybody and not only the lecturer.
+             * A mark changing underneath a reviewer who has already approved
+             * it is the exact failure the chain exists to prevent.
+             */
+            locked={!isEditable(stage)}
             rows={offering.enrollments.map((e) => ({
               enrollmentId: e.id,
               matricNumber: e.student.matricNumber,

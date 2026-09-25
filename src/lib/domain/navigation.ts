@@ -81,6 +81,10 @@ export const NAV_SECTIONS: NavSection[] = [
       // reach the pages to administer them, but they teach nothing and an
       // empty list in their sidebar would read as a fault.
       { href: '/teaching', label: 'My Teaching', roles: ['INSTRUCTOR', 'HOD', 'DEAN', 'ADMIN'], icon: 'book' },
+      // Offered only to the offices that have a stage in the chain. A lecturer
+      // following this to a page they can do nothing on would reasonably
+      // conclude it is broken.
+      { href: '/results', label: 'Results Approval', roles: ['ADMIN', 'REGISTRAR', 'DEAN', 'HOD'], icon: 'check' },
       { href: '/me/registration', label: 'Registration', roles: ['STUDENT'], icon: 'check' },
       { href: '/admissions', label: 'Admissions', roles: ['ADMIN', 'ADMISSIONS', 'REGISTRAR'], icon: 'doc' },
     ],
