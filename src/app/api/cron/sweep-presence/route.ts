@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
+import { cronAuthorised } from '@/lib/cron';
 import { platformDb } from '@/lib/tenant';
 import { sweepForgottenSessions } from '@/server/services/presence.service';
 
@@ -30,38 +31,12 @@ export const dynamic = 'force-dynamic';
 // Prisma and bcrypt cannot run on the edge runtime.
 export const runtime = 'nodejs';
 
-/**
- * Compare without leaking the answer through timing.
- *
- * Length is compared first and separately — that much is observable whatever
- * we do, since a wrong-length string cannot be compared byte for byte — and
- * the rest accumulates differences rather than returning early.
- */
-function secretMatches(given: string, expected: string): boolean {
-  if (given.length !== expected.length) return false;
-  let difference = 0;
-  for (let i = 0; i < given.length; i += 1) {
-    difference |= given.charCodeAt(i) ^ expected.charCodeAt(i);
-  }
-  return difference === 0;
-}
-
-function authorised(request: NextRequest): boolean {
+export async function GET(request: NextRequest) {
   const expected = process.env.CRON_SECRET;
   if (!expected) {
     console.error('[cron] CRON_SECRET is not set. Refusing to run the sweep.');
-    return false;
   }
-
-  // Vercel Cron sends `Authorization: Bearer <CRON_SECRET>`. A query parameter
-  // is deliberately NOT accepted: it would end up in access logs.
-  const header = request.headers.get('authorization') ?? '';
-  const given = header.startsWith('Bearer ') ? header.slice(7) : '';
-  return given.length > 0 && secretMatches(given, expected);
-}
-
-export async function GET(request: NextRequest) {
-  if (!authorised(request)) {
+  if (!cronAuthorised(request.headers.get('authorization'), expected)) {
     // 404, not 401. An endpoint that says "wrong password" tells somebody
     // probing that there is a password worth finding.
     return new NextResponse('Not found', { status: 404 });

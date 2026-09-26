@@ -391,8 +391,13 @@ export async function dropEnrollment(params: {
 
 /**
  * Repair drift between the denormalised `seatsTaken` counter and the actual
- * registration count. Intended for a scheduled job; also useful after any bulk
- * data operation that bypasses the service layer.
+ * registration count. Runs nightly; also useful after any bulk data operation
+ * that bypasses the service layer.
+ *
+ * A seat is held by a COMPLETED enrolment as well as a REGISTERED one — the
+ * same definition dropping a course uses. Counting REGISTERED alone made this
+ * "repair" every class whose results had been released down to 0/50, and
+ * report it as drift every night.
  */
 export async function reconcileSeatCounts(schoolId: string): Promise<{ repaired: number }> {
   const db = dbFor(schoolId);
@@ -400,7 +405,7 @@ export async function reconcileSeatCounts(schoolId: string): Promise<{ repaired:
     select: {
       id: true,
       seatsTaken: true,
-      _count: { select: { enrollments: { where: { status: 'REGISTERED' } } } },
+      _count: { select: { enrollments: { where: { status: { in: SEAT_CONSUMING_STATUSES } } } } },
     },
   });
 

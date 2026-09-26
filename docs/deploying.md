@@ -292,36 +292,47 @@ as they do change. TLS, including for the wildcard, is issued automatically.
 If you moved DNS to Cloudflare, set those records to **DNS only** (grey cloud),
 not proxied. Proxying in front of Vercel causes redirect loops.
 
-### 3.6 The scheduled sweep
+### 3.6 The scheduled jobs
 
-`sweepForgottenSessions` closes presence sessions for staff who signed in and
-never signed out. It is written and tested but **nothing currently calls it**,
-so without this step those sessions stay open indefinitely and the attendance
-records are wrong.
+Two routes, both in `vercel.json` already, both across every active school in
+one pass, both authenticating against `CRON_SECRET` in constant time and
+answering 404 rather than 401, so probing them reveals nothing.
 
-`vercel.json` is already in the repository with the schedule below, and the
-route it calls is `src/app/api/cron/sweep-presence/route.ts`. It sweeps every
-school in one pass, and authenticates against `CRON_SECRET` in constant time —
-answering 404 rather than 401, so probing it reveals nothing.
+| Route | UTC | Lagos | Does |
+|---|---|---|---|
+| `/api/cron/sweep-presence` | 22:00 | 23:00 | Closes presence sessions for staff who signed in and never signed out |
+| `/api/cron/nightly` | 23:00 | 00:00 | Re-derives invoice paid totals, marks past-due invoices OVERDUE, reconciles seat counts, expires lapsed offers |
 
-For reference:
+Without them, open sessions grow for ever, an unpaid invoice past its due date
+still reads ISSUED on the debtors list, and a lapsed offer still reads OFFERED
+on the admissions list. (Nobody can *accept* a lapsed offer either way; that is
+checked against the clock at the moment of acceptance.)
+
+The nightly job never **places** a financial hold. That stays a deliberate act
+by a named officer.
 
 ```json
 {
   "crons": [
-    { "path": "/api/cron/sweep-presence", "schedule": "0 22 * * *" }
+    { "path": "/api/cron/sweep-presence", "schedule": "0 22 * * *" },
+    { "path": "/api/cron/nightly",        "schedule": "0 23 * * *" }
   ]
 }
 ```
 
-That runs at 22:00 UTC — 23:00 in Lagos, after the teaching day. Vercel sends
-`Authorization: Bearer <CRON_SECRET>`, which is what the route checks.
-
-On any other host, any scheduler that can send that header will do:
+Vercel's Hobby plan allows two cron jobs, run at most daily. This uses both.
+Vercel sends `Authorization: Bearer <CRON_SECRET>`, which is what the routes
+check. On any other host, any scheduler that can send that header will do:
 
 ```bash
 curl -H "Authorization: Bearer $CRON_SECRET" https://yourdomain.com/api/cron/sweep-presence
+curl -H "Authorization: Bearer $CRON_SECRET" https://yourdomain.com/api/cron/nightly
 ```
+
+**Read the nightly body's `drift` array.** It lists stored totals that had
+drifted from the rows they summarise. They have been repaired, but a non-empty
+`drift` means something upstream wrote around the service layer, and that is a
+bug to find, not routine work.
 
 ---
 
@@ -411,8 +422,9 @@ Check these in order. Each one has failed in testing at some point.
       `content-security-policy` header carrying a `nonce-` that CHANGES between
       requests. Two headers means the browser enforces their intersection and
       something will be silently blocked.
-- [ ] Call the cron route with a wrong secret (expect 404) and the right one
-      (expect 200, and a JSON body naming how many sessions it closed).
+- [ ] Call each cron route with a wrong secret (expect 404) and the right one
+      (expect 200 and a JSON body with `"ok": true`; on the nightly route,
+      `"drift": []`).
 
 The seventh is the one to do properly. It is the only check here that catches a
 tenancy or authorisation failure, and those are silent.

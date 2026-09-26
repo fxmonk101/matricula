@@ -278,7 +278,7 @@ Ordered by ratio of institutional value to implementation risk.
 3. **Transcript PDF generation** with institutional seal and verification code
 4. **Timetable auto-generation** — graph colouring over the section/room/instructor conflict graph
 5. **LMS**: assignments, submissions, continuous-assessment gradebook feeding `caScore`
-6. **Scheduled jobs**: `expireStaleOffers`, `markOverdueInvoices`, `reconcile*` on a cron
+6. ~~**Scheduled jobs**: `expireStaleOffers`, `markOverdueInvoices`, `reconcile*` on a cron~~ ✅ `/api/cron/nightly`
 7. **Email/SMS notifications** on decisions, holds, and registration windows
 8. **Instalment plans** — `allocateEvenly()` already implements the lossless split
 9. **Multi-factor authentication** for staff roles
