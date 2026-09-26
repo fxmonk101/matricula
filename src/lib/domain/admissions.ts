@@ -464,3 +464,54 @@ export function isOfferLive(
   if (!offerExpiresAt) return true;
   return now <= offerExpiresAt;
 }
+
+// -----------------------------------------------------------------------------
+// Telling the applicant
+// -----------------------------------------------------------------------------
+
+export interface DecisionNotice {
+  title: string;
+  body: string;
+}
+
+/**
+ * What an applicant is told when a cohort run decides their application.
+ *
+ * Only the three outcomes an applicant can act on or needs to know. UNDER_REVIEW
+ * is an internal holding state — telling somebody "your application is under
+ * review" every time a committee previews a run is noise that trains them to
+ * ignore the one message that matters.
+ *
+ * The offer names its deadline, because an offer the applicant does not know is
+ * lapsing is the most expensive message to lose: they miss the place, and the
+ * school leaves a seat empty that the waitlist could have filled.
+ *
+ * Dates arrive pre-formatted so this stays free of locale and clock.
+ */
+export function decisionNotice(
+  status: ApplicationStatus,
+  programName: string,
+  offerExpiresOn: string | null,
+): DecisionNotice | null {
+  switch (status) {
+    case 'OFFERED':
+      return {
+        title: `You have been offered a place on ${programName}`,
+        body: offerExpiresOn
+          ? `Accept or decline it in the applicant portal before ${offerExpiresOn}. An offer that is not accepted by then lapses and the place goes to somebody else.`
+          : 'Accept or decline it in the applicant portal.',
+      };
+    case 'WAITLISTED':
+      return {
+        title: `Your application to ${programName} is on the waiting list`,
+        body: 'No place is available yet. If one becomes free you will be offered it, and told here. There is nothing you need to do in the meantime.',
+      };
+    case 'REJECTED':
+      return {
+        title: `A decision on your application to ${programName}`,
+        body: 'We are sorry to tell you that we are unable to offer you a place this time. The decision is in the applicant portal.',
+      };
+    default:
+      return null;
+  }
+}

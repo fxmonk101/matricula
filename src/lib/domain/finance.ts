@@ -554,3 +554,54 @@ export function validateFeeItem(item: FeeItemDraft): string[] {
   if (item.amount > 100_000_000) problems.push('That amount is implausibly large.');
   return problems;
 }
+
+// -----------------------------------------------------------------------------
+// Telling the student
+// -----------------------------------------------------------------------------
+
+export interface InvoiceNoticeInput {
+  invoiceNo: string;
+  termName: string;
+  /** Everything pre-formatted, in the school's currency and date style. */
+  total: string;
+  balance: string;
+  dueOn: string;
+  /** Nothing left to pay. */
+  settled: boolean;
+  /** The previous total, when an existing invoice was reassessed. */
+  previousTotal?: string | null;
+}
+
+/**
+ * What a student is told when they are billed, or when their bill changes.
+ *
+ * A reassessment that leaves the total where it was is NOT news — a bursar
+ * re-running assessment for a whole level must not send every student a
+ * message saying nothing happened. The caller decides that by passing
+ * `previousTotal` only when the amount moved; this returns null otherwise so
+ * the rule lives in one tested place.
+ *
+ * The message carries the amount, the balance and the due date, because the
+ * question it answers is "how much, and by when", and a notification that
+ * makes the student sign in to find out has not answered it.
+ */
+export function invoiceNotice(
+  input: InvoiceNoticeInput,
+  kind: 'ISSUED' | 'REASSESSED',
+): { title: string; body: string } | null {
+  if (kind === 'REASSESSED') {
+    if (!input.previousTotal || input.previousTotal === input.total) return null;
+    return {
+      title: `Your ${input.termName} fees have changed`,
+      body:
+        `Invoice ${input.invoiceNo} was reassessed from ${input.previousTotal} to ${input.total}. ` +
+        (input.settled
+          ? 'It is fully paid.'
+          : `${input.balance} is outstanding, due by ${input.dueOn}.`),
+    };
+  }
+  return {
+    title: `Your ${input.termName} fees: ${input.total}`,
+    body: `Invoice ${input.invoiceNo} is due by ${input.dueOn}.`,
+  };
+}

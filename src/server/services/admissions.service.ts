@@ -7,6 +7,7 @@ import {
   buildMatricNumber,
   computeCompositeScore,
   computeOfferExpiry,
+  decisionNotice,
   isOfferLive,
   type AllocationPolicy,
   type RankableApplication,
@@ -15,6 +16,8 @@ import { assertApplicationTransition, type ApplicationStatus } from '@/lib/domai
 import { hashPassword } from '@/lib/auth/session';
 import { nextMatricSequence } from './sequence.service';
 import { recordAudit } from './audit.service';
+import { notify } from './notification.service';
+import { formatDate } from '@/lib/utils';
 import { loadSchoolConfig } from '@/server/school-config';
 
 /**
@@ -105,7 +108,7 @@ export async function runCohortAllocation(params: {
       termId: params.termId,
       status: { in: ['SUBMITTED', 'UNDER_REVIEW', 'WAITLISTED'] },
     },
-    include: { reviews: true },
+    include: { reviews: true, applicant: { select: { userId: true } } },
   });
 
   const pool: RankableApplication[] = [];
@@ -171,6 +174,10 @@ export async function runCohortAllocation(params: {
   if (params.dryRun) return summary;
 
   const now = new Date();
+  const offerExpiresAt = computeOfferExpiry(now, admissions.offerValidityDays);
+  // Who actually moved, and where to. A re-run that leaves somebody on the
+  // waiting list has told them nothing new, so they are not told again.
+  const moved = new Map<'OFFERED' | 'WAITLISTED' | 'REJECTED', string[]>();
 
   await db.$transaction(async (tx) => {
     for (const decision of decisions) {
@@ -197,14 +204,49 @@ export async function runCohortAllocation(params: {
           rankInCohort: decision.rank || null,
           decisionNote: decision.rationale,
           decidedAt: decision.status === 'UNDER_REVIEW' ? null : now,
-          offerExpiresAt:
-            decision.status === 'OFFERED'
-              ? computeOfferExpiry(now, admissions.offerValidityDays)
-              : null,
+          offerExpiresAt: decision.status === 'OFFERED' ? offerExpiresAt : null,
         },
       });
+
+      if (
+        decision.status !== current.status &&
+        (decision.status === 'OFFERED' ||
+          decision.status === 'WAITLISTED' ||
+          decision.status === 'REJECTED')
+      ) {
+        const list = moved.get(decision.status) ?? [];
+        list.push(current.applicant.userId);
+        moved.set(decision.status, list);
+      }
     }
   });
+
+  // After the commit, never inside it: an applicant told they have a place
+  // that a rollback then took away is the worst message this system can send.
+  if (moved.size > 0) {
+    const program = await db.program.findUnique({
+      where: { id: params.programId },
+      select: { name: true },
+    });
+    for (const [status, userIds] of moved) {
+      const message = decisionNotice(status, program?.name ?? 'your programme', formatDate(offerExpiresAt));
+      if (!message) continue;
+      const memberships = await db.membership.findMany({
+        where: { userId: { in: userIds }, role: 'APPLICANT', status: 'ACTIVE' },
+        select: { id: true },
+      });
+      void notify({
+        schoolId: params.schoolId,
+        membershipIds: memberships.map((m) => m.id),
+        kind: 'APPLICATION_DECIDED',
+        title: message.title,
+        body: message.body,
+        href: '/portal',
+        subjectType: 'Program',
+        subjectId: params.programId,
+      });
+    }
+  }
 
   void recordAudit({
     actorId: params.actorId,

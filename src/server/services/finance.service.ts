@@ -6,15 +6,18 @@ import {
   assessTermFees,
   buildAgeingReport,
   deriveInvoiceStatus,
+  invoiceNotice,
   recommendFinancialHold,
   resolveFeeStructure,
   summariseAccount,
   type DiscountSpec,
 } from '@/lib/domain/finance';
 import { makeMoney, type Minor } from '@/lib/domain/money';
+import { formatDate } from '@/lib/utils';
 import { loadSchoolConfig } from '@/server/school-config';
 import { nextInvoiceNumber, nextReceiptNumber } from './sequence.service';
 import { recordAudit } from './audit.service';
+import { notify } from './notification.service';
 
 /**
  * =============================================================================
@@ -53,7 +56,16 @@ export async function issueTermInvoice(params: {
   const { format: formatMoney } = makeMoney(
     (await loadSchoolConfig(params.schoolId)).finance.currency,
   );
-  return db.$transaction(async (tx) => {
+
+  /*
+   * What to tell the student, decided inside the transaction and SENT after
+   * it commits. Sending from inside would announce a bill that a later
+   * failure rolls back — and on SQLite the notification's own write would
+   * wait on this transaction's lock.
+   */
+  let notice: { userId: string; title: string; body: string; invoiceId: string } | null = null;
+
+  const result = await db.$transaction(async (tx) => {
     const student = await tx.student.findUnique({
       where: { id: params.studentId },
       include: { program: true, user: true },
@@ -142,6 +154,21 @@ export async function issueTermInvoice(params: {
         },
       });
 
+      const reassessed = invoiceNotice(
+        {
+          invoiceNo: existing.invoiceNo,
+          termName: term.name,
+          total: formatMoney(assessment.totalMinor),
+          balance: formatMoney(assessment.totalMinor - existing.paidMinor),
+          dueOn: formatDate(dueDate),
+          settled: assessment.totalMinor - existing.paidMinor === 0,
+          previousTotal:
+            existing.totalMinor === assessment.totalMinor ? null : formatMoney(existing.totalMinor),
+        },
+        'REASSESSED',
+      );
+      if (reassessed) notice = { userId: student.userId, invoiceId: existing.id, ...reassessed };
+
       void recordAudit({
         schoolId: params.schoolId,
         actorId: params.actorId,
@@ -176,6 +203,22 @@ export async function issueTermInvoice(params: {
       },
     });
 
+    const issued = invoiceNotice(
+      {
+        invoiceNo,
+        termName: term.name,
+        total: formatMoney(assessment.totalMinor),
+        balance: formatMoney(assessment.totalMinor),
+        dueOn: formatDate(dueDate),
+        settled: assessment.totalMinor === 0,
+      },
+      'ISSUED',
+    );
+    // A bill a full scholarship brought to zero is not a demand for money.
+    if (issued && assessment.totalMinor > 0) {
+      notice = { userId: student.userId, invoiceId: invoice.id, ...issued };
+    }
+
     void recordAudit({
       schoolId: params.schoolId,
       actorId: params.actorId,
@@ -190,6 +233,30 @@ export async function issueTermInvoice(params: {
       message: `Invoice ${invoiceNo} issued for ${formatMoney(assessment.totalMinor)}.`,
       invoiceId: invoice.id,
     };
+  });
+
+  if (result.ok && notice) await tellStudent(params.schoolId, notice);
+  return result;
+}
+
+async function tellStudent(
+  schoolId: string,
+  notice: { userId: string; title: string; body: string; invoiceId: string },
+): Promise<void> {
+  const membership = await dbFor(schoolId).membership.findFirst({
+    where: { userId: notice.userId, role: 'STUDENT', status: 'ACTIVE' },
+    select: { id: true },
+  });
+  if (!membership) return;
+  void notify({
+    schoolId,
+    membershipIds: [membership.id],
+    kind: 'INVOICE_ISSUED',
+    title: notice.title,
+    body: notice.body,
+    href: '/me/finance',
+    subjectType: 'Invoice',
+    subjectId: notice.invoiceId,
   });
 }
 
