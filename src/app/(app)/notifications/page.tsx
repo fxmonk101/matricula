@@ -20,6 +20,10 @@ const KIND: Record<string, { label: string; tone: BadgeTone }> = {
   APPLICATION_DECIDED: { label: 'Admissions', tone: 'info' },
   INVOICE_ISSUED: { label: 'Finance', tone: 'info' },
   ANNOUNCEMENT: { label: 'Announcement', tone: 'neutral' },
+  MEETING_SCHEDULED: { label: 'Live class', tone: 'brand' },
+  HOLD_PLACED: { label: 'Hold', tone: 'danger' },
+  HOLD_RELEASED: { label: 'Hold lifted', tone: 'success' },
+  REGISTRATION_OPEN: { label: 'Registration', tone: 'brand' },
 };
 
 export default async function NotificationsPage() {

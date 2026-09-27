@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { decisionNotice } from '@/lib/domain/admissions';
+import { holdPlacedNotice, holdReleasedNotice, registrationOpenNotice } from '@/lib/domain/enrollment';
 import { invoiceNotice } from '@/lib/domain/finance';
 
 /*
@@ -83,5 +84,58 @@ describe('telling a student what they owe', () => {
     )!;
     expect(n.body).toMatch(/fully paid/);
     expect(n.body).not.toMatch(/outstanding|due by/);
+  });
+});
+
+describe('telling a student about a hold', () => {
+  it('never names the kind in the subject line', () => {
+    for (const kind of ['FINANCIAL', 'ACADEMIC', 'DISCIPLINARY', 'DOCUMENTATION', 'HEALTH']) {
+      expect(holdPlacedNotice(kind, 'x').title).not.toMatch(/financ|academ|disciplin|document|health/i);
+      expect(holdReleasedNotice(kind, []).title).not.toMatch(/financ|academ|disciplin|document|health/i);
+    }
+  });
+
+  it('passes on a reason the student can act on', () => {
+    const n = holdPlacedNotice('DOCUMENTATION', 'WAEC certificate not yet verified');
+    expect(n.body).toContain('WAEC certificate not yet verified');
+    expect(n.body).toContain('the registry');
+    expect(n.body).toMatch(/cannot register/);
+  });
+
+  it('keeps a disciplinary or health reason out of the inbox', () => {
+    const d = holdPlacedNotice('DISCIPLINARY', 'Exam malpractice panel pending');
+    expect(d.body).not.toContain('malpractice');
+    expect(d.body).toContain('student affairs');
+    const h = holdPlacedNotice('HEALTH', 'Medical clearance outstanding');
+    expect(h.body).not.toContain('Medical clearance');
+  });
+
+  it('does not say "you can register" while another hold still blocks it', () => {
+    const clear = holdReleasedNotice('FINANCIAL', []);
+    expect(clear.body).toMatch(/settled/);
+    expect(clear.body).toMatch(/Nothing is now stopping you registering/);
+
+    const blocked = holdReleasedNotice('FINANCIAL', ['ACADEMIC']);
+    expect(blocked.body).toMatch(/still cannot register/);
+    expect(blocked.body).not.toMatch(/Nothing is now stopping/);
+    expect(blocked.body).toContain('your department or the registry');
+  });
+});
+
+describe('telling a student registration is opening', () => {
+  it('says when it opens, before it has', () => {
+    const n = registrationOpenNotice({
+      termName: 'Second Semester', alreadyOpen: false, opensAt: 'Mon 05 Oct, 09:00', closesAt: 'Fri 23 Oct, 17:00',
+    });
+    expect(n.title).toBe('Registration for Second Semester opens Mon 05 Oct, 09:00');
+    expect(n.body).toContain('Fri 23 Oct, 17:00');
+  });
+
+  it('says it is open, once it is', () => {
+    const n = registrationOpenNotice({
+      termName: 'Second Semester', alreadyOpen: true, opensAt: 'x', closesAt: 'Fri 23 Oct, 17:00',
+    });
+    expect(n.title).toBe('Registration for Second Semester is open');
+    expect(n.body).toContain('before Fri 23 Oct, 17:00');
   });
 });

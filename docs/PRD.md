@@ -279,7 +279,7 @@ Ordered by ratio of institutional value to implementation risk.
 4. **Timetable auto-generation** — graph colouring over the section/room/instructor conflict graph
 5. **LMS**: assignments, submissions, continuous-assessment gradebook feeding `caScore`
 6. ~~**Scheduled jobs**: `expireStaleOffers`, `markOverdueInvoices`, `reconcile*` on a cron~~ ✅ `/api/cron/nightly`
-7. **Email/SMS notifications** on decisions, holds, and registration windows — decisions and invoices ✅; holds and registration windows still owed
+7. **Email/SMS notifications** on decisions, holds, and registration windows ✅ decisions, invoices, holds placed and lifted, registration opening
 8. **Instalment plans** — `allocateEvenly()` already implements the lossless split
 9. **Multi-factor authentication** for staff roles
 10. **Analytics**: cohort retention, progression rates, collection forecasting

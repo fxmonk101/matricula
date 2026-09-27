@@ -5,6 +5,7 @@ import { platformDb } from '@/lib/tenant';
 import { expireStaleOffers } from '@/server/services/admissions.service';
 import { reconcileSeatCounts } from '@/server/services/enrollment.service';
 import { markOverdueInvoices, reconcileInvoices } from '@/server/services/finance.service';
+import { announceRegistrationOpening } from '@/server/services/term.service';
 
 /**
  * =============================================================================
@@ -62,6 +63,11 @@ const JOBS: CronJob[] = [
   {
     name: 'offersExpired',
     run: async (schoolId) => (await expireStaleOffers(schoolId)).expired,
+  },
+  {
+    // Counts students told, not terms: the number worth seeing in the log.
+    name: 'studentsToldRegistrationOpens',
+    run: (schoolId) => announceRegistrationOpening(schoolId),
   },
 ];
 

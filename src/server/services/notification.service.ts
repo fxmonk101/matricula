@@ -82,6 +82,30 @@ export async function notify(input: NotifyInput): Promise<void> {
   }
 }
 
+/**
+ * Notify students, given STUDENT ids — which is what finance, registration and
+ * holds all have in hand. Resolves each to the membership that carries the
+ * bell, through the user, and only an ACTIVE student membership: a withdrawn
+ * account is not told about next term's registration.
+ */
+export async function notifyStudents(
+  schoolId: string,
+  studentIds: readonly string[],
+  input: Omit<NotifyInput, 'schoolId' | 'membershipIds'>,
+): Promise<number> {
+  if (studentIds.length === 0) return 0;
+  const memberships = await dbFor(schoolId).membership.findMany({
+    where: {
+      role: 'STUDENT',
+      status: 'ACTIVE',
+      user: { students: { some: { id: { in: [...studentIds] } } } },
+    },
+    select: { id: true },
+  });
+  await notify({ ...input, schoolId, membershipIds: memberships.map((m) => m.id) });
+  return memberships.length;
+}
+
 /** How many messages are in flight at once. */
 const EMAIL_CONCURRENCY = 5;
 

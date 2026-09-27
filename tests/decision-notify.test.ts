@@ -3,7 +3,13 @@ import { PrismaClient } from '@prisma/client';
 
 import { __setMailer } from '@/server/email';
 import { runCohortAllocation } from '@/server/services/admissions.service';
-import { issueTermInvoice } from '@/server/services/finance.service';
+import {
+  announceHoldPlaced,
+  announceHoldReleased,
+  issueTermInvoice,
+  recordPayment,
+} from '@/server/services/finance.service';
+import { announceRegistrationOpening } from '@/server/services/term.service';
 
 /**
  * =============================================================================
@@ -31,6 +37,7 @@ let actorId = '';
 const userIds: string[] = [];
 const membershipOf = new Map<string, string>();
 let studentId = '';
+let futureTermId = '';
 
 async function person(name: string, role: string): Promise<string> {
   const user = await raw.user.create({
@@ -115,7 +122,15 @@ afterAll(async () => {
   __setMailer(null);
   const memberships = [...membershipOf.values()];
   await raw.notification.deleteMany({ where: { membershipId: { in: memberships } } });
+  if (futureTermId) {
+    await raw.notification.deleteMany({ where: { subjectType: 'Term', subjectId: futureTermId } });
+    await raw.term.delete({ where: { id: futureTermId } });
+  }
   if (studentId) {
+    await raw.hold.deleteMany({ where: { studentId } });
+    const payments = await raw.payment.findMany({ where: { studentId }, select: { id: true } });
+    await raw.paymentAllocation.deleteMany({ where: { paymentId: { in: payments.map((p) => p.id) } } });
+    await raw.payment.deleteMany({ where: { studentId } });
     const invoices = await raw.invoice.findMany({ where: { studentId }, select: { id: true } });
     await raw.invoiceLine.deleteMany({ where: { invoiceId: { in: invoices.map((i) => i.id) } } });
     await raw.invoice.deleteMany({ where: { studentId } });
@@ -249,3 +264,100 @@ describe('a fee invoice', () => {
   });
 });
 
+
+describe('a hold', () => {
+  it('tells the student it is there, and where to go', async () => {
+    for (const [kind, reason] of [['FINANCIAL', 'Fees unpaid'], ['ACADEMIC', 'Probation review']] as const) {
+      const hold = await raw.hold.create({ data: { schoolId, studentId, kind, reason, placedBy: actorId } });
+      await announceHoldPlaced(schoolId, hold);
+    }
+    await settle();
+    const bells = await bellFor('dele', 'HOLD_PLACED');
+    expect(bells).toHaveLength(2);
+    expect(bells[0].body).toContain('Fees unpaid');
+    expect(bells[1].body).not.toContain('Probation review');
+    expect(bells[0].href).toBe('/me/registration');
+  });
+
+  it('is lifted by paying, and the student is told the truth about what remains', async () => {
+    const invoice = await raw.invoice.findFirstOrThrow({ where: { studentId } });
+    const paid = await recordPayment({
+      schoolId, schoolCode, studentId, actorId,
+      amountMinor: invoice.totalMinor - invoice.paidMinor,
+      method: 'BANK_TRANSFER',
+    });
+    expect(paid.ok).toBe(true);
+    await settle();
+
+    const [bell] = await bellFor('dele', 'HOLD_RELEASED');
+    expect(bell.body).toMatch(/settled/);
+    // The academic hold still stands, so "you can register" would be a lie.
+    expect(bell.body).toMatch(/still cannot register/);
+  });
+
+  it('says the way is clear once the last one goes', async () => {
+    await raw.hold.updateMany({
+      where: { studentId, kind: 'ACADEMIC', releasedAt: null },
+      data: { releasedAt: new Date(), releasedBy: actorId },
+    });
+    await announceHoldReleased(schoolId, studentId, 'ACADEMIC');
+    await settle();
+    const bells = await bellFor('dele', 'HOLD_RELEASED');
+    expect(bells).toHaveLength(2);
+    expect(bells[1].body).toBe('Nothing is now stopping you registering.');
+  });
+});
+
+describe('registration opening', () => {
+  // Far in the future, so no seeded term falls inside the window under test.
+  const NOW = new Date('2099-03-01T12:00:00Z');
+
+  beforeAll(async () => {
+    const hour = 3_600_000;
+    futureTermId = (
+      await raw.term.create({
+        data: {
+          schoolId,
+          code: `T-${SUFFIX}`,
+          name: 'Test Semester 2099',
+          academicYear: '2098/2099',
+          season: 'SECOND',
+          startDate: new Date(NOW.getTime() + 20 * 24 * hour),
+          endDate: new Date(NOW.getTime() + 120 * 24 * hour),
+          registrationOpensAt: new Date(NOW.getTime() + 10 * hour),
+          registrationClosesAt: new Date(NOW.getTime() + 14 * 24 * hour),
+          addDropDeadline: new Date(NOW.getTime() + 30 * 24 * hour),
+          withdrawalDeadline: new Date(NOW.getTime() + 60 * 24 * hour),
+        },
+      })
+    ).id;
+  });
+
+  it("is announced the evening before, in the school's own time", async () => {
+    const told = await announceRegistrationOpening(schoolId, NOW);
+    expect(told).toBeGreaterThan(0);
+    await settle();
+    const [bell] = await bellFor('dele', 'REGISTRATION_OPEN');
+    // Opens 22:00 UTC, which is 23:00 in Lagos.
+    expect(bell.title).toMatch(/^Registration for Test Semester 2099 opens .*23:00$/);
+  });
+
+  it('is announced once, however many nights it runs', async () => {
+    expect(await announceRegistrationOpening(schoolId, new Date(NOW.getTime() + 24 * 3_600_000))).toBe(0);
+    await settle();
+    expect(await bellFor('dele', 'REGISTRATION_OPEN')).toHaveLength(1);
+  });
+
+  it('does not tell a student who has left', async () => {
+    const leaver = await person('efe', 'STUDENT');
+    const leaverStudent = await raw.student.create({
+      data: { schoolId, userId: leaver, matricNumber: `MAT-${SUFFIX}-efe`, programId, status: 'GRADUATED' },
+    });
+    await raw.notification.deleteMany({ where: { subjectType: 'Term', subjectId: futureTermId } });
+    await announceRegistrationOpening(schoolId, NOW);
+    await settle();
+    expect(await bellFor('efe', 'REGISTRATION_OPEN')).toHaveLength(0);
+    expect(await bellFor('dele', 'REGISTRATION_OPEN')).toHaveLength(1);
+    await raw.student.delete({ where: { id: leaverStudent.id } });
+  });
+});

@@ -1,6 +1,8 @@
 import { Prisma } from '@prisma/client';
 
-import { dbFor } from '@/lib/tenant';
+import { dbFor, platformDb } from '@/lib/tenant';
+import { registrationOpenNotice } from '@/lib/domain/enrollment';
+import { formatInZone } from '@/lib/domain/time';
 import {
   normaliseTermCode,
   overlappingTerms,
@@ -8,6 +10,7 @@ import {
   type TermDraft,
 } from '@/lib/domain/term';
 import { recordAudit } from './audit.service';
+import { notifyStudents } from './notification.service';
 
 /**
  * =============================================================================
@@ -280,4 +283,80 @@ export async function reconcileCurrentTerm(
   });
 
   return { repaired: true, kept: keep.code, cleared: rest.map((t) => t.code) };
+}
+
+/**
+ * Students whose registration is not in question. A deny-list, like the
+ * carryover report: a status added later is told rather than silently missed.
+ */
+const NOT_REGISTERING = ['WITHDRAWN', 'GRADUATED', 'DEFERRED', 'SUSPENDED'];
+
+/** Announce a window this many hours before it opens… */
+const ANNOUNCE_AHEAD_HOURS = 24;
+/** …and not at all once it has been open this long. */
+const TOO_LATE_DAYS = 7;
+
+/**
+ * Tell students that registration is opening. Runs nightly; announces each
+ * term ONCE.
+ *
+ * "Once" is read from the notifications themselves rather than a flag on the
+ * term: if the fan-out failed, there are no rows, and the next night tries
+ * again. A flag set before a failed send would have swallowed it for good.
+ *
+ * A window that opened more than a week ago is not announced. The first night
+ * after a deploy would otherwise tell every student about a term they
+ * registered for a month ago.
+ *
+ * K-12 schools are skipped: pupils do not register themselves.
+ */
+export async function announceRegistrationOpening(schoolId: string, now = new Date()): Promise<number> {
+  const school = await platformDb.school.findUnique({
+    where: { id: schoolId },
+    select: { academicModel: true, timezone: true },
+  });
+  if (!school || school.academicModel === 'K12') return 0;
+
+  const db = dbFor(schoolId);
+  const terms = await db.term.findMany({
+    where: {
+      registrationClosesAt: { gt: now },
+      registrationOpensAt: {
+        lte: new Date(now.getTime() + ANNOUNCE_AHEAD_HOURS * 3_600_000),
+        gte: new Date(now.getTime() - TOO_LATE_DAYS * 86_400_000),
+      },
+    },
+    select: { id: true, name: true, registrationOpensAt: true, registrationClosesAt: true },
+  });
+
+  let told = 0;
+  for (const term of terms) {
+    const already = await db.notification.findFirst({
+      where: { kind: 'REGISTRATION_OPEN', subjectType: 'Term', subjectId: term.id },
+      select: { id: true },
+    });
+    if (already) continue;
+
+    const students = await db.student.findMany({
+      where: { status: { notIn: NOT_REGISTERING } },
+      select: { id: true },
+    });
+
+    const when = { weekday: 'short', day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' } as const;
+    const message = registrationOpenNotice({
+      termName: term.name,
+      alreadyOpen: term.registrationOpensAt <= now,
+      opensAt: formatInZone(term.registrationOpensAt, school.timezone, when),
+      closesAt: formatInZone(term.registrationClosesAt, school.timezone, when),
+    });
+
+    told += await notifyStudents(schoolId, students.map((s) => s.id), {
+      kind: 'REGISTRATION_OPEN',
+      ...message,
+      href: '/me/registration',
+      subjectType: 'Term',
+      subjectId: term.id,
+    });
+  }
+  return told;
 }

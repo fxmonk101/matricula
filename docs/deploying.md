@@ -301,7 +301,7 @@ answering 404 rather than 401, so probing them reveals nothing.
 | Route | UTC | Lagos | Does |
 |---|---|---|---|
 | `/api/cron/sweep-presence` | 22:00 | 23:00 | Closes presence sessions for staff who signed in and never signed out |
-| `/api/cron/nightly` | 23:00 | 00:00 | Re-derives invoice paid totals, marks past-due invoices OVERDUE, reconciles seat counts, expires lapsed offers |
+| `/api/cron/nightly` | 23:00 | 00:00 | Re-derives invoice paid totals, marks past-due invoices OVERDUE, reconciles seat counts, expires lapsed offers, tells students registration is opening (once per term, the evening before) |
 
 Without them, open sessions grow for ever, an unpaid invoice past its due date
 still reads ISSUED on the debtors list, and a lapsed offer still reads OFFERED

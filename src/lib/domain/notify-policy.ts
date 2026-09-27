@@ -57,6 +57,17 @@ const POLICY: Record<NotificationKind, DeliveryChannel> = {
    * something that happens at 09:00 tomorrow.
    */
   MEETING_SCHEDULED: 'BELL_AND_EMAIL',
+
+  /*
+   * Registration has a window, and each of these changes whether a student can
+   * get through it. A hold found on the last day of registration is a missed
+   * term; a release not heard about is a student who does not know they can
+   * now register. Registration opening is once a term per student — rare
+   * enough to cost the channel nothing.
+   */
+  HOLD_PLACED: 'BELL_AND_EMAIL',
+  HOLD_RELEASED: 'BELL_AND_EMAIL',
+  REGISTRATION_OPEN: 'BELL_AND_EMAIL',
 };
 
 export function channelFor(kind: NotificationKind): DeliveryChannel {

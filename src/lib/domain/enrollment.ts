@@ -471,3 +471,82 @@ export function classifyDrop(
 
 /** Convenience re-export so callers need only one import for pass checks. */
 export { PASSING_GRADE_POINT };
+
+// -----------------------------------------------------------------------------
+// Telling the student what stands between them and registration
+// -----------------------------------------------------------------------------
+
+type HoldKindName = 'FINANCIAL' | 'ACADEMIC' | 'DISCIPLINARY' | 'DOCUMENTATION' | 'HEALTH';
+
+/** Where a student goes to get each kind of hold lifted. */
+const HOLD_OFFICE: Record<HoldKindName, string> = {
+  FINANCIAL: 'the bursary',
+  ACADEMIC: 'your department or the registry',
+  DISCIPLINARY: 'the student affairs office',
+  DOCUMENTATION: 'the registry',
+  HEALTH: 'the health centre',
+};
+
+/**
+ * The officer's stated reason is passed on only where it tells the student
+ * what to DO and is theirs to read in an email: money owed, a document
+ * missing. A disciplinary or health reason stays off the email — an inbox is
+ * read over shoulders and on shared phones, and "see the health centre" is
+ * enough to act on.
+ */
+const REASON_IS_SHAREABLE: ReadonlySet<string> = new Set(['FINANCIAL', 'DOCUMENTATION']);
+
+export function holdPlacedNotice(kind: string, reason: string): { title: string; body: string } {
+  const office = HOLD_OFFICE[kind as HoldKindName] ?? 'the registry';
+  const why = REASON_IS_SHAREABLE.has(kind) && reason.trim() ? ` The reason given: ${reason.trim()}.` : '';
+  return {
+    // The title is the email SUBJECT, shown on a lock screen, so it never names
+    // the kind. The body's office is enough to act on.
+    title: 'A hold has been placed on your account',
+    body: `You cannot register for courses until it is lifted.${why} Contact ${office} to resolve it.`,
+  };
+}
+
+/**
+ * A release that says "you can register now" while another hold still blocks
+ * registration is worse than silence: the student turns up, is refused, and
+ * stops believing the messages. So the caller says what else is still in
+ * force, and the message tells the truth about it.
+ */
+export function holdReleasedNotice(
+  kind: string,
+  stillBlocking: readonly string[],
+): { title: string; body: string } {
+  const title = 'A hold on your account has been lifted';
+  const which = kind === 'FINANCIAL' ? 'Your account is settled. ' : '';
+  if (stillBlocking.length === 0) {
+    return { title, body: `${which}Nothing is now stopping you registering.` };
+  }
+  const offices = [...new Set(stillBlocking.map((k) => HOLD_OFFICE[k as HoldKindName] ?? 'the registry'))];
+  return {
+    title,
+    body: `${which}You still cannot register: ${stillBlocking.length === 1 ? 'another hold remains' : 'other holds remain'} on your account. Contact ${offices.join(' and ')}.`,
+  };
+}
+
+/**
+ * Registration opening, told once. Times arrive pre-formatted in the school's
+ * own timezone, because "opens at 09:00" is a promise about a clock on the
+ * student's wall, not the server's.
+ */
+export function registrationOpenNotice(input: {
+  termName: string;
+  alreadyOpen: boolean;
+  opensAt: string;
+  closesAt: string;
+}): { title: string; body: string } {
+  return input.alreadyOpen
+    ? {
+        title: `Registration for ${input.termName} is open`,
+        body: `Register for your courses before ${input.closesAt}, when registration closes.`,
+      }
+    : {
+        title: `Registration for ${input.termName} opens ${input.opensAt}`,
+        body: `It closes ${input.closesAt}. Check for any hold on your account before then.`,
+      };
+}

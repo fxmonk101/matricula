@@ -4,7 +4,12 @@ import { revalidatePath } from 'next/cache';
 import { z } from 'zod';
 
 import { requireTenantRole } from '@/server/tenant-context';
-import { issueTermInvoice, recordPayment } from '@/server/services/finance.service';
+import {
+  announceHoldPlaced,
+  announceHoldReleased,
+  issueTermInvoice,
+  recordPayment,
+} from '@/server/services/finance.service';
 import { toMinor } from '@/lib/domain/money';
 import { recordAudit } from '@/server/services/audit.service';
 
@@ -153,6 +158,8 @@ export async function placeHoldAction(
     summary: `${parsed.data.kind} hold placed: ${parsed.data.reason}`,
   });
 
+  await announceHoldPlaced(schoolId, hold);
+
   revalidatePath('/finance');
   revalidatePath(`/students/${parsed.data.studentId}`);
 
@@ -184,6 +191,8 @@ export async function releaseHoldAction(
     entityId: holdId,
     summary: `${hold.kind} hold released.`,
   });
+
+  await announceHoldReleased(schoolId, hold.studentId, hold.kind);
 
   revalidatePath('/finance');
   revalidatePath(`/students/${hold.studentId}`);

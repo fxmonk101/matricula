@@ -428,6 +428,11 @@ export const NOTIFICATION_KINDS = [
   // A live class has been put on the timetable. The column is a String, so
   // adding a kind needs no migration — only this union.
   'MEETING_SCHEDULED',
+  // A hold stops a student registering; being told only at the registration
+  // page, on the day, is how a student misses a term.
+  'HOLD_PLACED',
+  'HOLD_RELEASED',
+  'REGISTRATION_OPEN',
 ] as const;
 export type NotificationKind = (typeof NOTIFICATION_KINDS)[number];
 

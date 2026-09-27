@@ -13,11 +13,12 @@ import {
   type DiscountSpec,
 } from '@/lib/domain/finance';
 import { makeMoney, type Minor } from '@/lib/domain/money';
+import { holdPlacedNotice, holdReleasedNotice } from '@/lib/domain/enrollment';
 import { formatDate } from '@/lib/utils';
 import { loadSchoolConfig } from '@/server/school-config';
 import { nextInvoiceNumber, nextReceiptNumber } from './sequence.service';
 import { recordAudit } from './audit.service';
-import { notify } from './notification.service';
+import { notifyStudents } from './notification.service';
 
 /**
  * =============================================================================
@@ -63,7 +64,7 @@ export async function issueTermInvoice(params: {
    * failure rolls back — and on SQLite the notification's own write would
    * wait on this transaction's lock.
    */
-  let notice: { userId: string; title: string; body: string; invoiceId: string } | null = null;
+  let notice: { studentId: string; title: string; body: string; invoiceId: string } | null = null;
 
   const result = await db.$transaction(async (tx) => {
     const student = await tx.student.findUnique({
@@ -167,7 +168,7 @@ export async function issueTermInvoice(params: {
         },
         'REASSESSED',
       );
-      if (reassessed) notice = { userId: student.userId, invoiceId: existing.id, ...reassessed };
+      if (reassessed) notice = { studentId: student.id, invoiceId: existing.id, ...reassessed };
 
       void recordAudit({
         schoolId: params.schoolId,
@@ -216,7 +217,7 @@ export async function issueTermInvoice(params: {
     );
     // A bill a full scholarship brought to zero is not a demand for money.
     if (issued && assessment.totalMinor > 0) {
-      notice = { userId: student.userId, invoiceId: invoice.id, ...issued };
+      notice = { studentId: student.id, invoiceId: invoice.id, ...issued };
     }
 
     void recordAudit({
@@ -241,16 +242,9 @@ export async function issueTermInvoice(params: {
 
 async function tellStudent(
   schoolId: string,
-  notice: { userId: string; title: string; body: string; invoiceId: string },
+  notice: { studentId: string; title: string; body: string; invoiceId: string },
 ): Promise<void> {
-  const membership = await dbFor(schoolId).membership.findFirst({
-    where: { userId: notice.userId, role: 'STUDENT', status: 'ACTIVE' },
-    select: { id: true },
-  });
-  if (!membership) return;
-  void notify({
-    schoolId,
-    membershipIds: [membership.id],
+  void notifyStudents(schoolId, [notice.studentId], {
     kind: 'INVOICE_ISSUED',
     title: notice.title,
     body: notice.body,
@@ -293,8 +287,11 @@ export async function recordPayment(params: {
   const config = await loadSchoolConfig(params.schoolId);
   const { format: formatMoney } = makeMoney(config.finance.currency);
 
+  // Set inside the transaction, announced after it commits.
+  let releasedFinancialHold = false;
+
   try {
-    return await db.$transaction(async (tx) => {
+    const outcome = await db.$transaction(async (tx) => {
       if (params.externalRef) {
         // externalRef is unique PER SCHOOL now, so this is a scoped findFirst
         // rather than a findUnique on a globally unique column.
@@ -381,10 +378,11 @@ export async function recordPayment(params: {
       const summary = summariseAccount(remaining, 0, now);
 
       if (summary.outstandingMinor === 0) {
-        await tx.hold.updateMany({
+        const released = await tx.hold.updateMany({
           where: { studentId: params.studentId, kind: 'FINANCIAL', releasedAt: null },
           data: { releasedAt: now, releasedBy: params.actorId },
         });
+        releasedFinancialHold = released.count > 0;
       }
 
       void recordAudit({
@@ -408,9 +406,68 @@ export async function recordPayment(params: {
         receiptNo,
       };
     });
+
+    /*
+     * The automatic release is the one a student most needs to hear about:
+     * nobody told them it was coming, and paying the bill was the thing they
+     * were told would let them register.
+     */
+    if (releasedFinancialHold) await announceHoldReleased(params.schoolId, params.studentId, 'FINANCIAL');
+    return outcome;
   } catch (error) {
     console.error('[finance] payment failed', error);
     return { ok: false, message: 'The payment could not be recorded. No money has been applied.' };
+  }
+}
+
+/**
+ * Tell a student a hold now stands between them and registration.
+ *
+ * Called by whoever placed it, after the write. Never throws: the hold is the
+ * point and is already in force.
+ */
+export async function announceHoldPlaced(
+  schoolId: string,
+  hold: { id: string; studentId: string; kind: string; reason: string },
+): Promise<void> {
+  try {
+    await notifyStudents(schoolId, [hold.studentId], {
+      kind: 'HOLD_PLACED',
+      ...holdPlacedNotice(hold.kind, hold.reason),
+      href: '/me/registration',
+      subjectType: 'Hold',
+      subjectId: hold.id,
+    });
+  } catch (error) {
+    console.error('[finance] hold notice failed', error);
+  }
+}
+
+/**
+ * Tell a student a hold has been lifted — and, truthfully, whether anything
+ * else still blocks them. Reads the remaining holds AFTER the release commits,
+ * so the release itself is never counted as still in force.
+ */
+export async function announceHoldReleased(
+  schoolId: string,
+  studentId: string,
+  kind: string,
+): Promise<void> {
+  try {
+    const remaining = await dbFor(schoolId).hold.findMany({
+      where: { studentId, releasedAt: null, blocksRegistration: true },
+      select: { kind: true },
+    });
+    const message = holdReleasedNotice(kind, remaining.map((h) => h.kind));
+    await notifyStudents(schoolId, [studentId], {
+      kind: 'HOLD_RELEASED',
+      ...message,
+      href: '/me/registration',
+      subjectType: 'Student',
+      subjectId: studentId,
+    });
+  } catch (error) {
+    console.error('[finance] hold release notice failed', error);
   }
 }
 

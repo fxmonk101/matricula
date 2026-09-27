@@ -50,6 +50,12 @@ describe('the policy', () => {
   it('emails a scheduled class, which is useless discovered afterwards', () => {
     expect(emails('MEETING_SCHEDULED')).toBe(true);
   });
+
+  it('emails whatever changes whether a student can register', () => {
+    expect(emails('HOLD_PLACED')).toBe(true);
+    expect(emails('HOLD_RELEASED')).toBe(true);
+    expect(emails('REGISTRATION_OPEN')).toBe(true);
+  });
 });
 
 describe('the message', () => {
