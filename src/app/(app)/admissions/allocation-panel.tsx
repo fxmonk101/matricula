@@ -80,7 +80,12 @@ export function AllocationPanel({
           </Field>
 
           <div className="grid grid-cols-2 gap-3">
-            <Field label="Seats" htmlFor="capacity" required>
+            <Field
+              label="Places in the intake"
+              htmlFor="capacity"
+              hint="The total. Offers already made count against it"
+              required
+            >
               <Input id="capacity" name="capacity" type="number" min={0} defaultValue={30} required />
             </Field>
             <Field label="Waitlist places" htmlFor="waitlistCapacity" required>

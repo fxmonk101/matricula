@@ -8,6 +8,8 @@ import {
   computeCompositeScore,
   computeOfferExpiry,
   decisionNotice,
+  outcomeOf,
+  placesHeld,
   isOfferLive,
   type AllocationPolicy,
   type RankableApplication,
@@ -80,6 +82,11 @@ export interface CohortRunSummary {
   waitlisted: number;
   rejected: number;
   pending: number;
+  /** Places in the intake already taken by earlier offers, acceptances and enrolments. */
+  placesHeld: number;
+  /** What was left for this run to fill. */
+  placesLeft: number;
+  /** Each application's status AFTER the run, not what the allocator wished. */
   decisions: { referenceNo: string; status: string; rank: number; rationale: string }[];
 }
 
@@ -146,8 +153,21 @@ export async function runCohortAllocation(params: {
     });
   }
 
+  // The committee enters the intake's size; places already held come off it.
+  const now = new Date();
+  const holding = await db.application.findMany({
+    where: {
+      programId: params.programId,
+      termId: params.termId,
+      status: { in: ['OFFERED', 'ACCEPTED', 'ENROLLED'] },
+    },
+    select: { status: true, offerExpiresAt: true },
+  });
+  const held = placesHeld(holding, now);
+  const placesLeft = Math.max(0, params.policy.capacity - held);
+
   const policy: AllocationPolicy = {
-    capacity: params.policy.capacity,
+    capacity: placesLeft,
     waitlistCapacity: params.policy.waitlistCapacity,
     // The school's own thresholds are the defaults; the committee may tighten
     // them for a particular run but never sees a hard-coded 40 again.
@@ -158,65 +178,60 @@ export async function runCohortAllocation(params: {
 
   const decisions = allocateCohort(pool, policy);
 
+  // What each application will ACTUALLY end as. The same list drives the
+  // preview, the summary and the writes below.
+  const resolved = decisions.map((decision) => {
+    const current = applications.find((a) => a.id === decision.applicationId)!;
+    const to = outcomeOf(current.status as ApplicationStatus, decision.status as ApplicationStatus);
+    return { decision, current, to, final: to ?? (current.status as ApplicationStatus) };
+  });
+
+  const count = (...statuses: string[]) => resolved.filter((r) => statuses.includes(r.final)).length;
   const summary: CohortRunSummary = {
-    offered: decisions.filter((d) => d.status === 'OFFERED').length,
-    waitlisted: decisions.filter((d) => d.status === 'WAITLISTED').length,
-    rejected: decisions.filter((d) => d.status === 'REJECTED').length,
-    pending: decisions.filter((d) => d.status === 'UNDER_REVIEW').length,
-    decisions: decisions.map((d) => ({
-      referenceNo: d.referenceNo,
-      status: d.status,
-      rank: d.rank,
-      rationale: d.rationale,
+    offered: count('OFFERED'),
+    waitlisted: count('WAITLISTED'),
+    rejected: count('REJECTED'),
+    pending: count('SUBMITTED', 'UNDER_REVIEW'),
+    placesHeld: held,
+    placesLeft,
+    decisions: resolved.map(({ decision, final }) => ({
+      referenceNo: decision.referenceNo,
+      status: final,
+      rank: decision.rank,
+      rationale:
+        final === decision.status
+          ? decision.rationale
+          : `${decision.rationale} Stays ${final.toLowerCase().replace('_', ' ')}.`,
     })),
   };
 
   if (params.dryRun) return summary;
 
-  const now = new Date();
   const offerExpiresAt = computeOfferExpiry(now, admissions.offerValidityDays);
   // Who actually moved, and where to. A re-run that leaves somebody on the
   // waiting list has told them nothing new, so they are not told again.
   const moved = new Map<'OFFERED' | 'WAITLISTED' | 'REJECTED', string[]>();
 
   await db.$transaction(async (tx) => {
-    for (const decision of decisions) {
-      const current = applications.find((a) => a.id === decision.applicationId)!;
-
-      // UNDER_REVIEW is an internal holding state, not a decision — never
-      // transition backwards into it from a state that already advanced.
-      if (decision.status === 'UNDER_REVIEW' && current.status !== 'SUBMITTED') continue;
-
-      try {
-        assertApplicationTransition(
-          current.status as ApplicationStatus,
-          decision.status as ApplicationStatus,
-        );
-      } catch {
-        continue; // Illegal transition: leave the application untouched.
-      }
+    for (const { decision, current, to } of resolved) {
+      if (!to) continue; // The run leaves this one where it is.
 
       await tx.application.update({
         where: { id: decision.applicationId },
         data: {
-          status: decision.status,
+          status: to,
           compositeScore: decision.composite,
           rankInCohort: decision.rank || null,
           decisionNote: decision.rationale,
-          decidedAt: decision.status === 'UNDER_REVIEW' ? null : now,
-          offerExpiresAt: decision.status === 'OFFERED' ? offerExpiresAt : null,
+          decidedAt: to === 'UNDER_REVIEW' ? null : now,
+          offerExpiresAt: to === 'OFFERED' ? offerExpiresAt : null,
         },
       });
 
-      if (
-        decision.status !== current.status &&
-        (decision.status === 'OFFERED' ||
-          decision.status === 'WAITLISTED' ||
-          decision.status === 'REJECTED')
-      ) {
-        const list = moved.get(decision.status) ?? [];
+      if (to === 'OFFERED' || to === 'WAITLISTED' || to === 'REJECTED') {
+        const list = moved.get(to) ?? [];
         list.push(current.applicant.userId);
-        moved.set(decision.status, list);
+        moved.set(to, list);
       }
     }
   });

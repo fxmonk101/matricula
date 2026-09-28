@@ -9,7 +9,7 @@
  * the stored inputs alone. Nothing here reads a clock or a database.
  */
 
-import type { ApplicationStatus, ReviewRecommendation } from './enums';
+import { APPLICATION_TRANSITIONS, type ApplicationStatus, type ReviewRecommendation } from './enums';
 import { DEFAULT_ADMISSIONS_CONFIG, type AdmissionsConfig } from './config';
 
 export type { AdmissionsConfig };
@@ -463,6 +463,58 @@ export function isOfferLive(
   if (status !== 'OFFERED') return false;
   if (!offerExpiresAt) return true;
   return now <= offerExpiresAt;
+}
+
+// -----------------------------------------------------------------------------
+// What a cohort run actually does
+// -----------------------------------------------------------------------------
+
+/**
+ * Places in an intake already spoken for, before a run fills any more.
+ *
+ * The committee enters the intake's TOTAL places. A run used to treat that
+ * number as the places left to fill, so re-running with the intake size —
+ * the natural thing to type — offered every place a second time.
+ *
+ * A place is held by a LIVE offer, an accepted one, or an enrolment. A lapsed
+ * offer holds nothing even if the nightly job has not yet marked it EXPIRED:
+ * nobody can accept it, and counting it would leave a real place unfilled.
+ */
+export function placesHeld(
+  applications: readonly { status: string; offerExpiresAt: Date | null }[],
+  now: Date,
+): number {
+  return applications.filter(
+    (a) =>
+      a.status === 'ACCEPTED' ||
+      a.status === 'ENROLLED' ||
+      isOfferLive(a.status as ApplicationStatus, a.offerExpiresAt, now),
+  ).length;
+}
+
+/**
+ * The status an application actually ends in when a run decides `decided`
+ * for it — or null when the run leaves it as it is.
+ *
+ * The allocator decides; the state machine has the final word. Computed once
+ * and used for BOTH the preview and the commit, so the numbers the committee
+ * approves are the numbers written. They used to count decisions, and a
+ * decision the state machine then refused was reported as made.
+ *
+ * One path is walked rather than refused: a SUBMITTED application that meets
+ * the committee's screening — possible when the committee requires no reviews
+ * — goes through UNDER_REVIEW to its outcome, both legal steps. Refusing it
+ * was worse than untidy: it had already taken a place in the ranking, so the
+ * place went to nobody.
+ */
+export function outcomeOf(current: ApplicationStatus, decided: ApplicationStatus): ApplicationStatus | null {
+  if (decided === current) return null;
+  // A holding state, not a decision: only a fresh application enters it, and
+  // nothing that has already advanced is moved back into it.
+  if (decided === 'UNDER_REVIEW') return current === 'SUBMITTED' ? 'UNDER_REVIEW' : null;
+  if (APPLICATION_TRANSITIONS[current]?.includes(decided)) return decided;
+  if (current === 'SUBMITTED' && APPLICATION_TRANSITIONS.UNDER_REVIEW.includes(decided)) return decided;
+  return null;
 }
 
 // -----------------------------------------------------------------------------

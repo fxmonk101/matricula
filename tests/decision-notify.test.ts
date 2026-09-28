@@ -181,26 +181,65 @@ describe('an admissions decision', () => {
     expect(chuka.body).toMatch(/unable to offer you a place/);
   });
 
-  it('does not tell anybody again when a re-run changes nothing for them', async () => {
-    // A run's capacity is the seats still to fill. With none, Bayo stays on
-    // the waiting list; Ada and Chuka have left the pool.
-    await runCohortAllocation({
-      schoolId, programId, termId, policy: { ...POLICY, capacity: 0 }, actorId, dryRun: false,
+  it('does not offer the same place twice when re-run with the intake size', async () => {
+    /*
+     * The committee types the intake's size — 1 — again. Ada's live offer
+     * holds that place, so there is nothing left to fill and Bayo stays on
+     * the waiting list. This run used to offer Bayo the place as well.
+     */
+    const summary = await runCohortAllocation({
+      schoolId, programId, termId, policy: POLICY, actorId, dryRun: false,
     });
+    expect(summary).toMatchObject({ placesHeld: 1, placesLeft: 0, offered: 0, waitlisted: 1 });
     await settle();
     expect(await bellFor('ada', 'APPLICATION_DECIDED')).toHaveLength(1);
     expect(await bellFor('bayo', 'APPLICATION_DECIDED')).toHaveLength(1);
     expect(await bellFor('chuka', 'APPLICATION_DECIDED')).toHaveLength(1);
   });
 
-  it('tells a waitlisted applicant when they are moved up to an offer', async () => {
-    await runCohortAllocation({
-      schoolId, programId, termId, policy: { ...POLICY, capacity: 1 }, actorId, dryRun: false,
+  it('tells a waitlisted applicant when the intake grows and they move up', async () => {
+    const summary = await runCohortAllocation({
+      schoolId, programId, termId, policy: { ...POLICY, capacity: 2 }, actorId, dryRun: false,
     });
+    expect(summary).toMatchObject({ placesHeld: 1, placesLeft: 1, offered: 1 });
     await settle();
     const bayo = await bellFor('bayo', 'APPLICATION_DECIDED');
     expect(bayo).toHaveLength(2);
     expect(bayo[1].title).toContain('offered a place');
+  });
+
+  it('frees the place of an offer that has lapsed, before the nightly job has noticed', async () => {
+    // Both offers lapse yesterday; neither has been swept to EXPIRED.
+    await raw.application.updateMany({
+      where: { programId, status: 'OFFERED' },
+      data: { offerExpiresAt: new Date(Date.now() - 86_400_000) },
+    });
+    const preview = await runCohortAllocation({
+      schoolId, programId, termId, policy: { ...POLICY, capacity: 2 }, actorId, dryRun: true,
+    });
+    expect(preview).toMatchObject({ placesHeld: 0, placesLeft: 2 });
+  });
+
+  it('offers a place to a new application when no review is required, instead of wasting it', async () => {
+    // A fresh SUBMITTED application may not jump straight to OFFERED; it now
+    // walks through UNDER_REVIEW. It used to take a ranking place and then be
+    // refused, so the place went to nobody while the summary claimed an offer.
+    const userId = await person('dayo', 'APPLICANT');
+    const applicant = await raw.applicant.create({ data: { schoolId, userId } });
+    await raw.application.create({
+      data: {
+        schoolId, referenceNo: `APP-${SUFFIX}-dayo`, applicantId: applicant.id, programId, termId,
+        status: 'SUBMITTED', submittedAt: new Date(),
+        priorGpaScore: 95, entranceExamScore: 95, essayScore: 95, interviewScore: 95, extracurricularScore: 95,
+      },
+    });
+
+    const summary = await runCohortAllocation({
+      schoolId, programId, termId, policy: { ...POLICY, capacity: 3 }, actorId, dryRun: false,
+    });
+    expect(summary.offered).toBe(1);
+    const dayo = await raw.application.findFirstOrThrow({ where: { referenceNo: `APP-${SUFFIX}-dayo` } });
+    expect(dayo.status).toBe('OFFERED');
   });
 });
 

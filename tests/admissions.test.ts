@@ -10,6 +10,8 @@ import {
   computeCompositeScore,
   computeOfferExpiry,
   isOfferLive,
+  outcomeOf,
+  placesHeld,
   type AllocationPolicy,
   type RankableApplication,
 } from '@/lib/domain/admissions';
@@ -326,5 +328,71 @@ describe('identifier construction', () => {
 
   it('builds a zero-padded application reference', () => {
     expect(buildApplicationReference(2025, 418)).toBe('APP-2025-000418');
+  });
+});
+
+describe('places already held in an intake', () => {
+  const now = new Date('2026-10-01T12:00:00Z');
+  const tomorrow = new Date('2026-10-02T12:00:00Z');
+  const yesterday = new Date('2026-09-30T12:00:00Z');
+
+  it('counts live offers, acceptances and enrolments', () => {
+    expect(
+      placesHeld(
+        [
+          { status: 'OFFERED', offerExpiresAt: tomorrow },
+          { status: 'OFFERED', offerExpiresAt: null },
+          { status: 'ACCEPTED', offerExpiresAt: yesterday },
+          { status: 'ENROLLED', offerExpiresAt: null },
+        ],
+        now,
+      ),
+    ).toBe(4);
+  });
+
+  it('does not count an offer that has lapsed, even before it is swept', () => {
+    expect(placesHeld([{ status: 'OFFERED', offerExpiresAt: yesterday }], now)).toBe(0);
+  });
+
+  it('does not count anything that holds no place', () => {
+    const none = ['DECLINED', 'EXPIRED', 'REJECTED', 'WITHDRAWN', 'WAITLISTED', 'UNDER_REVIEW'];
+    expect(placesHeld(none.map((status) => ({ status, offerExpiresAt: null })), now)).toBe(0);
+  });
+});
+
+describe('what a cohort run actually does to an application', () => {
+  it('applies a legal decision', () => {
+    expect(outcomeOf('UNDER_REVIEW', 'OFFERED')).toBe('OFFERED');
+    expect(outcomeOf('WAITLISTED', 'OFFERED')).toBe('OFFERED');
+    expect(outcomeOf('WAITLISTED', 'REJECTED')).toBe('REJECTED');
+  });
+
+  it('leaves an unchanged application alone', () => {
+    expect(outcomeOf('WAITLISTED', 'WAITLISTED')).toBeNull();
+    expect(outcomeOf('UNDER_REVIEW', 'UNDER_REVIEW')).toBeNull();
+  });
+
+  it('walks a fresh application through review rather than wasting its place', () => {
+    expect(outcomeOf('SUBMITTED', 'OFFERED')).toBe('OFFERED');
+    expect(outcomeOf('SUBMITTED', 'WAITLISTED')).toBe('WAITLISTED');
+    expect(outcomeOf('SUBMITTED', 'UNDER_REVIEW')).toBe('UNDER_REVIEW');
+  });
+
+  it('never moves an application back into review', () => {
+    expect(outcomeOf('WAITLISTED', 'UNDER_REVIEW')).toBeNull();
+  });
+
+  it('only ever produces a status the state machine allows', () => {
+    const statuses = Object.keys(APPLICATION_TRANSITIONS) as (keyof typeof APPLICATION_TRANSITIONS)[];
+    for (const from of statuses) {
+      for (const to of statuses) {
+        const result = outcomeOf(from, to);
+        if (result === null) continue;
+        const direct = APPLICATION_TRANSITIONS[from].includes(result);
+        const viaReview =
+          from === 'SUBMITTED' && APPLICATION_TRANSITIONS.UNDER_REVIEW.includes(result);
+        expect(direct || viaReview || (from === 'SUBMITTED' && result === 'UNDER_REVIEW')).toBe(true);
+      }
+    }
   });
 });

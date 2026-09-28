@@ -74,13 +74,21 @@ export async function runAllocationAction(
 
   if (!dryRun) revalidatePath('/admissions');
 
+  // Say how many places were already taken, so a committee that re-runs with
+  // the intake size can see why fewer offers go out the second time.
+  const held =
+    summary.placesHeld > 0
+      ? ` ${summary.placesHeld} of ${parsed.data.capacity} places were already held, leaving ${summary.placesLeft}.`
+      : '';
+  const pending = summary.pending > 0 ? ` ${summary.pending} still awaiting review.` : '';
+
   return {
     ok: true,
     dryRun,
     summary,
     message: dryRun
-      ? `Preview only — nothing has been changed. ${summary.offered} would be offered, ${summary.waitlisted} waitlisted, ${summary.rejected} rejected.`
-      : `Committed. ${summary.offered} offers extended, ${summary.waitlisted} waitlisted, ${summary.rejected} rejected.`,
+      ? `Preview only — nothing has been changed.${held} ${summary.offered} would be offered, ${summary.waitlisted} waitlisted, ${summary.rejected} rejected.${pending}`
+      : `Committed.${held} ${summary.offered} offers extended, ${summary.waitlisted} waitlisted, ${summary.rejected} rejected.${pending}`,
   };
 }
 
