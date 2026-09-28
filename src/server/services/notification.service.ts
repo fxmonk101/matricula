@@ -7,6 +7,7 @@
  */
 
 import { dbFor, platformDb } from '@/lib/tenant';
+import { keepAlive } from '@/server/keep-alive';
 import type { NotificationKind } from '@/lib/domain/enums';
 import { emails, renderNotificationEmail } from '@/lib/domain/notify-policy';
 import { mailIsDeliverable, mailer } from '@/server/email';
@@ -41,7 +42,13 @@ export interface NotifyInput {
  * required — a fee demand, say — the caller should write it inside its own
  * transaction rather than use this.
  */
-export async function notify(input: NotifyInput): Promise<void> {
+export function notify(input: NotifyInput): Promise<void> {
+  // Kept alive past the response: callers `void` this, and on a serverless
+  // host an un-kept promise can be frozen before the bell row is written.
+  return keepAlive(deliver(input));
+}
+
+async function deliver(input: NotifyInput): Promise<void> {
   const recipients = [...new Set(input.membershipIds)].filter(
     (id) => id && id !== input.exceptMembershipId,
   );
@@ -74,11 +81,12 @@ export async function notify(input: NotifyInput): Promise<void> {
    * bell row is already committed and is the durable record; the email is a
    * courtesy about it, exactly as the bell is a courtesy about the action.
    *
-   * `void` rather than `await`, and the helper swallows its own failures, so
-   * this can never become the reason a grade submission fails.
+   * Not awaited, but kept alive (see `keepAlive`): the email outlives the
+   * response rather than being cut off by it. The helper swallows its own
+   * failures, so this can never become the reason a grade submission fails.
    */
   if (emails(input.kind) && mailIsDeliverable()) {
-    void emailRecipients(input, recipients);
+    void keepAlive(emailRecipients(input, recipients));
   }
 }
 

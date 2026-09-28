@@ -10,6 +10,7 @@
  */
 
 import { platformDb } from '@/lib/tenant';
+import { keepAlive } from '@/server/keep-alive';
 
 export interface AuditInput {
   /**
@@ -45,7 +46,12 @@ export interface AuditInput {
  * requires guaranteed capture, this call moves INSIDE the caller's transaction
  * and this catch is removed.
  */
-export async function recordAudit(input: AuditInput): Promise<void> {
+export function recordAudit(input: AuditInput): Promise<void> {
+  // Callers `void` this; see keepAlive for why that alone loses rows on Vercel.
+  return keepAlive(writeAudit(input));
+}
+
+async function writeAudit(input: AuditInput): Promise<void> {
   try {
     await platformDb.auditLog.create({
       data: {

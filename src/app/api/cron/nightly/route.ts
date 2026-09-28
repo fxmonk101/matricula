@@ -32,6 +32,13 @@ import { announceRegistrationOpening } from '@/server/services/term.service';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+/*
+ * The registration announcement emails a whole school, and those emails are
+ * kept alive past the response (see keepAlive) — but only for as long as the
+ * function is allowed to run. 60 seconds is the ceiling every Vercel plan
+ * accepts without failing the build; on Pro, raise it.
+ */
+export const maxDuration = 60;
 
 /**
  * Order matters for the first two. Re-deriving what an invoice has been paid

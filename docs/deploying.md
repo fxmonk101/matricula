@@ -334,6 +334,17 @@ drifted from the rows they summarise. They have been repaired, but a non-empty
 `drift` means something upstream wrote around the service layer, and that is a
 bug to find, not routine work.
 
+**Emails outlive the response, but not the time limit.** Notifications and
+audit entries are written after the page has answered, and kept alive with
+Next.js `after()` so Vercel does not freeze the function mid-write. That lasts
+only as long as the function may run: the nightly route sets
+`maxDuration = 60`, the most every plan accepts. At five emails in flight, a
+school of a few thousand students can outrun it on the night registration is
+announced. The bell notifications are written first and are never lost; the
+emails beyond the limit are. On Pro, raise `maxDuration` in
+`src/app/api/cron/nightly/route.ts` to 300. A queue is the real answer, and
+nothing here needs one yet below that size.
+
 ---
 
 ## 4. Resend — email
