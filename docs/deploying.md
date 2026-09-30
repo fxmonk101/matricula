@@ -98,14 +98,46 @@ DATABASE_URL="<direct connection string>" npx prisma migrate dev --name init
 **Do this before your first real school, not after.** Once a live database
 exists this stops being a two-minute job.
 
-### 1.5 Seed
+### 1.5 Bootstrap — NOT seed
+
+**Do not run `prisma db seed` or `npm run db:seed` against this database.** The
+seed builds the demo schools, and its first act is to empty every table. It
+also creates the platform operator with the password `Password123!`, which is
+printed in the README: anybody who reads it could sign in to your console and
+suspend every school. The seed now refuses to run on a remote database, in
+production, or anywhere a real school or real operator exists. Don't test
+that.
+
+Run the bootstrap instead. It creates exactly two things: your operator
+account, with an email and password you choose, and the three subscription
+plans a school must be put on.
 
 ```bash
-DATABASE_URL="<direct connection string>" npx prisma db seed
+read -s OPERATOR_PASSWORD && export OPERATOR_PASSWORD   # typed, not echoed, not in history
+OPERATOR_EMAIL=you@yourcompany.com \
+DATABASE_URL="<direct connection string>" \
+npm run db:bootstrap
+unset OPERATOR_PASSWORD
 ```
 
-Then check the output for the platform operator's sign-in details and keep
-them somewhere safe.
+- The password must be at least 16 characters. This account holds the keys to
+  every school on the platform.
+- It runs once. On any database that already has a user or a school, it
+  refuses.
+- Keep the password in a password manager. There is no "forgot password" for
+  the operator.
+- The plans come with placeholder prices (Starter ₦45,000, Standard ₦120,000,
+  Institution ₦480,000 a year). Change them in the `plans` table before you
+  quote a school.
+
+Then sign in at `/operator/login` and create the first school. The console
+shows you the owner's temporary password once. Give it to them by a channel
+other than the email the sign-in link goes to, such as a phone call or in
+person. They must change it at first sign-in, then set up terms and grading,
+then import students from a spreadsheet.
+
+**Want a public demo site as well?** Use a SEPARATE database for it, never the
+live one, and seed it with `SEED_DEMO=yes npm run db:seed`.
 
 > **On the region.** Put the database in the same region as the application.
 > Prisma issues several queries per page render; functions in Frankfurt talking
@@ -412,6 +444,9 @@ Check these in order. Each one has failed in testing at some point.
 - [ ] `https://yourdomain.com` loads with styling and images.
 - [ ] `https://<school>.yourdomain.com/login` reaches that school's sign-in page
       (or `/s/<school>/login` in path mode).
+- [ ] Sign in at `/operator/login` as `operator@platform.local` with
+      `Password123!`. It must FAIL. If it works, the demo seed ran against
+      this database: stop, and do not load real data into it.
 - [ ] Sign in as the platform operator; the console loads.
 - [ ] Provision a new school from the console; the entrance URL it returns
       actually works.

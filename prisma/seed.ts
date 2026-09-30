@@ -39,6 +39,8 @@ import {
 } from '../src/lib/domain/config';
 import { scoreToGrade } from '../src/lib/domain/grading';
 import { seedK12School } from './seed-k12';
+import { createDefaultPlans, DEFAULT_PLANS } from './plans';
+import { demoSeedRefusal } from '../src/lib/domain/seed-guard';
 
 const db = new PrismaClient();
 
@@ -322,69 +324,10 @@ function defaultConfig(spec: SchoolSpec) {
 // seedSchool
 // -----------------------------------------------------------------------------
 
-/**
- * The plans a school can be sold.
- *
- * Prices in MINOR units, as everywhere else in the system. The ceilings are the
- * interesting part: `null` is unlimited and `0` sells nothing, and the two must
- * stay distinguishable — `checkSeat` treats them as opposites and a test pins
- * that they are not confused.
- */
+/** The plans a school can be sold — see prisma/plans.ts. */
 async function seedPlans() {
-  const specs = [
-    {
-      code: 'STARTER',
-      name: 'Starter',
-      description: 'A single primary or secondary school finding its feet.',
-      priceMinor: 45_000_00,
-      maxStudents: 300,
-      maxStaff: 30,
-      trialDays: 30,
-      position: 0,
-      features: { library: true, forums: true, timetable: true, admissions: false },
-    },
-    {
-      code: 'STANDARD',
-      name: 'Standard',
-      description: 'A full school with admissions, finance and reporting.',
-      priceMinor: 120_000_00,
-      maxStudents: 1_500,
-      maxStaff: 150,
-      trialDays: 30,
-      position: 1,
-      features: { library: true, forums: true, timetable: true, admissions: true },
-    },
-    {
-      code: 'INSTITUTION',
-      name: 'Institution',
-      description: 'A university or multi-campus group. No seat ceiling.',
-      priceMinor: 480_000_00,
-      maxStudents: null,
-      maxStaff: null,
-      trialDays: 14,
-      position: 2,
-      features: { library: true, forums: true, timetable: true, admissions: true },
-    },
-  ];
-
-  const created: Record<string, string> = {};
-  for (const spec of specs) {
-    const plan = await db.plan.create({
-      data: {
-        code: spec.code,
-        name: spec.name,
-        description: spec.description,
-        priceMinor: spec.priceMinor,
-        currencyCode: 'NGN',
-        billingPeriod: 'ANNUAL',
-        maxStudents: spec.maxStudents,
-        maxStaff: spec.maxStaff,
-        featuresJson: JSON.stringify(spec.features),
-        trialDays: spec.trialDays,
-        position: spec.position,
-      },
-    });
-    created[spec.code] = plan.id;
+  const created = await createDefaultPlans(db);
+  for (const spec of DEFAULT_PLANS) {
     console.log(`  · ${spec.name.padEnd(12)} ${spec.maxStudents ?? '∞'} students`);
   }
   return created;
@@ -994,6 +937,25 @@ async function seedAdmissions(s: SeededSchool, spec: SchoolSpec, passwordHash: s
 // -----------------------------------------------------------------------------
 
 async function main() {
+  /*
+   * Everything below starts by EMPTYING EVERY TABLE. Before that, make sure
+   * this is not somebody's real platform — see seed-guard.ts for the rules.
+   */
+  const refusal = demoSeedRefusal({
+    schoolSlugs: (await db.school.findMany({ select: { slug: true } })).map((s) => s.slug),
+    operatorEmails: (
+      await db.platformAdmin.findMany({ select: { user: { select: { email: true } } } })
+    ).map((o) => o.user.email),
+    databaseUrl: process.env.DATABASE_URL ?? '',
+    nodeEnv: process.env.NODE_ENV,
+    demoRequested: process.env.SEED_DEMO === 'yes',
+  });
+  if (refusal) {
+    console.error(`\n  Not seeding: ${refusal}\n`);
+    process.exitCode = 1;
+    return;
+  }
+
   console.log('Resetting…');
 
   // Children before parents — SQLite enforces the foreign keys.

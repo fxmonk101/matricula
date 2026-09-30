@@ -88,13 +88,21 @@ is what you want for a demo and **not** what you want on a production database:
 npm run db:seed          # demo data. NEVER against a live customer database.
 ```
 
-For a real deployment, skip the seed and create the first operator by hand:
+The seed also refuses to run on a remote database, in production, or anywhere
+a real school or real operator exists.
 
-```sql
--- After signing up through the app once, promote that account:
-insert into platform_admins (id, "userId", "createdAt")
-values (gen_random_uuid()::text, '<the user id>', now());
+For a real deployment, skip the seed and run the bootstrap. It creates your
+operator account, with an email and password you choose, and the subscription
+plans a school must be put on. It refuses to run on a database that isn't
+empty.
+
+```bash
+read -s OPERATOR_PASSWORD && export OPERATOR_PASSWORD
+OPERATOR_EMAIL=you@yourcompany.com npm run db:bootstrap
+unset OPERATOR_PASSWORD
 ```
+
+`docs/deploying.md` §1.5 has the details.
 
 ---
 

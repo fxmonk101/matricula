@@ -34,6 +34,11 @@ npm run dev                          # http://localhost:3000
 
 Then sign in at [http://localhost:3000/login](http://localhost:3000/login).
 
+> **The seed is for local demos only.** It empties the database first, and
+> refuses to run on a remote database or on one holding real schools. To set up
+> a real platform, run `npm run db:bootstrap` instead. See
+> [docs/deploying.md](docs/deploying.md) §1.5.
+
 ### Demo accounts — password `Password123!`
 
 The seed builds **two** schools, because a single tenant proves nothing about
