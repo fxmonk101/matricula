@@ -16,9 +16,15 @@
  * portably is nine.
  */
 
+const { existsSync, rmSync } = require('node:fs');
 const { spawnSync } = require('node:child_process');
 
 const DIST = '.next-check';
+
+if (existsSync(DIST)) {
+  console.warn(`[build-check] removing stale ${DIST} directory before running next build`);
+  rmSync(DIST, { recursive: true, force: true });
+}
 
 const result = spawnSync(
   process.platform === 'win32' ? 'npx.cmd' : 'npx',
