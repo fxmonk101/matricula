@@ -31,6 +31,8 @@
 
 import { SignJWT, jwtVerify, type JWTPayload } from 'jose';
 
+import { authSecret, hasValidAuthSecret } from './jwt';
+
 export const OPERATOR_COOKIE = 'ge_operator';
 
 const ISSUER = 'golden-eagles-university';
@@ -44,13 +46,12 @@ export interface OperatorClaims extends JWTPayload {
 }
 
 function secretKey(): Uint8Array {
-  const secret = process.env.AUTH_SECRET;
-  if (!secret || secret.length < 32) {
+  if (!hasValidAuthSecret()) {
     throw new Error(
       'AUTH_SECRET is missing or shorter than 32 characters. Refusing to sign sessions with a weak key.',
     );
   }
-  return new TextEncoder().encode(secret);
+  return authSecret();
 }
 
 /**

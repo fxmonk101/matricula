@@ -50,18 +50,22 @@ export async function changePasswordAction(
    * Every other claim is carried across unchanged. Re-deriving them would mean
    * re-running the whole sign-in lookup for a change that touches one field.
    */
-  await createSession({
-    sub: session.sub,
-    email: session.email,
-    name: session.name,
-    sch: session.sch,
-    mbr: session.mbr,
-    role: session.role,
-    slug: session.slug,
-    pid: session.pid,
-    pa: session.pa,
-    // Deliberately absent rather than `false`: the claim is gone, not falsified.
-  });
+  try {
+    await createSession({
+      sub: session.sub,
+      email: session.email,
+      name: session.name,
+      sch: session.sch,
+      mbr: session.mbr,
+      role: session.role,
+      slug: session.slug,
+      pid: session.pid,
+      pa: session.pa,
+      // Deliberately absent rather than `false`: the claim is gone, not falsified.
+    });
+  } catch {
+    return { ok: false, message: 'This sign-in is not configured correctly. Please contact support.' };
+  }
 
   redirect(ROLE_HOME[session.role]);
 }

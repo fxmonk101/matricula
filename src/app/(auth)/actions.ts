@@ -224,21 +224,25 @@ export async function signInAction(
   // successfully must not wipe the evidence of an attack from the same network.
   await clearAttempts('signin', email);
 
-  await createSession({
-    sub: user.id,
-    // Whichever identifier the account actually has. The claim is named
-    // `email` for continuity, but an account may legitimately have only a
-    // username — and the shell renders this, so it must never be empty.
-    email: user.email ?? user.username ?? user.id,
-    name: `${user.firstName} ${user.lastName}`,
-    sch: membership.schoolId,
-    mbr: membership.id,
-    role: membership.role,
-    slug: membership.school.slug,
-    pid: student?.id ?? instructor?.id ?? applicant?.id ?? undefined,
-    pa: user.platformAdmin ? true : undefined,
-    mcp: user.mustChangePassword ? true : undefined,
-  });
+  try {
+    await createSession({
+      sub: user.id,
+      // Whichever identifier the account actually has. The claim is named
+      // `email` for continuity, but an account may legitimately have only a
+      // username — and the shell renders this, so it must never be empty.
+      email: user.email ?? user.username ?? user.id,
+      name: `${user.firstName} ${user.lastName}`,
+      sch: membership.schoolId,
+      mbr: membership.id,
+      role: membership.role,
+      slug: membership.school.slug,
+      pid: student?.id ?? instructor?.id ?? applicant?.id ?? undefined,
+      pa: user.platformAdmin ? true : undefined,
+      mcp: user.mustChangePassword ? true : undefined,
+    });
+  } catch {
+    return { error: 'This sign-in is not configured correctly. Please contact support.' };
+  }
 
   await platformDb.user.update({
     where: { id: user.id },

@@ -41,14 +41,23 @@ export interface SessionClaims extends JWTPayload {
   mcp?: boolean;
 }
 
-function secretKey(): Uint8Array {
+export function hasValidAuthSecret(): boolean {
   const secret = process.env.AUTH_SECRET;
-  if (!secret || secret.length < 32) {
+  return typeof secret === 'string' && secret.length >= 32;
+}
+
+export function authSecret(): Uint8Array {
+  const secret = process.env.AUTH_SECRET;
+  if (!hasValidAuthSecret()) {
     throw new Error(
       'AUTH_SECRET is missing or shorter than 32 characters. Refusing to sign sessions with a weak key.',
     );
   }
   return new TextEncoder().encode(secret);
+}
+
+function secretKey(): Uint8Array {
+  return authSecret();
 }
 
 function ttlSeconds(): number {

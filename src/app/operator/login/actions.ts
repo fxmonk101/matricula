@@ -93,11 +93,15 @@ export async function operatorSignInAction(
 
   await clearAttempts('signin', `operator:${email}`);
 
-  await createOperatorSession({
-    sub: user.id,
-    email: user.email,
-    name: `${user.firstName} ${user.lastName}`,
-  });
+  try {
+    await createOperatorSession({
+      sub: user.id,
+      email: user.email,
+      name: `${user.firstName} ${user.lastName}`,
+    });
+  } catch {
+    return { error: 'The operator console is not configured correctly. Please contact support.' };
+  }
 
   await platformDb.user.update({
     where: { id: user.id },
