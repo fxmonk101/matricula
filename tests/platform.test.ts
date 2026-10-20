@@ -4,6 +4,7 @@ import { PrismaClient } from '@prisma/client';
 import {
   activateSchool,
   assertSeatAvailable,
+  clearDemoData,
   countSeats,
   loadEntitlement,
   provisionSchool,
@@ -14,6 +15,7 @@ import {
 } from '@/server/services/platform.service';
 import { verifyPassword } from '@/lib/auth/password';
 import { schoolAllowsSignIn } from '@/lib/domain/enums';
+import { DEMO_OPERATOR_EMAIL, DEMO_SCHOOL_SLUGS } from '@/lib/domain/seed-guard';
 
 /**
  * =============================================================================
@@ -88,6 +90,45 @@ async function provision(overrides: Partial<Parameters<typeof provisionSchool>[0
   if (result.schoolId) createdSchools.push(result.schoolId);
   return result;
 }
+
+describe('clearing demo data', () => {
+  it('removes the seeded demo schools and operator without touching real schools', async () => {
+    const realSchool = await provision({
+      name: `Keep Me ${STAMP}`,
+      owner: { email: `real-${STAMP}@platformtest.example`, firstName: 'Keep', lastName: 'Me' },
+    });
+    expect(realSchool.ok).toBe(true);
+
+    await raw.school.create({
+      data: {
+        slug: [...DEMO_SCHOOL_SLUGS][0],
+        code: 'DEMO1',
+        name: 'Demo School',
+        shortName: 'Demo',
+        academicModel: 'HIGHER_ED',
+        status: 'ACTIVE',
+        timezone: 'Africa/Lagos',
+        currencyCode: 'NGN',
+      },
+    });
+
+    const demoUser = await raw.user.create({
+      data: {
+        email: DEMO_OPERATOR_EMAIL,
+        passwordHash: 'hash',
+        firstName: 'Platform',
+        lastName: 'Operator',
+      },
+    });
+    await raw.platformAdmin.create({ data: { userId: demoUser.id } });
+
+    const result = await clearDemoData({ actorUserId: null });
+    expect(result.ok).toBe(true);
+    expect(await raw.school.findFirst({ where: { slug: [...DEMO_SCHOOL_SLUGS][0] } })).toBeNull();
+    expect(await raw.user.findUnique({ where: { email: DEMO_OPERATOR_EMAIL } })).toBeNull();
+    expect(await raw.school.findUnique({ where: { id: realSchool.schoolId! } })).not.toBeNull();
+  });
+});
 
 describe('provisioning a school', () => {
   it('creates the school, its config, its subscription and its owner together', async () => {

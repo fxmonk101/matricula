@@ -41,6 +41,7 @@ import {
   DEFAULT_REGISTRATION_PORTAL_CONFIG,
   GRADING_PRESETS,
 } from '@/lib/domain/config';
+import { DEMO_OPERATOR_EMAIL, DEMO_SCHOOL_SLUGS } from '@/lib/domain/seed-guard';
 import { recordAudit } from './audit.service';
 
 export interface ProvisionResult {
@@ -748,6 +749,71 @@ export async function recordSubscriptionPayment(params: {
     message: settled
       ? `${invoice.reference} is paid in full.`
       : `Part payment recorded against ${invoice.reference}.`,
+  };
+}
+
+/** Remove the seeded demo schools and operator account, leaving every real school alone. */
+export async function clearDemoData(params: {
+  actorUserId: string | null;
+}): Promise<{ ok: boolean; message: string; schoolsRemoved: number; usersRemoved: number }> {
+  const demoSlugs = Array.from(DEMO_SCHOOL_SLUGS);
+  const schoolRows = await platformDb.school.findMany({
+    where: { slug: { in: demoSlugs } },
+    select: { id: true },
+  });
+  const schoolIds = schoolRows.map((school) => school.id);
+
+  if (schoolIds.length === 0) {
+    const demoOperator = await platformDb.user.findUnique({
+      where: { email: DEMO_OPERATOR_EMAIL },
+      select: { id: true },
+    });
+    if (!demoOperator) {
+      return { ok: false, message: 'No demo schools or demo operator account to clear.', schoolsRemoved: 0, usersRemoved: 0 };
+    }
+  }
+
+  const result = await platformDb.$transaction(async (tx) => {
+    await tx.auditLog.deleteMany({
+      where: { schoolId: { in: schoolIds } },
+    });
+
+    const removedUsers = await tx.user.deleteMany({
+      where: {
+        OR: [
+          { email: DEMO_OPERATOR_EMAIL },
+          { memberships: { some: { school: { slug: { in: demoSlugs } } } } },
+        ],
+      },
+    });
+
+    if (schoolIds.length > 0) {
+      await tx.school.deleteMany({ where: { id: { in: schoolIds } } });
+    }
+
+    return {
+      schoolsRemoved: schoolIds.length,
+      usersRemoved: removedUsers.count,
+    };
+  });
+
+  void recordAudit({
+    schoolId: null,
+    actorId: params.actorUserId,
+    action: 'platform.demo.clear',
+    entityType: 'School',
+    entityId: 'demo-reset',
+    summary: `Cleared demo data (${result.schoolsRemoved} schools, ${result.usersRemoved} demo users removed).`,
+  });
+
+  return {
+    ok: true,
+    message:
+      result.schoolsRemoved > 0 || result.usersRemoved > 0
+        ? 'Demo school data has been removed. Real schools and operator accounts were left alone.'
+        : 'No demo data remained, so there was nothing to clear.',
+    schoolsRemoved: result.schoolsRemoved,
+    usersRemoved: result.usersRemoved,
   };
 }
 

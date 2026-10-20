@@ -10,6 +10,7 @@ import { currencyFor, formatMoney } from '@/lib/domain/money';
 import {
   Alert,
   Badge,
+  Button,
   Card,
   CardHeader,
   EmptyState,
@@ -21,6 +22,8 @@ import {
   Th,
   toneForStatus,
 } from '@/components/ui';
+import { DEMO_SCHOOL_SLUGS } from '@/lib/domain/seed-guard';
+import { clearDemoDataAction } from './actions';
 import { ProvisionForm } from './provision-form';
 
 export const metadata: Metadata = { title: 'Platform — schools' };
@@ -54,6 +57,7 @@ export default async function PlatformPage() {
   const provisioning = schools.filter((s) => s.status === 'PROVISIONING');
   const suspended = schools.filter((s) => s.status === 'SUSPENDED');
   const totalStudents = usage.reduce((sum, u) => sum + u.seats.students, 0);
+  const hasDemoData = schools.some((school) => DEMO_SCHOOL_SLUGS.has(school.slug));
 
   return (
     <>
@@ -83,6 +87,16 @@ export default async function PlatformPage() {
         />
         <StatTile label="Students on platform" value={totalStudents} sublabel="Active student seats" />
       </div>
+
+      {hasDemoData && (
+        <div className="mt-4 flex justify-end">
+          <form action={clearDemoDataAction}>
+            <Button type="submit" variant="secondary" className="border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100">
+              Clear demo data
+            </Button>
+          </form>
+        </div>
+      )}
 
       {plans.length === 0 && (
         <Alert tone="warning" className="mt-4">

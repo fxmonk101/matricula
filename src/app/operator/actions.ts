@@ -8,6 +8,7 @@ import { requireOperator } from '@/lib/auth/operator';
 import { schoolEntranceUrl } from '@/lib/domain/tenancy';
 import {
   activateSchool,
+  clearDemoData,
   reissueOwnerPassword,
   provisionSchool,
   raiseSubscriptionInvoice,
@@ -235,6 +236,17 @@ export async function recordPaymentAction(
 
   revalidatePath(`/operator/${String(formData.get('schoolId') ?? '')}`);
   return result;
+}
+
+export async function clearDemoDataAction(
+  _prev: PlatformFormState,
+  _formData: FormData,
+): Promise<PlatformFormState> {
+  const session = await requireOperator();
+  const result = await clearDemoData({ actorUserId: session.sub });
+
+  revalidatePath('/operator');
+  return { ok: result.ok, message: result.message };
 }
 
 export async function setPlatformAdminAction(
